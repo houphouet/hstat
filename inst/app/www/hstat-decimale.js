@@ -1,28 +1,6 @@
-/* ===========================================================================
-   HStat - separateur decimal des fichiers telecharges
-   ---------------------------------------------------------------------------
-   AVANT chaque telechargement, une fenetre demande : point (1.5) ou virgule
-   (1,5) ? Le choix vaut pour tous les fichiers produits -- tableaux CSV, textes
-   des classeurs Excel, et nombres ecrits dans les figures.
-
-   Deux chemins de telechargement, et ils ne se traitent pas pareil :
-
-   1. LES LIENS SHINY (`a.shiny-download-link`) : le fichier est ecrit par le
-      serveur, qui lit le choix dans la session. Le choix part par le websocket,
-      le fichier par une requete HTTP : rien ne garantit l'ordre d'arrivee. On
-      attend donc l'accuse du serveur (`hstat-decimale-ok`) avant de lancer le
-      telechargement, sans quoi il porterait le separateur d'AVANT.
-
-   2. LES BOUTONS DE DataTables (`.buttons-csv`, `.buttons-excel`) : le fichier
-      est ecrit dans le navigateur, sans repasser par le serveur. La conversion
-      se fait ici, cellule par cellule (`hstatDecimaleCellule`), selon la meme
-      regle que `hstat_decimale_texte()` cote R.
-
-   La fenetre est le SEUL endroit ou le choix se fait : ni bandeau, ni
-   selecteur dans les blocs d'export. Elle revient donc a chaque
-   telechargement, pre-cochee sur le dernier choix (localStorage) : un clic, ou
-   Entree, suffit a confirmer.
-   =========================================================================== */
+// HStat - separateur decimal des fichiers telecharges
+// AVANT chaque telechargement, une fenetre demande : point (1.5) ou virgule
+// (1,5) ?
 
 (function () {
   "use strict";
@@ -42,12 +20,8 @@
   var serveur = null;     // dernier choix accuse par le serveur
   var suite   = null;     // telechargement en attente de l'accuse
 
-  // ------------------------------------------------------------ conversion
-  // Un nombre ECRIT dans un texte. Meme regle que HSTAT_DECIMALE_MOTIF (R) :
-  // precede d'une lettre, d'un chiffre, d'un `_` ou d'un point, c'est un
-  // identifiant (« T1.2 ») ; suivi d'un second « .chiffre », une date ou une
-  // version (« 04.08.2026 »). Ecrit sans lookbehind : un navigateur qui ne le
-  // connait pas refuserait le fichier ENTIER a l'analyse.
+  // conversion
+  // Un nombre ECRIT dans un texte.
   var LETTRE;
   try { LETTRE = new RegExp("[\\p{L}\\p{N}_.]", "u"); }
   catch (e) { LETTRE = /[A-Za-z0-9_.À-ɏ]/; }
@@ -67,8 +41,7 @@
   // Le mode "excel" ne fait plus d'exception : un nombre laisse NU dans un
   // classeur s'affiche selon les reglages regionaux d'Excel, donc avec un point
   // sur un poste regle au point, quel que soit le choix fait ici -- c'est le
-  // defaut signale. Avec la virgule, il part ecrit avec elle, comme dans les
-  // classeurs du serveur (hstat_decimale_classeur, R/utils.R).
+  // defaut signale.
   window.hstatDecimaleCellule = function (d, mode) {
     if (choix !== "," || d === null || d === undefined) return d;
     if (typeof d === "number") return convertirTexte(String(d));
@@ -79,7 +52,7 @@
   window.hstatDecimaleTexte = convertirTexte;
   window.hstatDecimale = function () { return choix; };
 
-  // -------------------------------------------------------------- serveur
+  // serveur
   function envoyer() {
     if (window.Shiny && typeof window.Shiny.setInputValue === "function")
       window.Shiny.setInputValue("hstat_decimale", choix, { priority: "event" });
@@ -124,7 +97,7 @@
     }, ATTENTE_MS);
   }
 
-  // -------------------------------------------------------------- fenetre
+  // fenetre
   function fermer(fond) {
     if (fond && fond.parentNode) fond.parentNode.removeChild(fond);
     document.removeEventListener("keydown", fond.__echap, true);
@@ -206,17 +179,8 @@
     ok.focus();
   }
 
-  // ------------------------------------------------------- telechargement
-  // UN LIEN SHINY NE TELECHARGE PAS DIRECTEMENT. Le navigateur enregistre ce
-  // que le serveur renvoie, quoi que ce soit : une session expiree (veille,
-  // serveur redemarre) repond « 404 Not Found » en HTML, et l'utilisateur
-  // recevait `dl50-gDl.htm` -- le nom du lien, l'extension de la page
-  // d'erreur -- en croyant tenir son graphique. La fenetre Shiny de RStudio
-  // ignore par ailleurs le nom de fichier envoye par le serveur.
-  //
-  // Le fichier est donc demande ICI (fetch), et n'est enregistre que si le
-  // serveur l'a bien produit : reponse 200 ET nom de fichier annonce. Sinon on
-  // dit pourquoi, au lieu d'enregistrer une page d'erreur.
+  // telechargement
+  // UN LIEN SHINY NE TELECHARGE PAS DIRECTEMENT.
   function nomAnnonce(res) {
     var cd = res.headers.get("Content-Disposition") || "";
     var m = /filename\*\s*=\s*[^']*''([^;]+)/i.exec(cd);
@@ -224,8 +188,8 @@
     m = /filename\s*=\s*"((?:[^"\\]|\\.)*)"/i.exec(cd) || /filename\s*=\s*([^;]+)/i.exec(cd);
     if (m) return m[1].replace(/\\(.)/g, "$1").trim();
     // Un nom non ASCII passe par une redirection : il est alors le dernier
-    // segment de l'adresse (`.../download/<sortie>/<nom>`), et l'en-tete ne
-    // dit que « attachment ».
+    // segment de l'adresse (`.../download/<sortie>/<nom>`), et l'en-tete ne dit
+    // que « attachment ».
     if (/^attachment/i.test(cd)) {
       var seg = (res.url || "").split("?")[0].split("/");
       if (seg.length > 1 && seg[seg.length - 2] !== "download") {
@@ -285,7 +249,7 @@
   }
   window.hstatTelecharger = telecharger;
 
-  // ------------------------------------------------------------ interception
+  // interception
   function relancer(el) { el.__hstatDecOk = true; el.click(); }
 
   document.addEventListener("click", function (ev) {

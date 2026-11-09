@@ -1,6 +1,4 @@
-# ==============================================================================
-#  MODULE : DIVERSITE ECOLOGIQUE
-# ==============================================================================
+# MODULE : DIVERSITE ECOLOGIQUE
 # Richesse observee et estimee, indices de diversite et d'equitabilite,
 # abondances, diversite beta, profils et rarefaction.
 
@@ -18,8 +16,7 @@ HSTAT_DIV_GRAPHIQUES <- c(
 # UNE ECHELLE CONTINUE NE SE REMPLACE PAS PAR UNE PALETTE QUALITATIVE.
 HSTAT_DIV_GRAPHIQUES_CONTINUS <- c("beta")
 
-# Les indices proposes au graphique « Indices par releve ». Declares une fois :
-# le selecteur, le trace et l'etiquette de l'axe y lisent la meme liste.
+# Les indices proposes au graphique « Indices par releve ».
 HSTAT_DIV_INDICES_TRACABLES <- c(
   "Richesse observée (Sobs)"        = "Richesse_S",
   "Indice de Shannon (H')"          = "Shannon_H",
@@ -34,10 +31,7 @@ HSTAT_DIV_INDICES_TRACABLES <- c(
   "Équitabilité de Heip"            = "Heip_E",
   "Équitabilité de Simpson (E1/D)"  = "Simpson_E")
 
-
-# LE REGLAGE DES STADES EST LE MEME DANS LES DEUX FORMES : `ch_Cocc` peut tout
-# aussi bien etre une colonne (forme large) qu'une modalite de la colonne
-# d'especes (forme longue).
+# LE REGLAGE DES STADES EST LE MEME DANS LES DEUX FORMES.
 .hstat_div_stades_ui <- function(ns) {
   shiny::tagList(
     shiny::checkboxInput(ns("divStades"),
@@ -287,15 +281,12 @@ mod_diversity_ui <- function(id) {
   )
 }
 
-
 mod_diversity_server <- function(id, values,
                                  graine_globale = shiny::reactive(NULL)) {
   shiny::moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
-    # L'etat du module lui appartient : `values` porte l'etat de SESSION, et y
-    # ranger une matrice de travail la ferait survivre a un changement de
-    # fichier -- le defaut deja corrige sur les resultats multivaries.
+    # L'etat du module lui appartient.
     rv <- shiny::reactiveValues(mat = NULL, richesse = NULL, indices = NULL,
                                 message = NULL)
 
@@ -303,8 +294,7 @@ mod_diversity_server <- function(id, values,
       values$filteredData %||% values$cleanData %||% values$data
     })
 
-    # Vider au changement de fichier. `resetSignal` est monotone : c'est ce qui
-    # permet a `observeEvent` de reagir au DEUXIEME chargement comme au premier.
+    # Vider au changement de fichier.
     shiny::observeEvent(values$resetSignal, {
       rv$mat <- NULL; rv$richesse <- NULL; rv$indices <- NULL; rv$message <- NULL
     }, ignoreInit = TRUE)
@@ -319,9 +309,7 @@ mod_diversity_server <- function(id, values,
       num  <- cols[vapply(df, is.numeric, logical(1))]
       if (identical(input$divFormat %||% "long", "large")) {
         shiny::tagList(
-          # UN RELEVE EST SOUVENT DESIGNE PAR PLUSIEURS COLONNES : c'est le
-          # croisement (traitement x periode x semaine) qui fait l'unite
-          # d'echantillonnage.
+          # UN RELEVE EST SOUVENT DESIGNE PAR PLUSIEURS COLONNES.
           shiny::selectInput(ns("divSite"), "Colonnes identifiant le relevé (facultatif)",
             choices = cols, multiple = TRUE),
           shiny::tags$small(style = "color:#6b7280;",
@@ -357,8 +345,8 @@ mod_diversity_server <- function(id, values,
       }
       res <- tryCatch(
         # `input$divSite` est maintenant un VECTEUR : `nzchar()` y rendrait un
-        # vecteur de booleens, et `if()` sur plus d'une valeur leve depuis R 4.2.
-        # C'est la longueur qui decide.
+        # vecteur de booleens, et `if()` sur plus d'une valeur leve depuis R
+        # 4.2.
         hstat_div_matrice(df, format = input$divFormat %||% "long",
                           var_site = {
                             v <- as.character(input$divSite %||% character(0))
@@ -771,8 +759,7 @@ mod_diversity_server <- function(id, values,
       if (nzchar(ly))    p <- p + ggplot2::labs(y = ly)
 
       # La palette qualitative ne se pose pas sur une figure a echelle continue
-      # (cf. HSTAT_DIV_GRAPHIQUES_CONTINUS) : elle y remplacerait le degrade par
-      # une echelle discrete, et ggplot refuserait de tracer.
+      # (`HSTAT_DIV_GRAPHIQUES_CONTINUS`) : ggplot refuserait de tracer.
       if (!(quoi %in% HSTAT_DIV_GRAPHIQUES_CONTINUS)) {
         ech <- hstat_scales_palette(pal)
         if (!is.null(ech)) p <- p + ech
@@ -800,8 +787,7 @@ mod_diversity_server <- function(id, values,
           panel.grid.minor = if (isTRUE(input$divGrilleMin))
             ggplot2::element_line() else ggplot2::element_blank()) +
         # `titre = FALSE` : le titre est pose ici en `element_markdown()`, et
-        # ggplot refuse de lui fusionner un `element_text()` -- la figure
-        # entiere leverait.
+        # ggplot refuse de lui fusionner un `element_text()`.
         hstat_plot_extras_theme(extras, titre = FALSE)
       # LES BORNES ET LE PAS SONT DES ECHELLES, pas un theme : ils se posent
       # sur le graphique, jamais dans `theme()`.
@@ -825,8 +811,7 @@ mod_diversity_server <- function(id, values,
                                     check.names = FALSE, stringsAsFactors = FALSE,
                                     row.names = NULL))
       # Au-dela de la borne, les deux tableaux par paire sont OMIS de l'export,
-      # et l'onglet le dit deja : un classeur qui ferait tomber l'export entier
-      # pour deux feuilles priverait aussi l'utilisateur de toutes les autres.
+      # et l'onglet le dit deja.
       if (nrow(rv$mat) >= 2 && nrow(rv$mat) <= HSTAT_DIV_RELEVES_MAX) {
         bm <- beta_mat()
         l$Beta      <- data.frame(Releve = rownames(bm),

@@ -1,6 +1,4 @@
-# =============================================================================
-# mod_qualitative.R  --  Analyses de donnees qualitatives d'enquete
-# -----------------------------------------------------------------------------
+# mod_qualitative.R -- Analyses de donnees qualitatives d'enquete
 
 # Nom de fichier sûr (accents retirés, non-alphanumériques -> underscore)
 .safe_name <- function(x) {
@@ -143,9 +141,7 @@ hstat_q_apply_palette <- function(p, palette = "default",
   p
 }
 
-# ---------------------------------------------------------------------------
 # Detection automatique du type d'une variable d'enquete
-# ---------------------------------------------------------------------------
 # Renvoie : "nominale", "ordinale", "textuelle", "numérique" ou "binaire".
 hstat_q_detect_type <- function(x, ordinal_hint = NULL) {
   if (!is.null(ordinal_hint) && isTRUE(ordinal_hint)) return("ordinale")
@@ -164,10 +160,8 @@ hstat_q_detect_type <- function(x, ordinal_hint = NULL) {
   mean_words <- mean(n_words)
   prop_unique <- length(unique(xc)) / length(xc)
   if (mean_words >= 4 && prop_unique > 0.6) return("textuelle")
-  # Detection ordinale par mots-cles d'echelle
-  # Les libelles ET les motifs sont deplies : la liste melangeait « élevé »
-  # et « enormement », donc « énormément » n'etait jamais reconnu -- une
-  # echelle de Likert accentuee passait pour nominale.
+  # Detection ordinale par mots-cles d'echelle Les libelles ET les motifs sont
+  # deplies.
   lv <- hstat_sans_accents(tolower(unique(xc)))
   ord_patterns <- hstat_sans_accents(c(
                     "jamais", "rarement", "parfois", "souvent", "toujours",
@@ -206,9 +200,7 @@ hstat_q_ordinal_levels <- function(x) {
   sort(lv)
 }
 
-# ===========================================================================
 # ANALYSE NOMINALE -- une variable
-# ===========================================================================
 hstat_q_nominal_univariate <- function(x, var_name = "Variable") {
   x <- as.character(x)
   n_total <- length(x)
@@ -320,11 +312,8 @@ hstat_q_nominal_univariate <- function(x, var_name = "Variable") {
        notes = trf("%d valeurs manquantes exclues.", n_total - n_valid))
 }
 
-# ---------------------------------------------------------------------------
-# IC du V de Cramer par inversion du khi-deux non central (methode de
-# Smithson, identique a DescTools::CramerV) : bornes du parametre de
-# non-centralite lambda telles que P(X2 <= chi2_obs | df, lambda) = 1-a/2 et a/2,
-# puis V = sqrt((lambda + df) / (n * (min(r,c) - 1))).
+# IC du V de Cramer par inversion du khi-deux non central (methode de Smithson,
+# identique a DescTools::CramerV).
 hstat_q_cramer_ci <- function(chi2, df, n, k_min, conf = 0.95) {
   if (any(!is.finite(c(chi2, df, n))) || k_min < 2 || n <= 0)
     return(c(NA_real_, NA_real_))
@@ -386,13 +375,10 @@ hstat_q_epitools_block <- function(tab2, kind = c("OR", "RR"), conf = 0.95) {
     sprintf('attr(,"method")'), sprintf('[1] "%s"', meth))
 }
 
-# ---------------------------------------------------------------------------
 # TEST CHI-DEUX D'AJUSTEMENT / MULTINOMIAL EXACT -- une variable nominale Teste
 # si la distribution observée des modalités suit des proportions attendues
 # (équiprobables par défaut, ou fournies par l'utilisateur).
-# ---------------------------------------------------------------------------
-# Version STRATIFIÉE du test d'adéquation : teste la distribution de Y (variable
-# analysée) séparément dans chaque modalité du facteur X, plus le test global.
+# Version STRATIFIÉE du test d'adéquation.
 hstat_q_gof_stratified <- function(y, x, yname = "Y", xname = "X",
                                    expected_props = NULL,
                                    method = "chisq", B = 10000,
@@ -590,10 +576,7 @@ hstat_q_gof_analysis <- function(x, var_name = "Variable",
     Contribution_chi2_pct = round(contrib, 1),
     stringsAsFactors = FALSE)
 
-  # ---- POST-HOC : comparaisons par paires de modalités + lettres de groupes ----
-  # Chaque paire (i, j) est comparée par un khi-deux 2x2 (effectif i vs j contre
-  # le total), les p-values sont ajustées, puis regroupées en lettres (CLD) :
-  # deux modalités partageant une lettre ne diffèrent pas significativement.
+  # ---- POST-HOC : comparaisons par paires de modalités + lettres de groupes.
   posthoc_df <- NULL; groups_letters <- NULL
   if (k >= 2) {
     N_total <- sum(obs)
@@ -733,9 +716,7 @@ hstat_q_gof_analysis <- function(x, var_name = "Variable",
        notes = trf("%d observations, %d modalités, proportions %s.", n, k, p0_lab))
 }
 
-# ===========================================================================
 # ANALYSE NOMINALE -- deux variables (table de contingence + association)
-# ===========================================================================
 # `poids` : une colonne d'effectifs facultative.
 hstat_q_nominal_bivariate <- function(x, y, xname = "X", yname = "Y",
                                       poids = NULL, poids_nom = NULL) {
@@ -968,9 +949,7 @@ hstat_q_nominal_bivariate <- function(x, y, xname = "X", yname = "Y",
        notes = paste(c(trf("%d observations appariées analysées.", n), notes_poids), collapse = " "))
 }
 
-# ===========================================================================
 # CHOIX MULTIPLES -- format binaire (plusieurs colonnes 0/1) ou separe ("A;B")
-# ===========================================================================
 hstat_q_multiple_choice <- function(df, cols = NULL, sep_col = NULL,
                                      sep = "[;,/|]", var_name = "Choix multiples") {
   # Construit une matrice binaire reponses x options
@@ -1007,7 +986,7 @@ hstat_q_multiple_choice <- function(df, cols = NULL, sep_col = NULL,
     Option = names(counts),
     Effectif = as.integer(counts),
     Pct_repondants = round(100 * as.integer(counts) / n_resp, 1),     # % de repondants ayant choisi
-    Pct_reponses = round(100 * as.integer(counts) / sum(counts), 1),   # % parmi toutes les citations
+    Pct_reponses = round(100 * as.integer(counts) / sum(counts), 1),
     stringsAsFactors = FALSE)
 
   mean_choices <- round(mean(rowSums(bin, na.rm = TRUE)), 2)
@@ -1060,9 +1039,7 @@ hstat_q_multiple_choice <- function(df, cols = NULL, sep_col = NULL,
                        if (!is.null(sep_col)) tr("valeurs séparées") else "colonnes binaires"))
 }
 
-# ===========================================================================
 # ANALYSE ORDINALE -- une variable (echelle de Likert / notation)
-# ===========================================================================
 # Convertit une variable ordinale (facteur ordonne ou texte d'echelle) en rangs
 # numeriques selon l'ordre canonique detecte, puis calcule les statistiques.
 hstat_q_ordinal_univariate <- function(x, var_name = "Variable", levels_order = NULL) {
@@ -1084,7 +1061,7 @@ hstat_q_ordinal_univariate <- function(x, var_name = "Variable", levels_order = 
   q1 <- stats::quantile(ranks, 0.25, type = 1); q3 <- stats::quantile(ranks, 0.75, type = 1)
   mode_idx <- which.max(table(ranks)); mode_lab <- levels_order[as.integer(names(mode_idx))]
   med_lab <- levels_order[med]
-  mean_score <- mean(ranks)            # score moyen (interpretable si echelle d'intervalle supposee)
+  mean_score <- mean(ranks)
 
   freq <- table(factor(ranks, levels = seq_len(k)))
   freq_df <- data.frame(
@@ -1146,9 +1123,7 @@ hstat_q_ordinal_univariate <- function(x, var_name = "Variable", levels_order = 
        ranks = ranks, levels_order = levels_order)
 }
 
-# ===========================================================================
 # ANALYSE ORDINALE -- echelle de Likert multi-items (questionnaire)
-# ===========================================================================
 # items_df : data.frame ou chaque colonne est un item de la meme echelle.
 hstat_q_likert_scale <- function(items_df, levels_order = NULL, scale_name = "Échelle") {
   items_df <- as.data.frame(items_df)
@@ -1243,10 +1218,9 @@ hstat_q_likert_scale <- function(items_df, levels_order = NULL, scale_name = "É
        notes = trf("%d répondants complets sur %d.", n_resp, nrow(M)))
 }
 
-# ===========================================================================
 # ANALYSE ORDINALE -- comparaisons de groupes & correlations
-# ===========================================================================
-# Compare une variable ordinale (rangs) entre groupes ou la correle a une autre.
+# Compare une variable ordinale (rangs) entre groupes ou la correle a une
+# autre.
 hstat_q_ordinal_compare <- function(ordinal_x, group_or_y, levels_order = NULL,
                                     xname = "Ordinale", gname = "Groupe",
                                     second_ordinal = FALSE, levels_order_y = NULL) {
@@ -1420,9 +1394,7 @@ hstat_q_ordinal_compare <- function(ordinal_x, group_or_y, levels_order = NULL,
        notes = trf("Comparaison de %d groupes (rangs et médianes).", ng))
 }
 
-# ===========================================================================
 # ANALYSE TEXTUELLE -- questions ouvertes
-# ===========================================================================
 # Liste de mots vides francais (stopwords) integree (pas de dependance reseau).
 hstat_q_stopwords_fr <- function() {
   # Liste sans accents (le tokeniseur retire les accents avant comparaison).
@@ -1479,8 +1451,7 @@ hstat_q_stopwords_fr <- function() {
 # dependance.
 hstat_q_stem_fr <- function(words) {
   # Chaque suffixe est associe a une longueur de racine MINIMALE : plus le
-  # suffixe est ambigu (ex. "ant", "ent" pouvant appartenir a la racine comme
-  # dans "enfant"), plus la racine restante exigee est longue.
+  # suffixe est ambigu (ex.
   sufs <- list(
     c("issaient",4), c("issantes",4), c("issement",4), c("issements",4),
     c("issant",4), c("issante",4), c("issants",4), c("erions",4),
@@ -1591,9 +1562,7 @@ hstat_q_text_analysis <- function(texts, var_name = "Texte libre", min_char = 3,
   vocab <- names(wf)[wf >= max(2, ceiling(n_doc * 0.02))]   # termes pas trop rares
   vocab <- utils::head(vocab, 120)
   tdm <- sapply(toks, function(w) as.integer(vocab %in% w | vocab %in% unique(w)))
-  # UN VOCABULAIRE VIDE N'EST PAS UN CAS EXOTIQUE : le seuil de rarete
-  # ci-dessus (au moins deux occurrences) suffit a le produire des qu'une liste
-  # de mots vides un peu fournie retire les termes frequents.
+  # UN VOCABULAIRE VIDE N'EST PAS UN CAS EXOTIQUE.
   if (length(vocab) == 0L) tdm <- matrix(integer(0), nrow = 0L, ncol = n_doc)
   else if (is.null(dim(tdm))) tdm <- matrix(tdm, nrow = length(vocab))
   # comptage reel (frequence du terme dans le doc)
@@ -1819,15 +1788,10 @@ hstat_q_text_analysis <- function(texts, var_name = "Texte libre", min_char = 3,
        themes = themes_df, theme_assignment = theme_assign)
 }
 
-
-# ===========================================================================
 # OUTILS SUPPLEMENTAIRES -- recodage, modalités, valeurs manquantes, OR/RR
 # (Ajouts : analyse qualitative HStat)
-# ===========================================================================
 
-# ---------------------------------------------------------------------------
 # Liste des modalités de plusieurs variables (avec effectifs et pourcentages)
-# ---------------------------------------------------------------------------
 # Renvoie un tableau long : une ligne par couple (variable, modalité).
 hstat_q_list_modalities <- function(df, vars = NULL, max_modalites = 200) {
   df <- as.data.frame(df)
@@ -1902,10 +1866,9 @@ hstat_q_list_modalities <- function(df, vars = NULL, max_modalites = 200) {
        notes = trf("%d variable(s) analysée(s).", length(vars)))
 }
 
-# ---------------------------------------------------------------------------
 # Comptage des valeurs manquantes (NA) par variable
-# ---------------------------------------------------------------------------
-# Compte à la fois les NA "vrais" et les chaînes vides / blancs comme manquants.
+# Compte à la fois les NA "vrais" et les chaînes vides / blancs comme
+# manquants.
 hstat_q_missing_summary <- function(df, vars = NULL, treat_blank_as_na = TRUE) {
   df <- as.data.frame(df)
   if (is.null(vars) || length(vars) == 0) vars <- names(df)
@@ -1980,12 +1943,9 @@ hstat_q_missing_summary <- function(df, vars = NULL, treat_blank_as_na = TRUE) {
        notes = trf("%d variable(s), %d ligne(s).", length(vars), n))
 }
 
-# ---------------------------------------------------------------------------
 # Odds Ratio (OR) et Risque Relatif (RR) sur tableaux 2x2
-# ---------------------------------------------------------------------------
 # Pour une table 2x2 : Issue + Issue - Exposé + a b Exposé - c d OR =
-# (a*d)/(b*c) ; RR = [a/(a+b)] / [c/(c+d)] Correction de Haldane-Anscombe
-# (+0.5) si une case est nulle.
+# (a*d)/(b*c).
 hstat_q_or_rr_2x2 <- function(a, b, c, d, conf = 0.95,
                               expo_pos = "Exposé +", expo_neg = "Exposé -",
                               issue_pos = "Issue +", issue_neg = "Issue -") {
@@ -2015,8 +1975,7 @@ hstat_q_or_rr_2x2 <- function(a, b, c, d, conf = 0.95,
 }
 
 # Interprétation textuelle d'un OR ou d'un RR (sens + force + signification via
-# IC) `conf` n'est pas cosmétique : le niveau de confiance est RÉGLABLE
-# (curseur de 0,80 à 0,99) et il était écrit en dur à 95 % dans cette phrase.
+# IC) `conf` n'est pas cosmétique.
 hstat_q_interpret_ratio <- function(value, lo, hi, kind = c("OR", "RR"),
                                    conf = 0.95) {
   kind <- match.arg(kind)
@@ -2092,7 +2051,7 @@ hstat_q_or_rr_analysis <- function(x, y, xname = "X", yname = "Y",
     note <- "Tableau strictement 2x2."
   } else if (all_pairs) {
     # TOUTES les modalites : chaque modalite de X (vs reste) croisee avec
-    # CHAQUE modalite de Y (vs reste). Couvre l'ensemble des combinaisons.
+    # CHAQUE modalite de Y (vs reste).
     for (xl in lx) for (yl in ly) rows[[length(rows) + 1]] <- build_one(xl, yl)
     note <- trf("Toutes les modalités : %d exposition(s) x %d issue(s) = %d tableaux 2x2.",
                     length(lx), length(ly), length(lx) * length(ly))
@@ -2198,9 +2157,7 @@ hstat_q_or_rr_analysis <- function(x, y, xname = "X", yname = "Y",
        notes = note)
 }
 
-# ===========================================================================
 # INTERFACE UTILISATEUR (UI)
-# ===========================================================================
 mod_qualitative_ui <- function(id) {
   ns <- shiny::NS(id)
   shinydashboard::tabItem(
@@ -2210,8 +2167,7 @@ mod_qualitative_ui <- function(id) {
         shiny::h3(shiny::icon("comments"), " Analyses de données qualitatives d'enquête",
                   style = "margin:0;color:white;"),
         # Le selecteur de famille vit dans le bandeau (et non dans la boite de
-        # configuration) : l'atelier de codage occupe toute la largeur, il ne
-        # peut donc pas heberger ce selecteur dans une colonne de gauche.
+        # configuration).
         shiny::div(style = "max-width:560px;margin-top:12px;",
           shiny::selectInput(ns("family"), "Famille d'analyse",
             choices = c("Nominale (catégories)" = "nominal",
@@ -2339,10 +2295,7 @@ mod_qualitative_ui <- function(id) {
               shiny::conditionalPanel(sprintf("input['%s'] == 'miss'", ns("tools_mode")),
                 shiny::checkboxInput(ns("miss_blank"), "Compter aussi les chaînes vides / blancs comme manquants", value = TRUE))),
 
-            # --- RECODAGE DES MODALITES --- Le serveur portait les trois
-            # sorties (selecteur, editeur, message) et l'observateur
-            # `apply_recode`, mais AUCUNE n'etait posee dans l'interface : la
-            # fonctionnalite existait entierement et restait inatteignable.
+            # --- RECODAGE DES MODALITES.
             shiny::conditionalPanel(sprintf("input['%s'] == 'recode'", ns("tools_mode")),
               shiny::uiOutput(ns("recode_var_ui")),
               shiny::uiOutput(ns("recode_interface_ui")),
@@ -2352,7 +2305,6 @@ mod_qualitative_ui <- function(id) {
               shiny::br(),
               shiny::uiOutput(ns("recode_status"))),
 
-            # --- OR / RR ---
             shiny::conditionalPanel(sprintf("input['%s'] == 'orrr'", ns("tools_mode")),
               shiny::uiOutput(ns("orrr_expo_ui")),
               shiny::uiOutput(ns("orrr_issue_ui")),
@@ -2469,9 +2421,7 @@ mod_qualitative_ui <- function(id) {
   )
 }
 
-# ===========================================================================
 # SERVEUR
-# ===========================================================================
 mod_qualitative_server <- function(id, values) {
   shiny::moduleServer(id, function(input, output, session) {
     ns <- session$ns
@@ -2501,7 +2451,7 @@ mod_qualitative_server <- function(id, values) {
     })
     output$nom_var2_ui <- shiny::renderUI(shiny::selectInput(ns("nom_var2"), "Variable 2 (croisement)", choices = col_names()))
     # Colonne d'effectifs : proposée d'après son nom (Freq, effectif, n...),
-    # jamais d'après ses valeurs -- une mesure entière n'est pas un effectif.
+    # jamais d'après ses valeurs.
     output$nom_poids_ui <- shiny::renderUI({
       d <- get_data()
       num <- names(d)[vapply(d, is.numeric, logical(1))]

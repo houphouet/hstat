@@ -1,8 +1,4 @@
-# Module Shiny : Deep Learning Deux moteurs 100 % R (aucune dépendance Python)
-# : - neuralnet : perceptron multi-couches (MLP) à architecture libre, toujours
-# disponible (régression & classification) ; - torch (optionnel) : MLP profond
-# avec courbe d'apprentissage détaillée et LSTM pour la prévision de séquences
-# temporelles.
+# Module Shiny : Deep Learning, deux moteurs 100 % R (neuralnet, et torch en option).
 
 mod_dl_ui <- function(id) {
   ns <- shiny::NS(id)

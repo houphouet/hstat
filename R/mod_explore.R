@@ -1,6 +1,5 @@
 #  Module Shiny : Exploration des donnees
 
-
 mod_explore_ui <- function(id) {
   ns <- shiny::NS(id)
   shiny::tagList(
@@ -46,7 +45,6 @@ mod_explore_ui <- function(id) {
                   )
                 )
               ),
-              
               
               shiny::fluidRow(
                 shinydashboard::box(
@@ -414,8 +412,7 @@ mod_explore_server <- function(id, values) {
 
   output$distPlot <- shiny::renderPlot({ dist_gg() })
 
-  # L'export passe par le kit partage : format, dimensions, DPI et bouton sont
-  # ceux de toute l'application, et le module n'ecrit plus une ligne de fichier.
+  # L'export passe par le kit partage.
   output$distPlDl <- hstat_export_plot_handler(input, "distPl",
                        function() dist_gg(), "distribution")
 

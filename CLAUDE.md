@@ -11653,3 +11653,27 @@ Le test qui garde ce correctif calcule ses coordonnées par `stats::prcomp()`,
 pas par FactoMineR : `R CMD check` ne l'installe pas, et la garde comme les
 ellipses ne dépendent que des coordonnées. Un test qui exige un paquet sans
 `skip_if_not_installed()` fait échouer le check sur l'environnement.
+
+## Les commentaires : la règle, sans l'historique
+
+Demandé à l'écran (1.48.3) : retirer les commentaires en trop et tout
+commentaire d'historique. Appliqué à toutes les sources de l'application —
+`R/`, `inst/app/`, `app.R`, les scripts et la feuille de style de `www/` ;
+la suite de tests garde les siens, qui disent ce qu'elle garde.
+
+- Les séparateurs (`# ====`, `/* ---- */`) sont retirés, une bannière garde
+  son titre sur une ligne.
+- Un bloc garde sa première phrase (deux lignes au plus) et la première phrase
+  de chaque point d'une liste numérotée.
+- Une phrase d'historique (« signalé à l'écran », « demandé », « d'avant »,
+  « désormais », « était », « vivait ici », « mesuré au navigateur »…) part ;
+  un bloc qui n'en portait pas d'autre disparaît.
+- Les commentaires roxygen (`#'`) ne sont pas touchés.
+
+Environ 6 500 lignes de commentaires R deviennent 4 800, et 450 lignes de
+commentaires JavaScript et CSS sont retirées. La vérification porte sur le
+code, pas sur la relecture : pour chacun des 29 fichiers R, la suite des jetons
+hors commentaires et le texte de chaque chaîne sont identiques à ceux d'avant,
+et les scripts de `www/` sont identiques une fois leurs commentaires ôtés.
+
+Règle pour la suite : le récit d'une correction va ici, jamais dans le code.

@@ -1,8 +1,5 @@
-# =============================================================================
-#  HStat -- socle partage : fonctions de calcul et utilitaires
-# -----------------------------------------------------------------------------
+# HStat -- socle partage : fonctions de calcul et utilitaires
 # CE FICHIER NE FAIT QUE DEFINIR.
-# =============================================================================
 
 #' Socle partage de HStat
 #'
@@ -19,14 +16,11 @@
 #' @keywords internal
 "_PACKAGE"
 
-
 # --- Boutons d'export DT avec noms de fichiers propres -----------------------
 
 .hstat_dt_buttons <- function(fname = "HStat_export") {
   fname <- gsub("[^A-Za-z0-9_.-]+", "_", as.character(fname))
-  # Le separateur decimal se lit AU CLIC, dans le navigateur : ces boutons
-  # exportent sans repasser par le serveur, `hstat_decimale_session()` ne les
-  # atteint donc pas.
+  # Le separateur decimal se lit AU CLIC, dans le navigateur.
   corps <- function(mode) list(format = list(body = DT::JS(sprintf(
     "function (d) { return window.hstatDecimaleCellule ? window.hstatDecimaleCellule(d, '%s') : d; }",
     mode))))
@@ -42,8 +36,6 @@
     list(extend = "excel", filename = fname, title = NULL, exportOptions = corps("excel"))
   )
 }
-
-
 
 install_and_load <- function(packages) {
   installed_packages <- rownames(utils::installed.packages())
@@ -75,9 +67,7 @@ install_and_load <- function(packages) {
   # Chargement : on n'interrompt pas l'application pour un package optionnel manquant
   missing_after <- character(0)
   for (pkg in packages) {
-    # suppressMessages est indispensable : les messages "Registered S3
-    # method(s) overwritten by ..." ne sont PAS des messages de demarrage
-    # de package ; suppressPackageStartupMessages ne les masque donc pas.
+    # suppressMessages est indispensable.
     ok <- suppressWarnings(suppressMessages(suppressPackageStartupMessages(
       requireNamespace(pkg, quietly = TRUE))))
     if (ok) {
@@ -107,12 +97,7 @@ required_packages <- c(
 )
 
 # -- Packages de modelisation predictive (series temporelles / ML / DL) -------
-# CES PACKAGES NE DOIVENT JAMAIS ETRE ATTACHES PAR library() : plusieurs
-# d'entre eux masquent des fonctions vitales de l'application une fois sur le
-# chemin de recherche (mclust::em masque shiny::em et casse toute l'interface
-# avec "l'argument modelName est manquant" ; xgboost::slice masque dplyr::slice
-# ; randomForest::margin masque ggplot2::margin ; pROC::var/cov masquent
-# stats::var/cov...).
+# CES PACKAGES NE DOIVENT JAMAIS ETRE ATTACHES PAR library().
 hstat_model_packages <- c(
   "forecast", "glmnet", "rpart", "randomForest", "xgboost", "e1071",
   "kknn", "pROC", "dbscan", "mclust", "neuralnet",
@@ -226,8 +211,7 @@ hstat_correlation_tests <- function(df, vars, method = "pearson",
   if (length(vars) < 2) return(NULL)
 
   combos <- utils::combn(vars, 2, simplify = FALSE)
-  # Mode "une variable contre les autres" : ne garder que les paires impliquant la
-  # variable cible (target), et la placer systematiquement en Variable_X.
+  # Mode "une variable contre les autres".
   if (!is.null(target) && nzchar(target) && target %in% vars) {
     combos <- Filter(function(pr) target %in% pr, combos)
     combos <- lapply(combos, function(pr) c(target, setdiff(pr, target)))
@@ -307,16 +291,9 @@ get_all_factor_candidates <- function(df, max_numeric_levels = 30) {
 }
 
 # Echappement HTML.
-# ===========================================================================
-# BILINGUE (francais / anglais)
-# ---------------------------------------------------------------------------
-# Trois exigences, dans cet ordre : HORS LIGNE aucun appel reseau, jamais.
-# ===========================================================================
-
 
 # Le dictionnaire est cherche depuis le dossier de l'application, depuis la
-# racine du depot, et en remontant : la suite de tests tourne depuis
-# `tests/testthat/`, ou aucun des deux premiers chemins n'existe.
+# racine du depot, et en remontant.
 hstat_i18n_path <- function() {
   rel <- c(file.path("i18n", "fr-en.csv"),
            file.path("inst", "app", "i18n", "fr-en.csv"))
@@ -332,9 +309,7 @@ hstat_i18n_path <- function() {
 .hstat_i18n_cache <- new.env(parent = emptyenv())
 
 hstat_i18n_load <- function(path = hstat_i18n_path(), force = FALSE) {
-  # Une cle vide leverait « attempt to use zero-length variable name » : le
-  # dictionnaire introuvable est un cas normal (paquet non installe, execution
-  # depuis un dossier quelconque), il ne doit pas faire tomber le demarrage.
+  # Une cle vide leverait « attempt to use zero-length variable name ».
   cle <- if (length(path) != 1L || is.na(path) || !nzchar(path)) "(aucun)" else path
   if (!isTRUE(force) && !is.null(.hstat_i18n_cache[[cle]]))
     return(.hstat_i18n_cache[[cle]])
@@ -396,8 +371,7 @@ tr <- function(x, lang = hstat_langue_session(), dict = NULL) {
 # Dictionnaire serialise pour le navigateur.
 hstat_i18n_json <- function(lang = "en", path = hstat_i18n_path()) {
   d <- hstat_i18n_dict(lang, path)
-  # Les termes identiques dans les deux langues sont retires ICI : les envoyer
-  # alourdirait la page pour un remplacement qui ne change rien a l'ecran.
+  # Les termes identiques dans les deux langues sont retires ICI.
   d <- d[names(d) != unname(d)]
   # LES GABARITS NE PARTENT PAS AU NAVIGATEUR.
   d <- d[!grepl(HSTAT_I18N_MARQUEUR, names(d))]
@@ -407,8 +381,6 @@ hstat_i18n_json <- function(lang = "en", path = hstat_i18n_path()) {
                     collapse = ","), "}")
 }
 
-# -- Le dictionnaire part en FICHIER, pas dans la page ------------------------
-# Il etait ecrit en clair dans un <script> de l'en-tete.
 .hstat_i18n_ressource <- new.env(parent = emptyenv())
 
 # Echappe tout caractere hors ASCII en \uXXXX (paires de substitution
@@ -450,8 +422,7 @@ hstat_i18n_asset <- function(lang = "en") {
 }
 
 # Le contenu du fichier, et la seule forme sous laquelle le dictionnaire entre
-# dans le navigateur : les deux chemins (fichier et repli en ligne) lisent
-# cette fonction, ils ne peuvent donc pas diverger.
+# dans le navigateur.
 hstat_i18n_payload <- function(lang = "en") {
   paste0("window.HSTAT_I18N = ", .hstat_i18n_ascii(hstat_i18n_json(lang)), ";")
 }
@@ -471,8 +442,7 @@ hstat_i18n_script <- function(lang = "en") {
   if (!is.na(src))
     return(shiny::tags$script(shiny::HTML(sprintf(
       "window.HSTAT_I18N_SRC = \"%s\";", .hstat_js_chaine(src)))))
-  # Repli : le dictionnaire redevient incorpore. Plus lourd, mais le bilingue
-  # marche -- et c'est la seule chose qui compte ici.
+  # Repli : le dictionnaire redevient incorpore.
   shiny::tags$script(shiny::HTML(hstat_i18n_payload(lang)))
 }
 
@@ -488,12 +458,9 @@ hstat_i18n_coverage <- function(chaines, path = hstat_i18n_path()) {
        taux = if (!length(chaines)) 1 else length(traduites) / length(chaines))
 }
 
-# ===========================================================================
 # ETAT INITIAL DE LA SESSION : UNE SEULE SOURCE DE VERITE
-# ---------------------------------------------------------------------------
 # La reinitialisation remettait a NULL une liste de champs ENUMEREE A LA MAIN,
 # distincte de celle qui cree `reactiveValues`.
-# ===========================================================================
 hstat_valeurs_initiales <- function() {
   list(
     data = NULL, cleanData = NULL, filteredData = NULL, descStats = NULL,
@@ -527,9 +494,7 @@ hstat_valeurs_initiales <- function() {
   )
 }
 
-# ---------------------------------------------------------------------------
 # REMISE A ZERO DE L'ETAT DE SESSION -- une seule definition
-# ---------------------------------------------------------------------------
 # Deux gestes remettent l'application a zero : le bouton « Reinitialiser », et
 # le CHARGEMENT D'UN NOUVEAU JEU DE DONNEES.
 hstat_vider_valeurs <- function(rv, sauf = character(0)) {
@@ -542,8 +507,7 @@ hstat_vider_valeurs <- function(rv, sauf = character(0)) {
 }
 
 # Ce qu'une remise a zero ne vide PAS : les essais de la DL50 ne dependent pas
-# du jeu de travail (saisie, collage, fichier WIN DL) ; on charge justement une
-# autre feuille pour comparer deux insecticides.
+# du jeu de travail (saisie, collage, fichier WIN DL).
 HSTAT_VALEURS_PERSISTANTES <- c("dl50Essais")
 
 # Une session merite d'etre deposee si elle porte des donnees OU des essais
@@ -560,23 +524,19 @@ hstat_reinitialiser_valeurs <- function(values) {
   # LE COMPTEUR DE REMISE A ZERO EST MONOTONE.
   sig <- (shiny::isolate(values$resetSignal) %||% 0) + 1
   # Tout est vide d'abord -- y compris les champs crees en cours de session par
-  # un module, qui ne figurent pas dans la liste initiale --, puis les valeurs
-  # de depart sont reposees. Dans cet ordre, un `reactiveVal` garde son objet.
+  # un module, qui ne figurent pas dans la liste initiale.
   hstat_vider_valeurs(values, sauf = HSTAT_VALEURS_PERSISTANTES)
   for (nm in names(init)) values[[nm]] <- init[[nm]]
   values$resetSignal <- sig
   invisible(sig)
 }
 
-# ===========================================================================
 # GARDE DE SESSION : UNE VEILLE NE FERME PAS L'APPLICATION
-# ---------------------------------------------------------------------------
 # Verrouiller l'ordinateur ou le mettre en veille coupe le websocket de Shiny.
 # 1. LA CLE EST UNE CAPACITE.
 # 2. LA REPRISE EST A USAGE UNIQUE.
 # 3. LE DEPOT EST BORNE, en duree ET en nombre.
 # 4. UN `reactiveVal` SE REPREND EN L'APPELANT.
-# ===========================================================================
 HSTAT_SESSION_GARDE_HEURES <- 24
 HSTAT_SESSION_GARDE_MAX    <- 20L
 HSTAT_SESSION_CLE_MOTIF    <- "^[A-Za-z0-9_-]{32,64}$"
@@ -594,8 +554,7 @@ hstat_session_cle_valide <- function(cle) {
   if (is.na(h) || h < 0) HSTAT_SESSION_GARDE_HEURES else h
 }
 
-# Retire une entree ET libere ce qu'elle tient. Un echec de liberation ne doit
-# pas laisser l'entree en place : elle serait retentee a chaque passage.
+# Retire une entree ET libere ce qu'elle tient.
 .hstat_garde_retirer <- function(cle, liberer = TRUE) {
   e <- .hstat_garde[[cle]]
   rm(list = cle, envir = .hstat_garde)
@@ -664,12 +623,7 @@ hstat_session_restaurer <- function(rv, cliche, sauf = character(0)) {
   invisible(noms)
 }
 
-# ---------------------------------------------------------------------------
 # Retrait des accents : UNE seule definition
-# ---------------------------------------------------------------------------
-# Le meme `chartr` etait recopie sept fois (nettoyage de texte, tokenisation,
-# noms de fichiers, recherche dans les memos, reconnaissance des familles
-# d'analyse).
 hstat_sans_accents <- function(x) {
   chartr("\u00e0\u00e2\u00e4\u00e3\u00e9\u00e8\u00ea\u00eb\u00ee\u00ef\u00f4\u00f6\u00f5\u00f9\u00fb\u00fc\u00e7",
          "aaaaeeeeiiooouuuc", as.character(x))
@@ -685,13 +639,9 @@ hstat_html_escape <- function(x) {
   gsub("'", "&#39;", x, fixed = TRUE)
 }
 
-# ===========================================================================
 # GRAPHIQUES INTERACTIFS : RETIRER LE POLYFILL OBSOLETE DE PLOTLY
-# ---------------------------------------------------------------------------
 # plotly attache une dependance « typedarray », polyfill destine aux
 # navigateurs depourvus de tableaux types (IE9).
-# ===========================================================================
-# Second nettoyage, meme famille : un attribut qu'un type de trace REFUSE.
 HSTAT_PLOTLY_INTERDITS <- list(bar = c("mode"), pie = c("mode"),
                                treemap = c("mode"), heatmap = c("mode"))
 
@@ -721,11 +671,7 @@ HSTAT_PLOTLY_LAYOUT_TOLERES <- "don't have these attributes: '(boxmode|violinmod
 hstat_plotly_clean <- function(p) {
   if (is.null(p)) return(p)
   p <- tryCatch(.hstat_plotly_attrs(p), error = function(e) p)
-  # `boxmode` est un attribut de mise en page propre aux boites : le schema que
-  # plotly (R) consulte pour verifier la mise en page ne le porte pas, et il
-  # avertit « 'layout' objects don't have these attributes: 'boxmode' » A
-  # CHAQUE rendu d'une boite groupee -- tout en gardant l'attribut, que
-  # plotly.js applique.
+  # `boxmode` est un attribut de mise en page propre aux boites.
   b <- tryCatch(withCallingHandlers(
     plotly::plotly_build(p),
     warning = function(w) {
@@ -768,7 +714,7 @@ HSTAT_PLOTLY_POINTS_MAX <- 20000L
   total <- sum(n[pts])
   if (!any(pts) || total <= max_points) return(b)
   # Chaque trace garde sa part : un groupe rare ne doit pas disparaitre au
-  # profit d'un groupe abondant. Une trace garde au moins un point.
+  # profit d'un groupe abondant.
   garde <- 0
   for (i in which(pts)) {
     cible <- max(1L, floor(n[i] * max_points / total))
@@ -791,11 +737,8 @@ HSTAT_PLOTLY_POINTS_MAX <- 20000L
   b
 }
 
-# ===========================================================================
 # PAQUET ABSENT : LE DIRE, ET PROPOSER UNE VOIE DE REPLI
-# ---------------------------------------------------------------------------
 # « Package 'klaR' indisponible.
-# ===========================================================================
 
 HSTAT_PKG_REPLI <- list(
   klaR = paste("En attendant, une ACM sur les mêmes variables suivie d'une CAH",
@@ -815,11 +758,8 @@ hstat_pkg_manquant <- function(pkg, analyse = NULL) {
   trf("%s%scette analyse ne peut donc pas être lancée. %sHStat. %s", if (!is.null(analyse)) paste0(analyse, " : ") else "", trf("le paquet R « %s » n'est pas installé sur cette machine, ",      pkg), sprintf("Pour l'ajouter : install.packages(\"%s\"), puis relancez ",      pkg), HSTAT_PKG_REPLI[[pkg]] %||% "")
 }
 
-# ---------------------------------------------------------------------------
 # QUALITE D'UNE PARTITION Ces fonctions vivent ici, et non dans l'observateur
-# qui les appelle, pour une raison precise : klaR, poLCA et clustMixType sont
-# absents de beaucoup de machines, la CI comprise.
-# ---------------------------------------------------------------------------
+# qui les appelle, pour une raison precise.
 
 # Pseudo-R2 d'une partition k-modes : part de la dissimilarite totale expliquee
 # par la partition.
@@ -867,7 +807,6 @@ hstat_part_equilibre <- function(sizes, seuil = 0.05) {
 }
 
 # Pastille de condition d'une analyse multivariee : verte, orange ou rouge.
-# Ecrite une fois -- trois copies mot pour mot vivaient dans app_server.R.
 .mv_badge <- function(ok, warn, label) {
   st <- function(fond) paste0("display:inline-block;background:", fond,
                               ";color:white;border-radius:4px;padding:2px 8px;font-size:11px;margin:2px;")
@@ -882,14 +821,11 @@ hstat_seuil_verdict <- function(x, seuil_ok, seuil_warn) {
   if (x >= seuil_ok) "ok" else if (x >= seuil_warn) "warn" else "err"
 }
 
-# ===========================================================================
 # TRADUCTION DES ERREURS R
-# ---------------------------------------------------------------------------
 # L'interface est en francais ; les erreurs de R, non.
 # 1. Chaque traduction enonce la CAUSE puis le GESTE.
 # 2. Le message R d'origine n'est jamais supprime, il est mis entre
-# parentheses.
-# ===========================================================================
+#    parentheses.
 
 HSTAT_ERR_FR <- list(
   list("data are essentially constant|essentiellement constant",
@@ -998,12 +934,9 @@ hstat_langue_session <- function() {
   if (identical(l, "en")) "en" else "fr"
 }
 
-# ---------------------------------------------------------------------------
-#  Separateur decimal des fichiers telecharges
-# ---------------------------------------------------------------------------
+# Separateur decimal des fichiers telecharges
 # Un utilisateur francophone colle un CSV dans un tableur regle a la francaise
-# et lit « 1.5 » comme une date ou du texte ; un anglophone lit « 1,5 » comme
-# deux colonnes.
+# et lit « 1.5 » comme une date ou du texte.
 
 .hstat_decimale <- function(dec) {
   if (identical(as.character(dec)[1], ",")) "," else "."
@@ -1065,8 +998,7 @@ hstat_ecrire_csv <- function(x, file, row.names = FALSE, fileEncoding = "UTF-8",
   dec <- .hstat_decimale(dec)
   if (!is.data.frame(x)) x <- as.data.frame(x, stringsAsFactors = FALSE)
   x <- hstat_decimale_tableau(x, dec)
-  # `col.names = NA` quand les noms de lignes sont ecrits : c'est ce que fait
-  # `write.csv()`, et l'en-tete garde alors une case vide au-dessus d'eux.
+  # `col.names = NA` quand les noms de lignes sont ecrits.
   cn <- if (isTRUE(row.names) || is.character(row.names)) NA else TRUE
   args <- list(x, file, sep = if (dec == ",") ";" else ",", dec = dec,
                qmethod = "double", row.names = row.names, col.names = cn)
@@ -1115,15 +1047,13 @@ hstat_ecrire_csv <- function(x, file, row.names = FALSE, fileEncoding = "UTF-8",
   g
 }
 
-# Enregistree aupres de grid au moment de l'emploi : l'application tourne aussi
-# depuis les SOURCES, ou aucun `NAMESPACE` ne declare la methode.
+# Enregistree aupres de grid au moment de l'emploi.
 .hstat_decimale_differee_contenu <- function(x) {
   class(x) <- setdiff(class(x), "hstat_decimale_differee")
   .hstat_decimale_grob_texte(grid::makeContent(x))
 }
 
-# La grille d'une figure, texte converti. `NULL` quand ce n'est pas une figure
-# de grille : l'appelant la trace alors sous `OutDec`.
+# La grille d'une figure, texte converti.
 .hstat_decimale_grob <- function(plot) {
   g <- if (inherits(plot, "patchwork") && requireNamespace("patchwork", quietly = TRUE))
          patchwork::patchworkGrob(plot)
@@ -1136,21 +1066,18 @@ hstat_ecrire_csv <- function(x, file, row.names = FALSE, fileEncoding = "UTF-8",
 }
 
 # LA REPONSE DU MODELE EST DU TEXTE AFFICHE, ET AUCUN DICTIONNAIRE NE PEUT LA
-# TRADUIRE : elle n'existe pas encore quand la page se construit, et le
-# traducteur du navigateur ne remplace que des correspondances connues.
+# TRADUIRE.
 hstat_ai_consigne_langue <- function(lang = hstat_langue_session()) {
   if (identical(lang, "en")) "in English" else "en fran\u00e7ais"
 }
 
 # `lang` : ces messages sont COMPOSES ici, phrase par phrase, et n'existent
-# donc pas comme chaine entiere dans le dictionnaire du navigateur — celui-ci
-# ne remplace que des correspondances completes.
+# donc pas comme chaine entiere dans le dictionnaire du navigateur.
 hstat_err_fr <- function(e, contexte = NULL, lang = hstat_langue_session()) {
   msg <- if (inherits(e, "condition")) conditionMessage(e) else as.character(e)[1]
   msg <- trimws(paste(msg, collapse = " "))
   if (!length(msg) || !nzchar(msg)) msg <- tr("erreur sans message", lang)
-  # Le francais met une espace avant les deux-points, l'anglais non. Garder la
-  # ponctuation francaise dans une phrase anglaise trahirait la traduction.
+  # Le francais met une espace avant les deux-points, l'anglais non.
   dp <- if (identical(lang, "en")) ": " else " : "
   prefixe <- if (!is.null(contexte) && nzchar(contexte))
     paste0(contexte, dp) else ""
@@ -1163,8 +1090,7 @@ hstat_err_fr <- function(e, contexte = NULL, lang = hstat_langue_session()) {
       return(sprintf("%s%s (%s%s%s)", prefixe, tr(r[[2]], lang),
                      tr("message R", lang), dp, msg))
   }
-  # Rien de connu : on ne masque pas, on annonce. Presenter un message anglais
-  # comme une phrase francaise serait pire que de dire qu'il ne l'est pas.
+  # Rien de connu : on ne masque pas, on annonce.
   sprintf("%s%s%s%s", prefixe,
           tr("L'analyse a échoué. Message renvoyé par R (non traduit)", lang),
           dp, msg)
@@ -1216,9 +1142,7 @@ hstat_ai_err_http <- function(code, message = "", label = "l'API") {
     "panne"   = trf("%s est en panne ou en maintenance. Réessayez plus tard ; l'analyse locale reste disponible.", label),
     trf("%s a refusé la requête.", label))
 
-  # L'assemblage ne passe PAS par `trf()` : « HTTP » et les parentheses n'ont
-  # rien a traduire, et trois gabarits de pure ponctuation encombreraient le
-  # dictionnaire sans jamais rien changer a l'ecran.
+  # L'assemblage ne passe PAS par `trf()`.
   if (!nzchar(msg))
     return(if (is.na(code)) phrase else sprintf("%s (HTTP %d)", phrase, code))
   if (is.na(code)) return(sprintf("%s (%s)", phrase, substr(msg, 1, 300)))
@@ -1248,9 +1172,7 @@ hstat_coord_incompletes <- function(coord, axes = c(1L, 2L)) {
   noms[mauvais]
 }
 
-# =============================================================================
-#  ACP : QUI PORTE LA COULEUR SUR UN BIPLOT, ET CE QU'UNE VARIABLE N'APPREND PAS
-# =============================================================================
+# ACP : QUI PORTE LA COULEUR SUR UN BIPLOT, ET CE QU'UNE VARIABLE N'APPREND PAS
 
 # UN BIPLOT PORTE DEUX FAMILLES, UNE SEULE PEUT PORTER LE DEGRADE.
 HSTAT_PCA_COLOR_CIBLE <- c(contrib = "ind", cos2 = "var", sat = "var")
@@ -1366,14 +1288,9 @@ interpret_test_results <- function(test_type, p_value, test_object = NULL) {
   )
 }
 
-# =============================================================================
-#  AJUSTEMENT ROBUSTE D'UN GLM (non-convergence / séparation)
-# -----------------------------------------------------------------------------
+# AJUSTEMENT ROBUSTE D'UN GLM (non-convergence / séparation)
 # glm.fit() émet « l'algorithme n'a pas convergé » dans deux situations : - le
-# budget d'itérations par défaut (25) est trop court ; - surtout : les données
-# sont (quasi-)séparées, c'est-à-dire qu'une combinaison des prédicteurs classe
-# parfaitement les deux modalités de Y.
-# =============================================================================
+# budget d'itérations par défaut (25) est trop court.
 
 # Diagnostic textuel d'un objet glm : NULL si tout va bien, sinon un message
 # expliquant la cause probable et la conduite à tenir.
@@ -1406,14 +1323,9 @@ hstat_glm_note <- function(fit, warns = character(0), maxit = 100) {
   paste(msg, collapse = " ")
 }
 
-# =============================================================================
-#  TAILLE DES LABELS EN POINTS TYPOGRAPHIQUES (analyses multivariées)
-# -----------------------------------------------------------------------------
+# TAILLE DES LABELS EN POINTS TYPOGRAPHIQUES (analyses multivariées)
 # Toutes les analyses multivariées exposent deux réglages de taille de label,
-# bornés à [12, 24] pt : un pour les INDIVIDUS, un pour les VARIABLES (ou
-# modalités).
-# =============================================================================
-# Les valeurs par defaut de ggplot2 lui-meme.
+# bornés à [12, 24] pt.
 HSTAT_GG_POINT_SIZE <- 1.5    # geom_point(size = )
 HSTAT_GG_LINEWIDTH  <- 0.5    # geom_line/segment(linewidth = )
 HSTAT_GG_BASE_SIZE  <- 11     # theme_grey(base_size = ), en points
@@ -1599,8 +1511,6 @@ calc_cv <- function(x) {
   s / abs(m) * 100
 }
 
-
-
 #' Retourne le libellé lisible d'une méthode de transformation
 #' @param method character : code de la méthode
 #' @return character : libellé affiché
@@ -1649,7 +1559,7 @@ apply_variable_transformation <- function(x, method) {
   
   result <- switch(method,
                    
-                   # ── 1. Logarithme naturel ──────────────────────────────────────────────────
+                   # ── 1.
                    "log" = {
                      if (any(x_nona <= 0))
                        stop("log(x) requiert des valeurs strictement positives (x > 0).\n",
@@ -1666,7 +1576,7 @@ apply_variable_transformation <- function(x, method) {
                      log1p(x)
                    },
                    
-                   # ── 3. Log base 10 ────────────────────────────────────────────────────────
+                   # ── 3.
                    "log10" = {
                      if (any(x_nona <= 0))
                        stop("log10(x) requiert des valeurs strictement positives (x > 0).\n",
@@ -1674,7 +1584,7 @@ apply_variable_transformation <- function(x, method) {
                      log10(x)
                    },
                    
-                   # ── 4. Racine carrée ──────────────────────────────────────────────────────
+                   # ── 4.
                    "sqrt" = {
                      if (any(x_nona < 0))
                        stop("sqrt(x) requiert des valeurs >= 0.\n",
@@ -1683,12 +1593,12 @@ apply_variable_transformation <- function(x, method) {
                      sqrt(x)
                    },
                    
-                   # ── 5. Racine cubique ─────────────────────────────────────────────────────
+                   # ── 5.
                    "cuberoot" = {
                      sign(x) * abs(x)^(1/3)
                    },
                    
-                   # ── 6. Box-Cox ────────────────────────────────────────────────────────────
+                   # ── 6.
                    "boxcox" = {
                      if (any(x_nona <= 0))
                        stop("Box-Cox requiert des valeurs strictement positives (x > 0).\n",
@@ -1706,7 +1616,7 @@ apply_variable_transformation <- function(x, method) {
                      x_trans
                    },
                    
-                   # ── 7. Yeo-Johnson ────────────────────────────────────────────────────────
+                   # ── 7.
                    "yeojohnson" = {
                      yj_obj  <- bestNormalize::yeojohnson(x_nona, standardize = FALSE)
                      x_trans <- rep(NA_real_, length(x))
@@ -1716,7 +1626,7 @@ apply_variable_transformation <- function(x, method) {
                      x_trans
                    },
                    
-                   # ── 8. Arcsinus ───────────────────────────────────────────────────────────
+                   # ── 8.
                    "arcsin" = {
                      if (any(x_nona < 0 | x_nona > 1))
                        stop("asin(sqrt(x)) requiert des valeurs entre 0 et 1 (proportions/pourcentages en décimal).\n",
@@ -1725,7 +1635,7 @@ apply_variable_transformation <- function(x, method) {
                      asin(sqrt(x))
                    },
                    
-                   # ── 9. Logit ──────────────────────────────────────────────────────────────
+                   # ── 9.
                    "logit" = {
                      if (any(x_nona <= 0 | x_nona >= 1))
                        stop("logit requiert des valeurs strictement entre 0 et 1 (0 et 1 exclus).\n",
@@ -1802,8 +1712,6 @@ check_transformation_feasibility <- function(x, method) {
   }
 }
 
-
-
 # -- Noms de mois et de jours : DECLARES, jamais lus dans la locale ----------
 # `%B`, `%b`, `%A` et `%a` lisent LC_TIME.
 HSTAT_MOIS <- list(
@@ -1833,8 +1741,7 @@ HSTAT_MOIS_ABR <- list(
   list(noms = noms[ord], num = num[ord])
 }
 
-# Indexes par `%u` : 1 = lundi. Ne PAS indexer par `%w` (0 = dimanche), qui
-# decalerait tous les noms d'un rang.
+# Indexes par `%u` : 1 = lundi.
 HSTAT_JOURS <- list(
   fr = c("lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"),
   en = c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"))
@@ -1895,12 +1802,10 @@ hstat_date_parse <- function(x, fmt, lang = hstat_langue_session()) {
   as.Date(y, format = .hstat_pct_sub(fmt, c(B = "%m", b = "%m")))
 }
 
-# ---------------------------------------------------------------------------
 # TOUTES LES DATES DOIVENT ENTRER, QUELLE QUE SOIT LA LANGUE DE L'APPLICATION
-# 1. LE SILENCE. « 2026-10-20 » lu en `%m/%d/%Y` -> NA partout, cadre vide.
+# 1. LE SILENCE.
 # 2. LA VALEUR PLAUSIBLE ET FAUSSE.
 # 3. LE FORMAT ABSENT DE LA LISTE.
-# ---------------------------------------------------------------------------
 
 # Catalogue des formats SOURCE.
 HSTAT_DATE_FORMATS_SRC <- c(
@@ -1995,8 +1900,7 @@ hstat_date_auto <- function(x, fmt = NULL, seuil = 0.8) {
        n_ok = best, n = n_utile)
 }
 
-# Libelle lisible d'un format, pour les messages. Un `%d/%m/%Y` affiche tel quel
-# n'apprend rien a qui n'ecrit pas de code.
+# Libelle lisible d'un format, pour les messages.
 hstat_date_fmt_label <- function(fmt) {
   if (is.null(fmt) || !length(fmt) || is.na(fmt[1])) return("")
   i <- match(fmt[1], HSTAT_DATE_FORMATS_SRC)
@@ -2057,9 +1961,7 @@ hstat_legende_etiquettes <- function(txt) {
   stats::setNames(substr(nou[ok], 1L, HSTAT_TEXTE_CLIENT_MAX), anc[ok])
 }
 
-# Le renommage passe par les LIBELLES de l'echelle, jamais par les donnees : la
-# couleur, la forme et l'ordre des elements ne bougent pas, seul le texte lu
-# change.
+# Le renommage passe par les LIBELLES de l'echelle, jamais par les donnees.
 .hstat_legende_libelles <- function(ancien, ren) {
   force(ancien); force(ren)
   function(x) {
@@ -2110,8 +2012,7 @@ hstat_legende_appliquer <- function(p, titre = NULL, masquer_titre = FALSE,
   p
 }
 
-# Les reglages, declares une fois : les deux familles de graphiques
-# multivaries (catalogue et historiques) les portent sous les memes suffixes.
+# Les reglages, declares une fois.
 hstat_legende_ui <- function(prefix) {
   shiny::tagList(
     shiny::fluidRow(
@@ -2206,8 +2107,7 @@ HSTAT_OPT_TEINTES <- list(
   indigo   = c("#3f51b5", "#ecedf8")
 )
 
-# Une carte d'options a la teinte du catalogue. Un nom inconnu LEVE : retomber
-# sur une couleur par defaut recreerait en silence deux cartes identiques.
+# Une carte d'options a la teinte du catalogue.
 .hstat_opt_carte <- function(titre, icone, teinte, ...) {
   if (!is.character(teinte) || length(teinte) != 1L ||
       !teinte %in% names(HSTAT_OPT_TEINTES)) {
@@ -2229,8 +2129,8 @@ hstat_contraste <- function(a, b) {
   (l[1] + 0.05) / (l[2] + 0.05)
 }
 
-# Une couleur de texte assombrie juste assez pour se lire sur son fond (WCAG AA,
-# 4,5:1). La teinte est gardee : seule la luminosite descend, par pas de 5 %.
+# Une couleur de texte assombrie juste assez pour se lire sur son fond (WCAG
+# AA, 4,5:1).
 hstat_couleur_lisible <- function(couleur, fond = "#ffffff", ratio = 4.5) {
   ok <- tryCatch({ grDevices::col2rgb(couleur); grDevices::col2rgb(fond); TRUE },
                  error = function(e) FALSE)
@@ -2280,13 +2180,8 @@ HSTAT_PLOT_EXTRAS_PAR_FAMILLE <- list(
   bornes = c("Xmin", "Xmax", "Ymin", "Ymax"),
   angles = c("AngleX", "AngleY"),
   pas    = c("PasX", "PasY"),
-  # Memes suffixes que ceux de `mod_dl50`, qui les portait deja chez lui :
-  # un module qui prendrait la famille APRES les avoir declares verrait le
-  # doublon tout de suite, au lieu de le decouvrir a l'usage.
   legende = c("LegendeTitre", "LegendeTitreTaille", "LegendeTaille"))
 
-# DERIVEE, jamais recopiee : la liste plate et la carte par famille etaient
-# deux declarations de la meme chose, tenues d'accord par une assertion.
 HSTAT_PLOT_EXTRAS <- unlist(HSTAT_PLOT_EXTRAS_PAR_FAMILLE, use.names = FALSE)
 
 # Le titre de la carte ne nomme AUCUNE des familles : il doit rester vrai quel
@@ -2304,8 +2199,7 @@ hstat_plot_extras_ui <- function(ns, prefix,
       shiny::sliderInput(id("PoliceBase"), "Taille de police de base",
                          min = 6, max = 24, value = 11, step = 1, ticks = FALSE)))
 
-  # Decoche, le reglage ne pose RIEN : un theme qui trace ses axes de lui-meme
-  # (« classique ») garde les siens, la ou un `element_blank()` les effacerait.
+  # Decoche, le reglage ne pose RIEN.
   if ("axe" %in% familles)
     els <- c(els, list(
       shiny::checkboxInput(id("AxisLine"), "Tracer les axes X et Y", value = FALSE),
@@ -2339,8 +2233,7 @@ hstat_plot_extras_ui <- function(ns, prefix,
                                             selected = "plain")))))
 
   # L'INCLINAISON EST UN ANGLE, PAS UN OUI/NON, et elle commande aussi le
-  # CALAGE : une etiquette penchee doit finir sous sa graduation (`hjust = 1`),
-  # une etiquette droite se centre.
+  # CALAGE.
   if ("angles" %in% familles)
     els <- c(els, list(
       shiny::fluidRow(
@@ -2377,8 +2270,7 @@ hstat_plot_extras_ui <- function(ns, prefix,
                                              "Taille du texte de légende",
                                              value = 10, min = 4, max = 30, step = 1)))))
 
-  # UN PAS VIDE LAISSE LES GRADUATIONS AUTOMATIQUES. Le poser d'office
-  # remplacerait celles qu'une echelle du module a deja choisies.
+  # UN PAS VIDE LAISSE LES GRADUATIONS AUTOMATIQUES.
   if ("pas" %in% familles)
     els <- c(els, list(
       shiny::fluidRow(
@@ -2410,9 +2302,7 @@ hstat_plot_extras_ui <- function(ns, prefix,
             els))
 }
 
-# La lecture rend une liste NOMMEE, jamais les entrees une par une : un module
-# qui en oublierait une la laisserait sans effet, et c'est precisement le
-# defaut — « declare, lu, mais jamais utilise » — que le depot traque ailleurs.
+# La lecture rend une liste NOMMEE, jamais les entrees une par une.
 hstat_plot_extras_lire <- function(input, prefix,
                                    familles = HSTAT_PLOT_EXTRAS_DEFAUT) {
   familles <- intersect(as.character(familles), HSTAT_PLOT_EXTRAS_FAMILLES)
@@ -2424,9 +2314,7 @@ hstat_plot_extras_lire <- function(input, prefix,
     v <- suppressWarnings(as.numeric(g(x, defaut))[1])
     if (!isTRUE(is.finite(v))) defaut else v
   }
-  # `nv()` rend NA sur une saisie vide, la ou `n()` retombe sur un defaut : une
-  # borne et un pas VIDES veulent dire « automatique », et c'est une valeur en
-  # soi. Les confondre poserait un cadre que personne n'a demande.
+  # `nv()` rend NA sur une saisie vide, la ou `n()` retombe sur un defaut.
   nv <- function(x) {
     v <- suppressWarnings(as.numeric(input[[paste0(prefix, x)]])[1])
     if (isTRUE(is.finite(v))) v else NA_real_
@@ -2456,9 +2344,7 @@ hstat_plot_extras_lire <- function(input, prefix,
        leg_taille       = n("LegendeTaille", 10))
 }
 
-# `police` ne passe PAS par ici : elle appartient au theme de base
-# (`viz_get_theme(..., base_size = o$police)`), et l'appliquer apres coup ne
-# toucherait que ce que le theme a deja fixe.
+# `police` ne passe PAS par ici.
 hstat_plot_extras_theme <- function(o, titre = TRUE) {
   f  <- as.character(o$familles %||% HSTAT_PLOT_EXTRAS_FAMILLES)
   th <- ggplot2::theme()
@@ -2507,14 +2393,9 @@ hstat_plot_extras_theme <- function(o, titre = TRUE) {
     axis.line.y = ggplot2::element_line(colour = o$axe_col, linewidth = o$axe_ep))
 }
 
-# ---------------------------------------------------------------------------
-#  BORNES ET PAS : ce sont des ECHELLES, pas un theme
-# ---------------------------------------------------------------------------
+# BORNES ET PAS : ce sont des ECHELLES, pas un theme
 
-# Un axe DISCRET n'a pas de pas : « une graduation sur deux » n'a aucun sens
-# sur des noms de traitement, et poser une echelle continue par-dessus ferait
-# lever ggplot sur « Discrete value supplied to continuous scale » -- donc
-# tomber l'onglet entier pour un reglage d'habillage.
+# Un axe DISCRET n'a pas de pas.
 .hstat_extras_axe_continu <- function(g, aes) {
   sc <- tryCatch(g$scales$get_scales(aes), error = function(e) NULL)
   if (inherits(sc, "Scale")) return(!isTRUE(sc$is_discrete()))
@@ -2528,8 +2409,7 @@ hstat_plot_extras_theme <- function(o, titre = TRUE) {
   }
   if (is.null(m)) return(FALSE)
   # Une quosure HERITE de « formula » : `m[[2]]` y marche encore, mais rlang
-  # avertit a chaque appel que l'acces est deprecie -- un avertissement par
-  # trace, en console d'un serveur partage.
+  # avertit a chaque appel que l'acces est deprecie.
   ex <- tryCatch(
     if (requireNamespace("rlang", quietly = TRUE) && rlang::is_quosure(m))
       rlang::quo_get_expr(m)
@@ -2548,16 +2428,12 @@ hstat_plot_extras_theme <- function(o, titre = TRUE) {
   if (!.hstat_extras_axe_continu(g, aes)) return(g)
   brk <- function(lim) {
     if (!all(is.finite(lim))) return(ggplot2::waiver())
-    # Alignee sur le pas, PUIS bornee au cadre : partir de la borne brute
-    # donnerait des graduations decalees (-37, -17, 3...) et zero ne serait pas
-    # gradue, alors que c'est la seule qui compte des qu'il y a du negatif.
+    # Alignee sur le pas, PUIS bornee au cadre.
     b <- hstat_graduations(min(lim), max(lim) + pas, pas)
     if (is.null(b)) return(ggplot2::waiver())
     b[b >= min(lim) & b <= max(lim)]
   }
-  # DEUX ECHELLES NE S'AJOUTENT PAS : la seconde REMPLACE la premiere en
-  # avertissant, et le module perdrait la sienne (ses limites, son
-  # transformateur, son titre de legende).
+  # DEUX ECHELLES NE S'AJOUTENT PAS.
   sc <- tryCatch(g$scales$get_scales(aes), error = function(e) NULL)
   if (inherits(sc, "Scale")) { sc$breaks <- brk; return(g) }
   g + (if (identical(aes, "x")) ggplot2::scale_x_continuous(breaks = brk)
@@ -2578,8 +2454,7 @@ hstat_plot_extras_scales <- function(g, o) {
   }
 
   # LA COORD NE SE POSE QUE SI UNE BORNE EST REMPLIE : en poser une d'office
-  # remplacerait celle qu'un constructeur a choisie -- le recadrage sur les
-  # centiles d'un intervalle, par exemple -- sans un mot.
+  # remplacerait celle qu'un constructeur a choisie.
   if (!("bornes" %in% f)) return(g)
   b <- o$bornes
   xl <- c(b[["xmin"]], b[["xmax"]]); yl <- c(b[["ymin"]], b[["ymax"]])
@@ -2589,15 +2464,13 @@ hstat_plot_extras_scales <- function(g, o) {
     ylim = if (any(is.finite(yl))) yl else NULL)
 }
 
-# ---------------------------------------------------------------------------
 # LA LIGNE ZERO EST UNE SEULE LIGNE, DONC UN SEUL REGLAGE
 HSTAT_AXE_ZERO <- c("Aucune ligne au zéro"                = "aucune",
                     "Ligne de référence en pointillés"    = "reference",
                     "Axe X posé sur la ligne zéro"        = "axe")
 
 # Ce que « axe » fait, et pourquoi chacune des trois pieces est necessaire :
-# 1. LA COUCHE. Un trait d'axe est dessine par le THEME, au bord du panneau ;
-# rien dans ggplot2 ne le deplace a une ordonnee choisie.
+# 1. LA COUCHE.
 # 2. L'ANCIEN TRAIT S'EFFACE.
 # 3. L'EXPANSION DU BAS DISPARAIT QUAND RIEN N'EST NEGATIF.
 hstat_axe_zero <- function(mode = "reference", negatifs = FALSE,
@@ -2711,9 +2584,7 @@ hstat_scales_palette <- function(pal, fill = TRUE, colour = TRUE, ...) {
   }
   if (!pal %in% c(HSTAT_PALETTES_QUALI, HSTAT_PALETTES_DEGRADE,
                   HSTAT_PALETTES_AUTRES)) return(NULL)
-  # Une echelle discrete dont la palette RECOIT le nombre de modalites : c'est
-  # ce qui lui permet d'interpoler au-dela du plafond de Brewer, la ou
-  # `scale_*_brewer()` rendait les modalites en trop en gris.
+  # Une echelle discrete dont la palette RECOIT le nombre de modalites.
   echelle <- function(aes) {
     args <- list(aesthetics = aes,
                  palette = function(n) hstat_palette_couleurs(pal, n), ...)
@@ -2725,14 +2596,7 @@ hstat_scales_palette <- function(pal, fill = TRUE, colour = TRUE, ...) {
   out
 }
 
-# Alignements horizontaux d'un titre. Les valeurs sont les `hjust` de ggplot,
-# transmises en CHAINE par selectInput : le lecteur doit les convertir.
-# =============================================================================
-#  ELLIPSES DE CONCENTRATION : TOUS LES GROUPES NE PEUVENT PAS EN PORTER
-# -----------------------------------------------------------------------------
-#  Une ellipse de confiance suppose une covariance INVERSIBLE dans le groupe.
-#  Trois cas la rendent impossible, et tous se rencontrent :
-# =============================================================================
+# Alignements horizontaux d'un titre.
 hstat_ellipse_ok <- function(groupes, x, y, min_n = 3L) {
   vide <- list(ok = FALSE, groupes = character(0), faibles = character(0),
                motif = "Aucun groupe exploitable.")
@@ -2762,11 +2626,8 @@ hstat_ellipse_ok <- function(groupes, x, y, min_n = 3L) {
                         paste(faibles, collapse = ", "), min_n))
 }
 
-# Contours des ellipses de confiance de la MOYENNE de chaque groupe (celles
-# que trace factoextra sous ellipse.type = "confidence") : centre plus
-# sqrt(qchisq(niveau, 2)) fois la racine de la covariance divisee par n.
-# Seuls les groupes de `groupes` sont traces : un groupe de moins de trois
-# individus n'en porte pas, et ne doit pas emporter ceux qui le peuvent.
+# Contours des ellipses de confiance de la MOYENNE de chaque groupe (celles que
+# trace factoextra sous ellipse.type = "confidence").
 hstat_ellipses_confiance <- function(x, y, g, groupes = NULL, niveau = 0.95,
                                      n_points = 100L) {
   g <- as.character(g)
@@ -2794,12 +2655,9 @@ hstat_ellipses_confiance <- function(x, y, g, groupes = NULL, niveau = 0.95,
   res
 }
 
-# =============================================================================
-#  TELECHARGEMENT D'IMAGE : NE JAMAIS RENVOYER UNE PAGE HTML
-# -----------------------------------------------------------------------------
+# TELECHARGEMENT D'IMAGE : NE JAMAIS RENVOYER UNE PAGE HTML
 # Un `content =` de downloadHandler qui leve une erreur -- ou qui se termine
-# sans avoir ECRIT le fichier -- fait renvoyer a Shiny sa page d'erreur HTML.
-# =============================================================================
+# sans avoir ECRIT le fichier.
 HSTAT_IMG_MIME <- c(
   png = "image/png", jpeg = "image/jpeg", jpg = "image/jpeg",
   tiff = "image/tiff", tif = "image/tiff", bmp = "image/bmp",
@@ -2813,15 +2671,10 @@ hstat_img_fmt <- function(x, defaut = "png") {
   if (!nzchar(f) || !(f %in% names(HSTAT_IMG_MIME))) defaut else f
 }
 
-# Type MIME a annoncer au navigateur. Sans lui, un contenu inattendu est servi
-# en text/html et enregistre comme tel.
+# Type MIME a annoncer au navigateur.
 hstat_img_mime <- function(fmt) unname(HSTAT_IMG_MIME[hstat_img_fmt(fmt)])
 
-# ---------------------------------------------------------------------------
-#  LES DEUX REGLAGES D'EXPORT NE SE DECLARENT QU'ICI
-# ---------------------------------------------------------------------------
-#  Le format et le DPI etaient reecrits a la main a chaque export : dix-sept
-#  listes de formats et vingt champs de DPI, qui avaient DIVERGE.
+# LES DEUX REGLAGES D'EXPORT NE SE DECLARENT QU'ICI
 HSTAT_TIFF_COMPRESSION <- c("Aucune" = "none", "LZW" = "lzw", "ZIP" = "zip")
 
 HSTAT_FORMATS_IMG <- c(
@@ -2829,19 +2682,15 @@ HSTAT_FORMATS_IMG <- c(
   "PDF (vectoriel)" = "pdf", "SVG (vectoriel)" = "svg",
   "EPS (vectoriel)" = "eps")
 
-# Selecteur de format d'export. Pas d'argument `choices` : c'est precisement
-# ce qui permettait a chaque appel d'inventer sa propre liste.
+# Selecteur de format d'export.
 hstat_format_input <- function(id, label = "Format", selected = "png",
                                width = NULL) {
-  # Le separateur decimal n'est PAS pose ici : il se demande dans la fenetre
-  # qui precede chaque telechargement (www/hstat-decimale.js), et nulle part
-  # ailleurs dans l'interface.
+  # Le separateur decimal n'est PAS pose ici.
   shiny::selectInput(id, label, choices = HSTAT_FORMATS_IMG,
                      selected = selected, width = width)
 }
 
-# Champ de resolution. Pas d'argument `max` : le plafond est celui de
-# l'application, il ne se negocie pas au point d'appel.
+# Champ de resolution.
 hstat_dpi_input <- function(id, label = "DPI", valeur = 300, min = 72,
                             step = 50, width = NULL) {
   shiny::numericInput(id, label, value = valeur, min = min,
@@ -2914,11 +2763,7 @@ hstat_ecrire_image <- function(file, plot, fmt = "png", width = 10, height = 7.5
     eff <- hstat_dpi_effectif(width, height, dpi)
     dpi <- eff$dpi
   }
-  # LE PERIPHERIQUE EST FERME AVANT TOUT LE RESTE, d'ou la fonction anonyme :
-  # `on.exit()` s'accroche a un CADRE DE FONCTION, et le bloc d'un `tryCatch`
-  # n'en cree pas -- la fermeture etait donc repoussee a la sortie de
-  # `hstat_ecrire_image()`, soit APRES le gestionnaire d'erreur et APRES le
-  # controle final.
+  # LE PERIPHERIQUE EST FERME AVANT TOUT LE RESTE, d'ou la fonction anonyme.
   ok <- tryCatch({
     if (is.null(plot)) stop("Aucun graphique à exporter.")
     (function() {
@@ -2976,10 +2821,6 @@ hstat_barre_style <- function(alpha = 0.8, contour = FALSE,
 
 # Ou poser l'etiquette de valeur d'une barre : ordonnee ET calage vertical,
 # ensemble, parce qu'ils ne se choisissent pas separement.
-# ---------------------------------------------------------------------------
-#  Titre d'axe : revenir a la ligne, et se caler ou l'utilisateur veut
-# ---------------------------------------------------------------------------
-# UN TITRE PLUS LONG QUE SON AXE DEBORDE.
 HSTAT_ALIGN_TITRE <- c("Gauche" = "0", "Centré" = "0.5", "Droite" = "1")
 
 hstat_axe_titre <- function(size = 12, face = "plain", align = "0.5",
@@ -3023,9 +2864,7 @@ hstat_axe_titre_lire <- function(input, prefix, size = 12, face = "plain",
                   colour = colour)
 }
 
-# Bandeau "portee des données" : affiche sur chaque onglet d'analyse en mode
-# hors-memoire pour rappeler que l'analyse porte sur un echantillon, avec acces
-# rapide au reglage de l'echantillon.
+# Bandeau "portee des données".
 .hstat_scope_banner <- function(exact = FALSE) {
   shiny::conditionalPanel(
     condition = "output.hstatBigData == true",
@@ -3050,7 +2889,6 @@ hstat_etendue_axe <- function(valeurs, reperes = numeric(0)) {
   r <- range(v)
   if (r[1] == r[2]) r + c(-0.5, 0.5) else r
 }
-
 
 # UN PAS DE GRADUATION VIENT DU NAVIGATEUR, ET IL FIXE UN NOMBRE DE TRAITS.
 HSTAT_GRADUATIONS_MAX <- 100L
@@ -3095,8 +2933,7 @@ HSTAT_THEMES_GG <- c("Minimal" = "minimal", "Classique" = "classic",
                      "Traits fins" = "linedraw", "Sans décor" = "void")
 
 # Les deux themes propres aux graphiques multivaries vivent ICI, avec les
-# autres : chacun en tenait une copie dans app_server.R, et « hstat » y
-# designait deux habillages differents selon le graphique.
+# autres.
 HSTAT_THEMES_MV <- c("Par défaut (ggplot2)" = "gg",
                      "HStat (titre centré, légende en bas)" = "hstat")
 
@@ -3151,9 +2988,7 @@ viz_get_x_scale <- function(x_col, disp_fmt = "%d-%m-%Y", label_map = NULL, cust
       if (has_lm && v %in% names(label_map) && as.character(label_map[[v]]) != v)
         as.character(label_map[[v]])
       else
-        # `hstat_date_fmt` et non `format` : `%B` et `%b` liraient sinon
-        # LC_TIME, et l'axe sortait « 04 August » dans une interface
-        # entierement francaise. Le nom du mois suit la langue de la session.
+        # `hstat_date_fmt` et non `format`.
         tryCatch(hstat_date_fmt(as.Date(v), disp_fmt), error = function(e) v)
     }, USE.NAMES = FALSE)
     return(ggplot2::scale_x_date(
@@ -3289,7 +3124,6 @@ check_manova_data <- function(df, response, factors) {
        df_clean = df2, n = n, p = p, k = length(factors))
 }
 
-
 #' Test de normalité multivariée de Mardia (skewness + kurtosis)
 #' @param Y matrix/data.frame numérique
 #' @return list(skewness, p.skewness, kurtosis, p.kurtosis, n, p, conclusion)
@@ -3334,7 +3168,6 @@ multivariate_normality_mardia <- function(Y) {
        n = n, p = p,
        conclusion = concl)
 }
-
 
 #' Test de Box's M (homogénéité des matrices de covariance entre groupes)
 #' @param Y matrix/data.frame numérique
@@ -3393,7 +3226,6 @@ box_m_test <- function(Y, group) {
        conclusion = concl)
 }
 
-
 #' PERMDISP — homogénéité multivariée des dispersions (vegan::betadisper)
 #' Équivalent multivarié non paramétrique du test de Levene
 #' @param Y matrix de réponses
@@ -3434,7 +3266,6 @@ permdisp_test <- function(Y, group, dist_method = "euclidean") {
        p.value = res$p, conclusion = concl)
 }
 
-
 #' Format les 4 statistiques MANOVA en data.frame "wide"
 #' @param fit modèle manova
 #' @return data.frame avec colonnes Effet, ddl_num, ddl_den + 4 blocs (stat/F/p)
@@ -3469,7 +3300,6 @@ manova_format_all_stats <- function(fit) {
   }))
 }
 
-
 #' Tailles d'effet multivariées (eta² partiel) à partir de Wilks
 #' Formule : eta²_partiel = 1 - Wilks^(1/s)  où s = min(p, ddl_effet)
 #' @param df data.frame produit par manova_format_all_stats
@@ -3477,15 +3307,12 @@ manova_format_all_stats <- function(fit) {
 manova_effect_sizes <- function(df, p) {
   s <- pmin(p, df$ddl_num)
   # s = 0 -- un degré de liberté dégénéré -- donnerait Wilks^(1/0), soit
-  # Wilks^Inf, donc eta² = 1 : la taille d'effet MAXIMALE, produite par une
-  # statistique non calculable, et que `interpret_manova_effect()` qualifierait
-  # d'« important ».
+  # Wilks^Inf, donc eta² = 1.
   s[!is.finite(s) | s <= 0] <- NA_real_
   df$eta2_partial <- 1 - df$Wilks^(1 / s)
   df$eta2_pillai  <- df$Pillai / s   # eta² partiel basé sur Pillai
   df
 }
-
 
 #' Interprétation textuelle d'un effet MANOVA paramétrique
 #' @param p_pillai  p-value de Pillai
@@ -3496,8 +3323,7 @@ interpret_manova_effect <- function(p_pillai, eta2 = NA) {
   base <- trf("Effet multivarié %s (Pillai, p = %s)", sig, round(p_pillai, 6))
   if (!is.na(eta2)) {
     # « faible » vaut *small* pour une taille d'effet et *weak* pour une force
-    # d'association : la cle du dictionnaire etant la chaine francaise
-    # elle-meme, le mot ne peut pas y entrer seul.
+    # d'association.
     base <- paste0(base,
       if (eta2 < 0.01) trf(" — taille d'effet négligeable (eta² = %s)", round(eta2, 3))
       else if (eta2 < 0.06) trf(" — taille d'effet faible (eta² = %s)", round(eta2, 3))
@@ -3506,7 +3332,6 @@ interpret_manova_effect <- function(p_pillai, eta2 = NA) {
   }
   base
 }
-
 
 interpret_permanova_effect <- function(p_value, R2 = NA) {
   if (is.na(p_value)) return("Résultat non disponible")
@@ -3521,7 +3346,6 @@ interpret_permanova_effect <- function(p_value, R2 = NA) {
   }
   base
 }
-
 
 #' PERMANOVA pairwise sur les niveaux d'un facteur
 #' Implémentation manuelle (adonis2 sur chaque paire) avec correction de p-values
@@ -3574,7 +3398,6 @@ pairwise_permanova <- function(Y, group, permutations = 999,
   out
 }
 
-
 #' Box's M par facteur (applique box_m_test à chaque facteur d'un design)
 #' @return data.frame : Facteur, Chi2, ddl, p_value, Conclusion (NULL si aucun)
 boxm_per_factor <- function(Y, df, factors) {
@@ -3591,7 +3414,6 @@ boxm_per_factor <- function(Y, df, factors) {
   })
   if (length(rows) == 0) NULL else do.call(rbind, rows)
 }
-
 
 #' PERMDISP par facteur (applique permdisp_test à chaque facteur d'un design)
 #' @return data.frame : Facteur, F_stat, ddl1, ddl2, p_value, Conclusion (NULL si aucun)
@@ -3611,15 +3433,11 @@ permdisp_per_factor <- function(Y, df, factors, dist_method = "euclidean") {
   if (length(rows) == 0) NULL else do.call(rbind, rows)
 }
 
-
 # LE TEST GLOBAL D'ABORD : un post-hoc n'est pas un test independant.
 HSTAT_POSTHOC_WELCH <- c("games")
 
-# ---------------------------------------------------------------------------
-#  LES DEUX TESTS DE WELCH
-# ---------------------------------------------------------------------------
-#  Welch ne suppose pas les variances egales. Il n'existe QUE deux tests
-#  parametriques qui portent son nom, et c'est une liste close :
+# LES DEUX TESTS DE WELCH
+# Welch ne suppose pas les variances egales.
 HSTAT_TESTS_WELCH <- c("t_welch", "anova_welch")
 
 # Nettoie et verifie un couple (reponse numerique, facteur) avant tout test a
@@ -3641,7 +3459,7 @@ HSTAT_TESTS_WELCH <- c("t_welch", "anova_welch")
     return(ko(trf("« %s » compte %d modalités (%s). Ce test en compare exactement %d ; au-delà, passez à l'ANOVA.",
                   fvar, k, paste(utils::head(levels(g), 5), collapse = ", "), max_groupes)))
   # UN GROUPE A UNE SEULE OBSERVATION N'A PAS DE VARIANCE, et c'est justement
-  # la variance par groupe que Welch estime separement : il rendrait NaN.
+  # la variance par groupe que Welch estime separement.
   n_g <- as.integer(table(g))
   if (any(n_g < 2L))
     return(ko(trf("Chaque groupe doit compter au moins deux observations ; %s n'en a qu'une.",
@@ -3672,8 +3490,7 @@ hstat_t_deux <- function(df, var, fvar, var_equal = FALSE, conf_level = 0.95) {
        niveaux = levels(pre$g), n = pre$n)
 }
 
-# ANOVA de Welch a un facteur. C'est la reference des methodes a variances
-# inegales -- Games-Howell la lit deja par `hstat_omnibus_variances()`.
+# ANOVA de Welch a un facteur.
 hstat_anova_welch <- function(df, var, fvar) {
   vide <- list(p = NA_real_, statistique = NA_real_, ddl1 = NA_real_,
                ddl2 = NA_real_, test = "ANOVA de Welch", message = NULL)
@@ -3799,8 +3616,7 @@ hstat_pmat_demi <- function(p, niveaux) {
     out[cc, r] <- v
   }
   diag(out) <- 1
-  # CE QUI N'A PAS PU ETRE RATTACHE EST NOMME : la case garde 1, donc « pas de
-  # difference », et le taire ferait publier des lettres optimistes sans signe.
+  # CE QUI N'A PAS PU ETRE RATTACHE EST NOMME.
   if (length(manquants)) attr(out, "non_resolues") <- unique(manquants)
   out
 }
@@ -3824,8 +3640,7 @@ hstat_paire_niveaux <- function(etiquette, niveaux, sep = "-") {
   trouves[[1L]]
 }
 
-# Matrice de p-values a partir d'etiquettes de comparaison. Une seule
-# definition pour les quatre blocs de lettres CLD, qui la recopiaient.
+# Matrice de p-values a partir d'etiquettes de comparaison.
 hstat_pmat_comparaisons <- function(etiquettes, p, niveaux, sep = "-") {
   niveaux <- as.character(niveaux)
   pmat <- matrix(1, length(niveaux), length(niveaux),
@@ -3861,7 +3676,6 @@ build_pvalue_matrix <- function(pairs_df, levels) {
   diag(pmat) <- 1
   pmat
 }
-
 
 #' PostHoc univarie par variable reponse (decomposition d'un posthoc multivarie)
 #'
@@ -3935,7 +3749,6 @@ build_letters_per_variable <- function(df, response, factor_name,
   out <- do.call(rbind, rows); rownames(out) <- NULL
   out
 }
-
 
 #' PostHoc par variable sur les cellules d'une interaction (facteurs croises)
 #'
@@ -4020,7 +3833,6 @@ build_letters_interaction <- function(df, response, factors,
   out
 }
 
-
 #' Distance de Mahalanobis et detection d'outliers multivaries
 #' Un point est considere comme outlier si D2 depasse le quantile chi2(p) a alpha.
 #' @return list(d2, threshold, n_outliers, idx_outliers, conclusion)
@@ -4035,8 +3847,7 @@ detect_multivariate_outliers <- function(Y, alpha = 0.001) {
   
   centre <- colMeans(Y)
   cov_mat <- tryCatch(stats::cov(Y), error = function(e) NULL)
-  # LE RANG, PAS LE DETERMINANT. C'est la meme correction que dans
-  # `box_m_test()`, et elle manquait ici.
+  # LE RANG, PAS LE DETERMINANT.
   rang <- tryCatch(qr(cov_mat)$rank, error = function(e) NA_integer_)
   if (is.null(cov_mat) || any(is.na(cov_mat)) ||
       is.na(rang) || rang < p) {
@@ -4060,7 +3871,6 @@ detect_multivariate_outliers <- function(Y, alpha = 0.001) {
   list(d2 = d2, threshold = threshold, n_outliers = length(idx),
        idx_outliers = idx, conclusion = concl, alpha = alpha)
 }
-
 
 #' Assistant decisionnel : recommande MANOVA parametrique ou PERMANOVA
 #'
@@ -4152,7 +3962,6 @@ recommend_manova_test <- function(mardia, boxm, permdisp, n) {
   )
 }
 
-
 #' Test d'effets simples multivaries (MANOVA conditionnelles)
 #'
 #' Quand l'interaction A:B est significative, decompose en testant l'effet de A
@@ -4229,7 +4038,6 @@ manova_simple_effects <- function(df, response, fixed, tested) {
   out
 }
 
-
 #' Effets simples PERMANOVA (analogue non parametrique)
 #' @return data.frame analogue a manova_simple_effects
 permanova_simple_effects <- function(df, response, fixed, tested,
@@ -4282,7 +4090,6 @@ permanova_simple_effects <- function(df, response, fixed, tested,
   out
 }
 
-
 #' Identifie les predicteurs categoriels dans un modele lm/glm
 #' @param model modele lm ou glm ajuste
 #' @return character vector des noms des predicteurs categoriels
@@ -4331,7 +4138,6 @@ lm_pairwise_emmeans <- function(model, predictor, adjust = "tukey") {
   }
   df_out
 }
-
 
 #' Lettres de groupes (CLD) pour un predicteur categoriel
 #' @param model    modele lm ou glm
@@ -4387,7 +4193,6 @@ lm_cld_letters <- function(model, predictor, adjust = "tukey", digits = 3) {
   df_out
 }
 
-
 # Helpers transverses : arrondi global et coloration des groupes posthoc
 
 #' Arrondit toutes les colonnes numeriques d'un data.frame selon les reglages.
@@ -4397,8 +4202,7 @@ lm_cld_letters <- function(model, predictor, adjust = "tukey", digits = 3) {
 #' @param decimals nombre de decimales (input$testsDecimals)
 #' @return data.frame avec colonnes numeriques arrondies (inchange si round_on FALSE)
 # Nombre de decimales D'AFFICHAGE : la valeur choisie quand l'arrondi est
-# actif, et `NA` quand il ne l'est pas -- « pas d'arrondi » n'est pas « arrondi
-# a trois decimales ».
+# actif, et `NA` quand il ne l'est pas.
 hstat_dec_affichage <- function(round_on, decimals = 2) {
   if (!isTRUE(round_on)) return(NA_integer_)
   if (is.null(decimals) || !length(decimals) || is.na(decimals[1])) return(2L)
@@ -4406,7 +4210,6 @@ hstat_dec_affichage <- function(round_on, decimals = 2) {
 }
 
 # « moyenne ± dispersion groupe », a une precision d'affichage donnee.
-# `dec = NA` rend la valeur ENTIERE, sans arrondi : c'est le cas par defaut.
 .hstat_pm <- function(m, s, groupes = NULL, dec = NA_integer_) {
   m <- suppressWarnings(as.numeric(m))
   s <- suppressWarnings(as.numeric(s))
@@ -4426,9 +4229,7 @@ hstat_dec_affichage <- function(round_on, decimals = 2) {
   out
 }
 
-# SYNTHESE POST-HOC « comme dans un article » : une ligne par modalite, une
-# colonne par variable, « moyenne ± dispersion groupe » dans chaque case, puis
-# le test global sous chaque colonne -- ddl, statistique, N et P.
+# SYNTHESE POST-HOC « comme dans un article ».
 HSTAT_POSTHOC_SYMBOLES <- c("ANOVA" = "F", "ANOVA de Welch" = "W",
                             "Kruskal-Wallis" = "H")
 
@@ -4484,9 +4285,7 @@ hstat_posthoc_synthese <- function(d, dispersion = c("ecart_type", "erreur_type"
     # avant « | » dans son libelle.
     colf <- if (identical(sub$Type[1], "simple_effect"))
       trimws(sub(" \\| .*$", "", f)) else f
-    # Les modalites se lisent sur `hstat_modalite` quand elle existe : un
-    # facteur nomme « Type », « Variable » ou « N » partage son nom avec une
-    # colonne interne, qui l'ecrase.
+    # Les modalites se lisent sur `hstat_modalite` quand elle existe.
     colf <- if ("hstat_modalite" %in% names(sub) &&
                 any(!is.na(sub$hstat_modalite))) "hstat_modalite" else colf
     if (!colf %in% names(sub)) next
@@ -4510,9 +4309,7 @@ hstat_posthoc_synthese <- function(d, dispersion = c("ecart_type", "erreur_type"
     tab <- data.frame(x = c(niv, HSTAT_SYNTH_CV, tr("ddl"), lab_stat, "N", "P"),
                       stringsAsFactors = FALSE, check.names = FALSE)
     names(tab) <- f
-    # Le groupe de chaque case, a part : la mise en page le colore, et le
-    # relire dans la chaine « moyenne ± dispersion groupe » le confondrait
-    # avec un nombre.
+    # Le groupe de chaque case, a part.
     groupes <- matrix("", length(niv), length(vars))
     for (k in seq_along(vars)) {
       v <- vars[k]
@@ -4574,7 +4371,7 @@ hstat_posthoc_synthese <- function(d, dispersion = c("ecart_type", "erreur_type"
   m <- suppressWarnings(as.numeric(m)); s <- suppressWarnings(as.numeric(s))
   n <- suppressWarnings(as.numeric(n))
   # Les modalites vont dans `hstat_modalite`, jamais dans une colonne nommee
-  # d'apres le facteur : « Type » ou « N » seraient ecrases juste en dessous.
+  # d'apres le facteur.
   b <- data.frame(hstat_modalite = as.character(lignes), stringsAsFactors = FALSE)
   b$Moyenne <- m
   b$Ecart_type <- s
@@ -4669,8 +4466,7 @@ hstat_synthese_apparie <- function(a, b, noms, var, stat, ddl, p, symbole,
 }
 
 # Une couleur par groupe de lettres, la meme regle que la colonne « groups » du
-# tableau des effets principaux : arc-en-ciel translucide dans l'ordre
-# d'apparition.
+# tableau des effets principaux.
 hstat_groupes_couleurs <- function(g, en_plus = NULL) {
   net <- function(x) { x <- unique(trimws(as.character(x))); x[!is.na(x) & nzchar(x)] }
   g <- net(g)
@@ -4822,18 +4618,15 @@ color_groups_dt <- function(dt, df, col = "Groupes") {
                   fontWeight = "bold", textAlign = "center")
 }
 
-
 #  Moteur de donnees HStat -- chargement en memoire (fread) + hors-memoire (DuckDB)
 
-# -- Parametres globaux (modifiables) -----------------------------------------
-# Au-dela de ce seuil, les CSV/Parquet basculent en mode hors-memoire (DuckDB).
+# -- Parametres globaux (modifiables).
 HSTAT_BIGDATA_THRESHOLD <- {
   v <- suppressWarnings(as.numeric(Sys.getenv("HSTAT_BIGDATA_THRESHOLD_MB", "500")))
   if (!is.finite(v) || v < 50) v <- 500
   v * 1024^2
 }
 # Taille de l'echantillon de travail en mode hors-memoire.
-# Configurable via HSTAT_SAMPLE_SIZE (defaut : 100 000 lignes).
 HSTAT_SAMPLE_SIZE <- {
   v <- suppressWarnings(as.integer(Sys.getenv("HSTAT_SAMPLE_SIZE", "100000")))
   if (!is.finite(v) || v < 1000) 100000L else v
@@ -4890,12 +4683,8 @@ hstat_shapiro <- function(x) {
   res
 }
 
-# =============================================================================
-#  SHAPIRO-WILK PAR GROUPE, SUR LES DONNEES BRUTES ET SUR LES RESIDUS
-# -----------------------------------------------------------------------------
-# Le test global sur la variable brute melange les groupes : deux groupes
-# normaux de moyennes eloignees forment une distribution bimodale, que
-# Shapiro-Wilk rejette alors qu'aucune hypothese de l'ANOVA n'est violee.
+# SHAPIRO-WILK PAR GROUPE, SUR LES DONNEES BRUTES ET SUR LES RESIDUS
+# Le test global sur la variable brute melange les groupes.
 .hstat_shapiro_ligne <- function(x, test, variable, facteur, groupe) {
   x <- x[is.finite(x)]
   n <- length(x)
@@ -4970,13 +4759,7 @@ hstat_shapiro_groupes <- function(d, variables, facteurs,
   out
 }
 
-# =============================================================================
-#  COMPARAISON A UNE VALEUR DE REFERENCE (NORME)
-# -----------------------------------------------------------------------------
-# Tests a UN echantillon : au lieu de comparer deux groupes entre eux, on
-# confronte une serie de mesures a une valeur cible connue d'avance (norme
-# reglementaire, valeur theorique, objectif, historique...).
-# =============================================================================
+# COMPARAISON A UNE VALEUR DE REFERENCE (NORME)
 
 # Vocabulaire commun aux sorties.
 .hstat_ref_alt_label <- function(alternative) {
@@ -5068,7 +4851,7 @@ hstat_ref_test <- function(x, mu = 0, method = "ttest",
 
   if (method == "wilcoxon") {
     # L'INTERVALLE (pseudo-mediane de Hodges-Lehmann) se cherche par `uniroot`
-    # en recalculant les rangs a chaque pas : il coute vingt fois le test.
+    # en recalculant les rangs a chaque pas.
     avec_ic <- n <= HSTAT_WILCOX_IC_MAX
     tr <- suppressWarnings(stats::wilcox.test(
       x, mu = mu, alternative = alternative, conf.level = conf.level,
@@ -5242,9 +5025,7 @@ hstat_ref_result_row <- function(res, variable, reference_label = NULL) {
     stringsAsFactors = FALSE)
 }
 
-# ==============================================================================
-#  TESTS APPARIES : un test a un echantillon sur les DIFFERENCES
-# ==============================================================================
+# TESTS APPARIES : un test a un echantillon sur les DIFFERENCES
 # Deux mesures prises sur la MEME unite (avant / apres, gauche / droite, deux
 # methodes sur le meme echantillon) ne sont pas deux groupes.
 HSTAT_APPARIE_METHODES <- c(t = "ttest", wilcoxon = "wilcoxon", signe = "sign")
@@ -5255,8 +5036,9 @@ HSTAT_APPARIE_METHODES <- c(t = "ttest", wilcoxon = "wilcoxon", signe = "sign")
   signe    = tr("Test du signe apparié"),
   methode)
 
-# -- Construire les paires ------------------------------------------------------
-# Deux formes de fichier, et aucune ne se devine : elle se declare.
+# -- Construire les paires
+# ------------------------------------------------------ Deux formes de
+# fichier, et aucune ne se devine.
 hstat_paires_large <- function(a, b) {
   a <- suppressWarnings(as.numeric(a)); b <- suppressWarnings(as.numeric(b))
   if (length(a) != length(b))
@@ -5289,10 +5071,7 @@ hstat_paires_longue <- function(y, groupe, sujet) {
        ecartees = sum(!ok) , doublons = doublons, incomplets = incomplets)
 }
 
-# -- Mesures repetees non parametriques : Friedman et Durbin ------------------
-# `friedman.test()` exige un plan en blocs COMPLETS et NON REPLIQUES : une
-# observation par sujet et par periode, et chaque sujet mesure a chaque
-# periode.
+# -- Mesures repetees non parametriques : Friedman et Durbin.
 hstat_rm_blocs <- function(y, groupe, sujet, complets = TRUE) {
   y <- suppressWarnings(as.numeric(y))
   g <- if (is.factor(groupe)) droplevels(groupe) else factor(as.character(groupe))
@@ -5335,8 +5114,7 @@ hstat_rm_blocs <- function(y, groupe, sujet, complets = TRUE) {
        ecartes = ecartes, lignes_ecartees = sum(!ok))
 }
 
-# Les notes de preparation, en phrases entieres : `trf()` ne traduit pas ses
-# arguments, et un fragment au dictionnaire ne se traduirait nulle part.
+# Les notes de preparation, en phrases entieres.
 hstat_rm_blocs_notes <- function(b) {
   n <- character(0)
   if (b$doublons > 0L)
@@ -5420,9 +5198,7 @@ hstat_test_apparie <- function(a, b, methode = c("t", "wilcoxon", "signe"),
   pf <- hstat_p_txt(res$p.value)
   ptxt <- if (startsWith(pf, "<")) paste("p", pf) else paste("p =", pf)
   interp <- switch(verdict,
-    # Deux phrases entieres et non un adjectif en argument : `trf()` ne traduit
-    # pas ses arguments, et « supérieure à » ne se dit pas avec le meme ordre
-    # de mots dans les deux langues.
+    # Deux phrases entieres et non un adjectif en argument.
     "significatif" = trf(if (res$estimate > 0)
                            "%s : %s (%s − %s) vaut %s et diffère significativement de 0 (%s). La mesure « %s » est supérieure à la mesure « %s »."
                          else
@@ -5445,8 +5221,7 @@ hstat_test_apparie <- function(a, b, methode = c("t", "wilcoxon", "signe"),
 }
 
 # Taille max des analyses a matrice de distances (dist, vegdist, silhouette,
-# cophenetique) : au-dela, echantillonnage (une matrice de distances est en
-# O(n^2) : 1 000 000 de lignes = ~4 To de RAM).
+# cophenetique).
 HSTAT_DIST_MAX_N <- {
   v <- suppressWarnings(as.integer(Sys.getenv("HSTAT_DIST_MAX_N", "5000")))
   if (!is.finite(v) || v < 100) 5000L else v
@@ -5504,8 +5279,7 @@ hstat_cap_Y_group <- function(Y, group, max_n = HSTAT_DIST_MAX_N,
   list(Y = Y[idx, , drop = FALSE], group = droplevels(factor(group[idx])))
 }
 
-# Silhouette moyenne, robuste aux gros n : calcul vectorise (cluster::silhouette)
-# sur un echantillon si necessaire (la version exacte est en O(n^2)).
+# Silhouette moyenne, robuste aux gros n.
 hstat_silhouette_mean <- function(coords, clusters, max_n = HSTAT_DIST_MAX_N) {
   coords <- as.matrix(coords)
   cl <- as.integer(as.factor(clusters))
@@ -5546,8 +5320,7 @@ hstat_cophenetic_corr <- function(coords, tree, hc_method = "ward.D2",
 }
 
 # Proportion de paires concordantes entre deux partitions (indice de Rand
-# simple), vectorisee : remplace combn() + apply(), impraticables des 10 000
-# lignes (n(n-1)/2 paires).
+# simple), vectorisee.
 hstat_pair_agreement <- function(a, b) {
   sa <- outer(a, a, "==")
   sb <- outer(b, b, "==")
@@ -5556,8 +5329,7 @@ hstat_pair_agreement <- function(a, b) {
 }
 
 # Test de correlation de Kendall robuste aux gros n : tau est en O(n^2)
-# (plusieurs heures au-dela de ~100 000) ; au-dela du seuil, calcul sur un
-# echantillon aleatoire conjoint.
+# (plusieurs heures au-dela de ~100 000).
 hstat_kendall_test <- function(x, y, max_n = HSTAT_KENDALL_MAX_N) {
   n0 <- length(x)
   if (n0 > max_n) {
@@ -5574,10 +5346,7 @@ hstat_finite <- function(x, default) {
   if (length(x) != 1 || !is.finite(x)) default else x
 }
 
-# -- Filtre par valeur : la saisie est un TEXTE, jamais un motif --------------
-# La recherche « contient » changeait de nature avec la case « sensible a la
-# casse » : cochee, elle etait litterale (`fixed = TRUE`) ; decochee, la saisie
-# devenait une EXPRESSION REGULIERE.
+# -- Filtre par valeur : la saisie est un TEXTE, jamais un motif.
 HSTAT_FILTRE_VALEURS_MAX <- 500L
 hstat_filtre_valeurs <- function(x, valeurs, exact = TRUE, casse = FALSE) {
   x <- as.character(x)
@@ -5610,9 +5379,7 @@ hstat_lire_rds <- function(path, version = getRversion()) {
   readRDS(path)
 }
 
-# -- Lire un classeur Excel venu de l'exterieur -------------------------------
-# UN .xlsx EST UNE ARCHIVE ZIP, ET SA TAILLE SUR DISQUE NE DIT RIEN DE CE QU'IL
-# COUTE A LIRE.
+# -- Lire un classeur Excel venu de l'exterieur.
 HSTAT_EXCEL_DECOMP_MAX  <- 500e6
 HSTAT_EXCEL_RATIO_MAX   <- 100
 HSTAT_EXCEL_RATIO_SEUIL <- 50e6
@@ -5646,23 +5413,17 @@ hstat_lire_excel <- function(path, sheet = 1, ...) {
 }
 
 # -- Un refus de l'application, distinct d'une erreur de R --------------------
-# `stop(hstat_refus(msg))` : le message est deja redige et traduit, et
-# `hstat_err_fr()` le rend tel quel au lieu de l'annoncer comme non traduit.
+# `stop(hstat_refus(msg))`.
 hstat_refus <- function(msg)
   structure(class = c("hstat_refus", "error", "condition"),
             list(message = msg, call = NULL))
 
 # -- Une valeur venue du navigateur, bornee DES DEUX COTES
-# --------------------- UN PLAFOND D'INTERFACE NE PROTEGE RIEN.
-# ---- Table de contingence d'une AFC : une ligne n'est pas toujours UN individu --
-# Un tableau deja agrege (une ligne par croisement, l'effectif dans une colonne
-# : `as.data.frame(HairEyeColor)`, un export de tableur croise) porte ses
-# effectifs dans une colonne.
+# --------------------- UN PLAFOND D'INTERFACE NE PROTEGE RIEN..
 HSTAT_EFFECTIF_NOMS <- c("freq", "frequence", "effectif", "effectifs", "n",
                          "count", "counts", "nombre", "nb", "poids", "weight")
 
-# Propose la colonne d'effectifs d'apres son nom, jamais d'apres ses valeurs :
-# une mesure entiere (age, rendement arrondi) n'est pas un effectif.
+# Propose la colonne d'effectifs d'apres son nom, jamais d'apres ses valeurs.
 hstat_effectif_propose <- function(d) {
   if (!is.data.frame(d) || !ncol(d)) return(NULL)
   num <- names(d)[vapply(d, is.numeric, logical(1))]
@@ -5695,11 +5456,7 @@ hstat_table_contingence <- function(d, ligne, colonne, poids = NULL) {
   list(ok = TRUE, table = tab, poids = poids, notes = notes)
 }
 
-# -- Une table de contingence DEJA CONSTRUITE (format large) ------------------
-# Une ligne par modalite de la variable-ligne, une colonne NUMERIQUE par
-# modalite de la variable-colonne, les effectifs dans les cases : c'est la
-# forme d'un tableau croise sorti d'un tableur, et la forme d'entree naturelle
-# de l'AFC.
+# -- Une table de contingence DEJA CONSTRUITE (format large).
 hstat_table_contingence_large <- function(d, etiquettes = "__lignes__", colonnes) {
   colonnes <- intersect(as.character(colonnes), names(d))
   if (!is.null(etiquettes) && !identical(etiquettes, "__lignes__"))
@@ -5748,9 +5505,7 @@ hstat_garder_choix <- function(courant, choix, defaut = NULL) {
 
 # Un TEXTE venu du navigateur, borne en longueur.
 HSTAT_TEXTE_CLIENT_MAX <- 500L
-# =============================================================================
-#  SELECTION DE LIGNES (« 1-5, 8, 10 a 12 »)
-# =============================================================================
+# SELECTION DE LIGNES (« 1-5, 8, 10 a 12 »)
 # UNE SEULE DEFINITION.
 hstat_lignes_selection <- function(selection_text, max_rows) {
   if (is.null(selection_text) || nchar(trimws(selection_text)) == 0) {
@@ -5766,10 +5521,7 @@ hstat_lignes_selection <- function(selection_text, max_rows) {
   parts <- strsplit(text, ",")[[1]]
   parts <- trimws(parts)
   
-  # UN MASQUE, PAS UNE ACCUMULATION, et pour une raison mesuree : `c(all_rows,
-  # start:end)` en boucle recopie le vecteur a chaque tour, donc un cout
-  # QUADRATIQUE en nombre de plages, la ou le resultat est borne par
-  # `max_rows`.
+  # UN MASQUE, PAS UNE ACCUMULATION, et pour une raison mesuree.
   vus <- logical(max_rows)
   
   for (part in parts) {
@@ -5878,10 +5630,7 @@ HSTAT_I18N_KO_MAX <- 700
 
 HSTAT_I18N_MARQUEUR <- "%[-0-9.]*[sdfgeix%]"
 
-# -- Phrase COMPOSEE : on traduit le gabarit, jamais les arguments ------------
-# Les ~217 phrases construites par sprintf() n'existent nulle part dans le DOM
-# comme chaine entiere : le traducteur du navigateur, qui ne remplace que des
-# correspondances completes, ne peut rien en faire.
+# -- Phrase COMPOSEE : on traduit le gabarit, jamais les arguments.
 trf <- function(fmt, ..., lang = hstat_langue_session()) {
   g <- tr(fmt, lang)
   # [1] La traduction.
@@ -5899,18 +5648,13 @@ trf <- function(fmt, ..., lang = hstat_langue_session()) {
     if (!is.null(out)) return(out)
   }
   # [4] Restent les fautes de NOMBRE d'arguments, qu'aucune substitution ne
-  #     repare. Le gabarit brut vaut mieux qu'une sortie morte.
+  # repare.
   fmt
 }
 
-# =============================================================================
-#  LES TERMES DU FICHIER DE L'UTILISATEUR NE SE TRADUISENT JAMAIS
-# -----------------------------------------------------------------------------
+# LES TERMES DU FICHIER DE L'UTILISATEUR NE SE TRADUISENT JAMAIS
 # La regle de longueur dans les cellules (LONGUEUR_CELLULE, cote navigateur)
-# est une heuristique : elle protege « Oui » mais laisserait passer un en-tete
-# de colonne, et un nouveau tableau ajoute demain echapperait a toute
-# annotation posee a la main.
-# =============================================================================
+# est une heuristique.
 hstat_i18n_termes_donnees <- function(df, max_modalites = 200L,
                                       max_termes = 3000L, max_nchar = 60L) {
   if (!is.data.frame(df) || !ncol(df)) return(character(0))
@@ -5931,8 +5675,7 @@ hstat_i18n_termes_donnees <- function(df, max_modalites = 200L,
   utils::head(termes, max_termes)
 }
 
-# JSON pret a envoyer au navigateur. Rend "[]" plutot qu'une erreur : cette
-# valeur alimente un message Shiny, ou une erreur couperait la bascule.
+# JSON pret a envoyer au navigateur.
 hstat_i18n_termes_json <- function(df, ...) {
   t <- tryCatch(hstat_i18n_termes_donnees(df, ...), error = function(e) character(0))
   if (!length(t)) return("[]")
@@ -5941,9 +5684,7 @@ hstat_i18n_termes_json <- function(df, ...) {
   paste0("[", paste(sprintf("\"%s\"", esc(t)), collapse = ","), "]")
 }
 
-# =============================================================================
-#  SEUILS D'EFFICACITE : COMPARAISON DE CHAQUE MODALITE AU TEMOIN
-# -----------------------------------------------------------------------------
+# SEUILS D'EFFICACITE : COMPARAISON DE CHAQUE MODALITE AU TEMOIN
 # Formule d'Abbott, celle qu'emploient l'agronomie, la phytopharmacie et
 # l'entomologie pour dire de combien un traitement reduit ce que l'on mesure
 # par rapport a un temoin non traite.
@@ -5951,7 +5692,6 @@ hstat_i18n_termes_json <- function(df, ...) {
 # 2. UN TEMOIN NUL REND L'EFFICACITE INDEFINIE POUR TOUT LE MONDE.
 # 3. UNE EFFICACITE NEGATIVE EST UN RESULTAT, PAS UNE ERREUR.
 # 4. LE GROUPEMENT FACULTATIF EST CE QUI REND LA SUITE POSSIBLE.
-# =============================================================================
 HSTAT_EFF_AGG <- c("Moyenne" = "moyenne", "Médiane" = "mediane", "Somme" = "somme")
 
 hstat_efficacite <- function(df, var_modalite, vars_reponse, temoin,
@@ -5989,13 +5729,9 @@ hstat_efficacite <- function(df, var_modalite, vars_reponse, temoin,
 
   a_rep <- !is.null(var_repetition) && nzchar(var_repetition[1]) &&
            var_repetition[1] %in% names(df)
-  # Une variable de repetition demandee mais introuvable etait ignoree EN
-  # SILENCE : l'utilisateur croyait ses repetitions prises en compte alors que
-  # le calcul les melangeait. On refuse plutot que de rendre un chiffre faux.
+  # SILENCE.
   if (!is.null(var_repetition) && nzchar(var_repetition[1]) && !a_rep)
-    # `sprintf(paste0(...))` composait ce refus MORCEAU PAR MORCEAU : la phrase
-    # entiere n'existait nulle part, ni dans le DOM ni au dictionnaire, et elle
-    # ressortait en francais au milieu d'une interface anglaise.
+    # `sprintf(paste0(...))` composait ce refus MORCEAU PAR MORCEAU.
     return(msg(vide, trf("La variable de répétition « %s » est introuvable dans les données : choisissez-en une autre.",
                          var_repetition[1])))
   rep_v <- if (a_rep) trimws(as.character(df[[var_repetition[1]]]))
@@ -6092,12 +5828,6 @@ hstat_efficacite <- function(df, var_modalite, vars_reponse, temoin,
 
 # Modalites d'une colonne, temoin exclu : « une fois le temoin choisi, les
 # autres modalites passent dans une variable ».
-# =============================================================================
-#  DU LONG AU LARGE : UNE COLONNE PAR VARIABLE MESUREE
-# -----------------------------------------------------------------------------
-# hstat_efficacite() empile les variables mesurees : quinze variables sur onze
-# modalites font 165 lignes, toutes portant la meme colonne « Efficacite ».
-# =============================================================================
 HSTAT_EFF_PREFIXE <- "Efficacite_"
 
 hstat_eff_large <- function(res) {
@@ -6144,17 +5874,14 @@ hstat_eff_modalites <- function(df, var_modalite, temoin = NULL) {
   setdiff(m, trimws(as.character(temoin)[1]))
 }
 
-# =============================================================================
-#  RENDEMENT ET GAIN DE RENDEMENT
-# -----------------------------------------------------------------------------
+# RENDEMENT ET GAIN DE RENDEMENT
 # Rendement (kg/ha) = masse recoltee (kg) / surface (ha) Gain (%) = (rendement
 # du traitement - rendement du non traite) / rendement du non traite x 100
 # 1. LES UNITES SE CONVERTISSENT PAR UNE BASE COMMUNE, jamais de proche en
-# proche.
+#    proche.
 # 2. UNE SURFACE NULLE REND LE RENDEMENT INDEFINI, PAS INFINI.
 # 3. LE RENDEMENT GLOBAL N'EST PAS LA MOYENNE DES RENDEMENTS.
 # 4. LE NON TRAITE VAUT ZERO DE GAIN PAR DEFINITION, ET ON L'ECRIT.
-# =============================================================================
 
 # Facteur de chaque unite vers l'unite de BASE (le kilogramme).
 HSTAT_RDT_MASSE <- c(
@@ -6204,7 +5931,6 @@ hstat_rdt_facteur <- function(unite, table) {
   if (!is.na(j)) return(unname(table[[j]]))
   NA_real_
 }
-
 
 # Rendement, dans l'unite demandee.
 hstat_rendement <- function(masse, surface,
@@ -6269,9 +5995,7 @@ hstat_rdt_table <- function(df, var_modalite, var_masse, var_surface,
 
   if (!is.data.frame(df) || !NROW(df))
     return(msg(vide, "Aucune donnée : chargez un jeu de données."))
-  # `trf()` ne traduit JAMAIS ses arguments : un gabarit « Choisissez la
-  # variable %s » suivi de « qui porte la surface » rendrait une phrase a
-  # moitie anglaise.
+  # `trf()` ne traduit JAMAIS ses arguments.
   manque <- function(nm) is.null(nm) || !length(nm) || !nzchar(nm[1]) ||
                          !(nm[1] %in% names(df))
   if (manque(var_modalite))
@@ -6298,7 +6022,6 @@ hstat_rdt_table <- function(df, var_modalite, var_masse, var_surface,
 
   a_rep <- !is.null(var_repetition) && length(var_repetition) &&
            nzchar(var_repetition[1]) && var_repetition[1] %in% names(df)
-  # Une variable de repetition demandee mais introuvable etait ignoree EN
   # SILENCE dans le module des efficacites : meme piege ici, meme refus.
   if (!is.null(var_repetition) && length(var_repetition) &&
       nzchar(var_repetition[1]) && !a_rep)
@@ -6338,8 +6061,7 @@ hstat_rdt_table <- function(df, var_modalite, var_masse, var_surface,
   if (!a_rep) out$Repetitions <- NULL
 
   attr(out, "unite") <- hstat_rdt_unite_libelle(sortie_masse, sortie_surface)
-  # Les unites de sortie voyagent AVEC le tableau : une conversion demandee
-  # plus tard doit savoir d'ou elle part, et l'appelant n'a pas a les retenir.
+  # Les unites de sortie voyagent AVEC le tableau.
   attr(out, "sortie_masse") <- sortie_masse
   attr(out, "sortie_surface") <- sortie_surface
   attr(out, "invalides") <- invalides
@@ -6369,9 +6091,7 @@ hstat_rdt_table <- function(df, var_modalite, var_masse, var_surface,
 }
 
 # LE RENDEMENT EST PARFOIS DEJA CALCULE, et l'exiger en masse + surface est
-# alors une friction pure : beaucoup de fichiers d'essai portent une colonne «
-# t/ha » sortie du logiciel de pesee ou d'une campagne precedente, et leur
-# proprietaire vient ici pour COMPARER, pas pour recalculer.
+# alors une friction pure.
 # 1. UNE COLONNE DE SURFACES.
 # 2. DES SURFACES DECLAREES EGALES.
 hstat_rdt_table_prete <- function(df, var_modalite, var_rendement,
@@ -6441,9 +6161,7 @@ hstat_rdt_table_prete <- function(df, var_modalite, var_rendement,
       Modalite = m,
       N = length(i),
       Repetitions = if (a_rep) length(unique(rep_v[i])) else NA_integer_,
-      # `NULL` DANS UN `data.frame()` N'OMET PAS LA COLONNE : il y met un
-      # argument de longueur nulle, et R leve « arguments imply differing
-      # number of rows ».
+      # `NULL` DANS UN `data.frame()` N'OMET PAS LA COLONNE.
       Rendement_global = if (!glob) NA_real_
         else if (a_surf) {
           s_i <- surf[i]
@@ -6477,8 +6195,7 @@ hstat_rdt_table_prete <- function(df, var_modalite, var_rendement,
   if (invalides > 0)
     alertes <- c(alertes, trf("%d ligne(s) écartée(s) : rendement illisible ou manquant",
                               invalides))
-  # MEME PIEGE QUE LE TABLEAU CALCULE : la somme n'est comparable qu'a nombre
-  # de lignes egal, la modalite la plus repetee accumulant mecaniquement plus.
+  # MEME PIEGE QUE LE TABLEAU CALCULE.
   n_lignes <- vapply(niveaux, function(m) sum(!is.na(modal) & modal == m & is.finite(rdt)),
                      integer(1))
   if (length(unique(n_lignes)) > 1)
@@ -6502,7 +6219,6 @@ hstat_rdt_table_prete <- function(df, var_modalite, var_rendement,
 }
 
 # Insere une colonne juste apres une autre, en conservant l'ordre du reste.
-# Employee par les dilutions et par le rendement : une seule definition.
 .hstat_col_apres <- function(d, apres, nom, valeurs) {
   d[[nom]] <- valeurs
   nm <- setdiff(names(d), nom)
@@ -6595,8 +6311,7 @@ hstat_rdt_gain <- function(rendements, modalites = names(rendements),
     return(out)
   }
   out <- (r - ref) / ref * 100
-  # LE NON TRAITE VAUT ZERO PAR DEFINITION, et on l'ecrit : la formule le donne
-  # bien ici, mais l'ecrire protege des arrondis et dit ce qu'on affiche.
+  # LE NON TRAITE VAUT ZERO PAR DEFINITION, et on l'ecrit.
   out[m == nt] <- 0
   attr(out, "reference") <- ref
   attr(out, "non_traite") <- nt
@@ -6605,13 +6320,10 @@ hstat_rdt_gain <- function(rendements, modalites = names(rendements),
   out
 }
 
-# ---------------------------------------------------------------------------
-#  PERTES DE RECOLTE : CHAQUE MODALITE COMPAREE A UNE PROTECTION DE REFERENCE
-# ---------------------------------------------------------------------------
-#  Deux formules, et ce sont les deux faces d'un meme nombre :
+# PERTES DE RECOLTE : CHAQUE MODALITE COMPAREE A UNE PROTECTION DE REFERENCE
+# Deux formules, et ce sont les deux faces d'un meme nombre :
 
-# Mesures de rendement sur lesquelles une perte se calcule. Declare UNE FOIS :
-# le tableau, les libelles et le selecteur du graphique en derivent tous.
+# Mesures de rendement sur lesquelles une perte se calcule.
 HSTAT_RDT_MESURES_PERTE <- list(
   Rendement_global = c(col = "global",
     perte   = "Perte de rendement global vs « %s » (%%)",
@@ -6633,8 +6345,7 @@ HSTAT_RDT_PREFIXES_PCT <- c("Gain_", "Perte_", "Relatif_")
   s <- gsub("[^A-Za-z0-9]+", "_", s)
   s <- gsub("^_+|_+$", "", s)
   s[is.na(s) | !nzchar(s)] <- "ref"
-  # « T 1 » et « T-1 » donnent le meme abrege : sans quoi la seconde colonne
-  # ECRASERAIT la premiere, et l'essai perdrait une reference sans un mot.
+  # « T 1 » et « T-1 » donnent le meme abrege.
   make.unique(s, sep = "_")
 }
 
@@ -6649,8 +6360,7 @@ HSTAT_RDT_PREFIXES_PCT <- c("Gain_", "Perte_", "Relatif_")
   if (!isTRUE(is.finite(v)))
     return(list(ok = FALSE, nom = nom, message = trf(
       "Le rendement de la référence « %s » n'est pas calculable : la perte ne l'est pour aucune modalité.", nom)))
-  # DIVISER PAR ZERO RENDRAIT `Inf`, qui passerait pour une perte colossale --
-  # une valeur d'apparence normale en tableau, une barre demesuree en figure.
+  # DIVISER PAR ZERO RENDRAIT `Inf`, qui passerait pour une perte colossale.
   if (v == 0)
     return(list(ok = FALSE, nom = nom, message = trf(
       "Le rendement de la référence « %s » est nul : la perte est indéfinie (division par zéro).", nom)))
@@ -6696,15 +6406,9 @@ hstat_rdt_relatif <- function(rendements, modalites = names(rendements),
 
 # Ajoute au tableau de rendement, pour CHAQUE reference demandee, la perte et
 # le rendement relatif de chaque mesure disponible.
-# ---------------------------------------------------------------------------
-#  DEUX FACONS DE TENIR COMPTE DES REPETITIONS, DEUX QUESTIONS
-# ---------------------------------------------------------------------------
-# C'est le meme partage que « en commun » / « par repetition » des efficacites,
-# et il porte le meme piege : confondre les deux, c'est publier un artefact de
-# plan.
 
 # Pertes calculees DANS chaque repetition, contre la reference de la meme
-# repetition. Rend le detail : une ligne par (modalite, repetition).
+# repetition.
 hstat_rdt_pertes_rep <- function(detail, reference) {
   vide <- data.frame(Modalite = character(0), Repetition = character(0),
                      Reference = character(0), Rendement = numeric(0),
@@ -6740,8 +6444,7 @@ hstat_rdt_pertes_rep <- function(detail, reference) {
     vr <- db$Rendement[db$Modalite == ref]
     vr <- vr[is.finite(vr)]
     # UN BLOC SANS REFERENCE EST UN DEFAUT DE PLAN, PAS DE MESURE, et il se
-    # nomme : le retirer en silence ferait porter la moyenne sur moins de blocs
-    # que l'utilisateur n'en compte.
+    # nomme.
     if (!length(vr)) { sans_ref <- c(sans_ref, b); next }
     r0 <- mean(vr)
     if (r0 == 0) { ref_nulle <- c(ref_nulle, b); next }
@@ -6794,7 +6497,7 @@ hstat_rdt_pertes_rep_resume <- function(rep_tab) {
     x <- x[is.finite(x)]; y <- y[is.finite(y)]
     n <- length(x)
     # UN ECART-TYPE SUR UNE SEULE VALEUR N'EXISTE PAS : `sd()` rend `NA`, et
-    # c'est ce qu'il faut afficher -- zero se lirait « aucune variabilite ».
+    # c'est ce qu'il faut afficher.
     et <- if (n >= 2L) stats::sd(x) else NA_real_
     data.frame(Modalite = m, n = n,
                Perte = if (n) mean(x) else NA_real_,
@@ -6903,8 +6606,7 @@ hstat_rdt_complet <- function(df, var_modalite, var_masse, var_surface,
                               mode_perte = c("cumul", "par_repetition")) {
   mode_perte <- match.arg(mode_perte)
   # Le rendement DEJA CALCULE court-circuite la pesee : meme tableau, memes
-  # gains, memes graphiques -- une colonne de moins, `Rendement_global`, qui
-  # exige les surfaces.
+  # gains, memes graphiques.
   prete <- !is.null(var_rendement) && length(var_rendement) && nzchar(var_rendement[1])
   res <- if (prete)
     hstat_rdt_table_prete(df, var_modalite, var_rendement,
@@ -6923,13 +6625,9 @@ hstat_rdt_complet <- function(df, var_modalite, var_masse, var_surface,
   res$Gain_moyen  <- as.numeric(g_moy)
   res$Gain_somme  <- as.numeric(g_som)
   # Les pertes viennent avec les gains, et AVANT la conversion : ce sont des
-  # pourcentages, donc sans dimension -- `HSTAT_RDT_COLS_CONV` ne les nomme
-  # pas, et un `Perte_*_conv` serait la meme faute de categorie qu'un
-  # `Gain_*_conv`.
+  # pourcentages, donc sans dimension.
   res <- hstat_rdt_pertes_table(res, references, mode_perte)
-  # La conversion vient APRES les gains : un pourcentage est sans dimension, il
-  # n'a rien a convertir, et l'ajouter avant ferait convertir les colonnes de
-  # gain par simple voisinage de nom.
+  # La conversion vient APRES les gains.
   res <- hstat_rdt_convertir_table(res, conv_masse, conv_surface)
   garder_p <- attributes(res)[grep("^(references_perte|libelles_perte|message_perte|references_absentes|mode_perte|pertes_repetitions)$",
                                   names(attributes(res)))]
@@ -6939,11 +6637,9 @@ hstat_rdt_complet <- function(df, var_modalite, var_masse, var_surface,
   res
 }
 
-# ---------------------------------------------------------------------------
-#  SAISIE DE LA RECOLTE : COLLAGE DEPUIS UN TABLEUR
-# ---------------------------------------------------------------------------
-#  Trois colonnes attendues -- modalite, masse, surface -- et une quatrieme
-#  facultative pour la repetition.
+# SAISIE DE LA RECOLTE : COLLAGE DEPUIS UN TABLEUR
+# Trois colonnes attendues -- modalite, masse, surface -- et une quatrieme
+# facultative pour la repetition.
 # 1. LA PREMIERE COLONNE EST DU TEXTE.
 # 2. LA VIRGULE NE PEUT PAS ETRE A LA FOIS SEPARATEUR ET DECIMALE.
 hstat_rdt_coller <- function(txt) {
@@ -7041,15 +6737,12 @@ hstat_rdt_saisie_propre <- function(d) {
   out
 }
 
-# =============================================================================
-#  VARIABLES ENTIEREMENT NULLES
-# -----------------------------------------------------------------------------
+# VARIABLES ENTIEREMENT NULLES
 # Une colonne dont TOUTES les valeurs observees valent zero ne porte aucune
-# information : variance nulle, correlation indefinie, aucun test possible.
+# information.
 # 1. LES MANQUANTS NE COMPTENT PAS COMME DES ZEROS.
 # 2. UNE COLONNE ENTIEREMENT VIDE N'EST PAS UNE COLONNE DE ZEROS.
 # 3. LES BOOLEENS SONT ECARTES.
-# =============================================================================
 hstat_vars_zero <- function(df, seuil = 1) {
   vide <- data.frame(Variable = character(0), Type = character(0),
                      Observations = integer(0), Zeros = integer(0),
@@ -7106,9 +6799,7 @@ hstat_vars_zero <- function(df, seuil = 1) {
   res
 }
 
-# -- Saisie directe des valeurs d'une variable --------------------------------
-# « Editer les valeurs » d'une colonne entierement nulle, c'est le plus souvent
-# ressaisir les vraies mesures.
+# -- Saisie directe des valeurs d'une variable.
 hstat_zero_valeurs_parse <- function(txt, n) {
   n <- suppressWarnings(as.integer(n)[1])
   if (!is.finite(n) || n < 1)
@@ -7141,9 +6832,7 @@ hstat_zero_valeurs_parse <- function(txt, n) {
   list(ok = TRUE, valeurs = num, message = trf("%s valeur(s) prise(s) en compte.", n))
 }
 
-# -- Creation de classes d'intervalles (discretisation) -----------------------
-# Transforme une variable numerique en classes (ex. classes d'age), sous forme
-# de facteur ORDONNE.
+# -- Creation de classes d'intervalles (discretisation).
 hstat_cut_intervals <- function(x, method = c("width", "quantile", "manual"),
                                 n_classes = 4, breaks_manual = NULL,
                                 labels_custom = NULL,
@@ -7197,12 +6886,12 @@ hstat_cut_intervals <- function(x, method = c("width", "quantile", "manual"),
     "mixed_open" = {
       lab <- sprintf("]%s ; %s[", fmt(lo), fmt(hi))       # milieu : ouvert des 2 cotes
       lab[1] <- sprintf("[%s ; %s[", fmt(lo[1]), fmt(hi[1]))               # 1re : fermee gauche
-      lab[length(lab)] <- sprintf("]%s ; %s]", fmt(lo[length(lo)]), fmt(hi[length(hi)])) # derniere : fermee droite
+      lab[length(lab)] <- sprintf("]%s ; %s]", fmt(lo[length(lo)]), fmt(hi[length(hi)]))
       lab
     },
     "all_right_closed" = {
       lab <- sprintf("]%s ; %s]", fmt(lo), fmt(hi))       # toutes fermees a droite
-      lab[1] <- sprintf("[%s ; %s]", fmt(lo[1]), fmt(hi[1]))               # 1re : fermee des 2 cotes
+      lab[1] <- sprintf("[%s ; %s]", fmt(lo[1]), fmt(hi[1]))
       lab
     },
     "all_closed" = sprintf("[%s ; %s]", fmt(lo), fmt(hi))) # toutes fermees des 2 cotes
@@ -7223,9 +6912,8 @@ hstat_cut_intervals <- function(x, method = c("width", "quantile", "manual"),
   # all_right_closed : bornes fermees a droite (right = TRUE), 1re classe fermee
   # a gauche via include.lowest.
   use_right <- (interval_style == "all_right_closed")
-  # include.lowest ferme la borne extreme du cote "ouvert" :
-  #  - std_last_closed / all_closed : ferme la derniere classe a droite
-  #  - all_right_closed : ferme la premiere classe a gauche
+  # include.lowest ferme la borne extreme du cote "ouvert" : - std_last_closed
+  # / all_closed.
   incl_low <- interval_style %in% c("std_last_closed", "all_closed", "all_right_closed")
   if (interval_style %in% c("all_left_closed", "mixed_open")) {
     span <- diff(range(breaks)); eps <- if (span > 0) span * 1e-9 else 1e-9
@@ -7246,7 +6934,7 @@ hstat_cut_intervals <- function(x, method = c("width", "quantile", "manual"),
 }
 
 # Echappement d'un identifiant SQL (nom de colonne issu du fichier utilisateur)
-# pour DuckDB : doublement des guillemets internes puis encadrement par "...".
+# pour DuckDB.
 hstat_sql_ident <- function(x) sprintf('"%s"', gsub('"', '""', x))
 
 # UN NOM DE TELECHARGEMENT PART DANS UN EN-TETE HTTP, PAS SUR UN DISQUE.
@@ -7261,12 +6949,9 @@ hstat_nom_fichier <- function(x, defaut = "fichier", max = 80L) {
   if (!nzchar(s) || s %in% c(".", "..")) defaut else s
 }
 
-# =============================================================================
-#  VERSION DU PAQUET -- source unique de verite
-# -----------------------------------------------------------------------------
+# VERSION DU PAQUET -- source unique de verite
 # Le numero de version ne vit qu'a UN seul endroit : le champ Version: de
 # DESCRIPTION.
-# =============================================================================
 
 # Localise DESCRIPTION, que l'on tourne depuis les sources ou depuis
 # l'installe.
@@ -7316,12 +7001,7 @@ hstat_pkg_year <- function() {
   format(Sys.Date(), "%Y")
 }
 
-# ---------------------------------------------------------------------------
-#  Les auteurs a citer : DESCRIPTION est la source unique
-# ---------------------------------------------------------------------------
-# La liste vivait en TROIS exemplaires -- le message de demarrage (`R/zzz.R`),
-# l'onglet de citation (ici) et `inst/CITATION` -- et elle avait DERIVE : les
-# deux premiers ne nommaient qu'UN auteur sur deux, le troisieme les deux.
+# Les auteurs a citer : DESCRIPTION est la source unique
 hstat_pkg_auteurs <- function() {
   champ <- suppressWarnings(tryCatch(
     utils::packageDescription("HStat", fields = "Authors@R"),
@@ -7447,9 +7127,7 @@ hstat_citation <- function(style = c("text", "bibtex", "ris", "apa", "vancouver"
   )
 }
 
-# -- Capuchons de moustache pour l'EXPORT des boxplots ------------------------
-# A l'ecran, les boxplots sont rendus par plotly (ggplotly), qui dessine ses
-# propres capuchons.
+# -- Capuchons de moustache pour l'EXPORT des boxplots.
 hstat_add_whisker_caps <- function(p, cap_width = 0.3) {
   if (!inherits(p, "ggplot") || length(p$layers) == 0) return(p)
   is_box <- vapply(p$layers, function(l) inherits(l$geom, "GeomBoxplot"), logical(1))
@@ -7464,10 +7142,7 @@ hstat_add_whisker_caps <- function(p, cap_width = 0.3) {
       m <- l$mapping
       cap_pos <- l$position
       if (!is.null(m) && !is.null(m$fill)) {
-        # Vraies boites multiples par x (fill au niveau de la COUCHE) : pour
-        # des capuchons etroits ET alignes, les deux couches doivent partager
-        # un position_dodge de largeur FIXE (dodge2 emballerait le capuchon
-        # etroit a une position differente de sa boite).
+        # Vraies boites multiples par x (fill au niveau de la COUCHE).
         if (is.null(m$group)) {
           xq <- if (!is.null(m$x)) m$x else p$mapping$x
           m$group <- if (!is.null(xq)) {
@@ -7504,8 +7179,7 @@ hstat_has_datatable <- function()
   requireNamespace("data.table", quietly = TRUE)
 
 # -- Lecture rapide d'un CSV en memoire (fread, repli read.csv) ---------------
-# Detecte si le fichier est de l'UTF-8 valide ; sinon on suppose du
-# Latin-1/CP1252 (cas le plus frequent pour les CSV Excel francais).
+# Detecte si le fichier est de l'UTF-8 valide.
 hstat_detect_encoding <- function(path) {
   enc <- tryCatch({
     bytes <- readBin(path, "raw", n = 262144L)   # 256 Ko suffisent
@@ -7521,8 +7195,8 @@ hstat_detect_encoding <- function(path) {
 hstat_read_csv_mem <- function(path, header = TRUE, sep = ",") {
   enc <- hstat_detect_encoding(path)
   df <- if (hstat_has_datatable()) {
-    # On declare l'encodage detecte a fread : il convertit nativement (rapide) et
-    # ne bloque pas. "Latin-1" couvre les CSV Excel/Windows francais.
+    # On declare l'encodage detecte a fread : il convertit nativement (rapide)
+    # et ne bloque pas.
     fenc <- if (identical(enc, "Latin-1")) "Latin-1" else "UTF-8"
     as.data.frame(data.table::fread(path, header = header, sep = sep,
                             data.table = FALSE, check.names = FALSE,
@@ -7536,9 +7210,7 @@ hstat_read_csv_mem <- function(path, header = TRUE, sep = ",") {
   hstat_df_to_utf8(df)
 }
 
-# -- Assainissement d'encodage : garantit des chaines UTF-8 valides -----------
-# Les CSV generes sous Windows/Excel en francais sont souvent en
-# Latin-1/CP1252.
+# -- Assainissement d'encodage : garantit des chaines UTF-8 valides.
 hstat_to_utf8 <- function(x) {
   if (is.character(x)) {
     bad <- is.na(iconv(x, "UTF-8", "UTF-8"))
@@ -7569,8 +7241,7 @@ hstat_df_to_utf8 <- function(df) {
   df
 }
 
-# -- Lecture generique en memoire pour la FUSION de fichiers -------------------
-# Lit un fichier (CSV/TXT/TSV/Excel/RDS/SPSS/Stata) en data.frame complet.
+# -- Lecture generique en memoire pour la FUSION de fichiers.
 hstat_read_any_mem <- function(path, sep = ",", name = NULL) {
   ext <- tolower(tools::file_ext(path))
   df <- tryCatch({
@@ -7595,14 +7266,7 @@ hstat_read_any_mem <- function(path, sep = ",", name = NULL) {
 }
 
 # -- Moteur de fusion de plusieurs data.frames --------------------------------
-# type : "inner"/"left"/"right"/"full" (jointures), "rows" (UNION), "cols"
-# (cbind).
-# ===========================================================================
-# CLASSEUR EXCEL : LES FEUILLES SE TRAITENT COMME DES FICHIERS
-# ---------------------------------------------------------------------------
-# Un classeur d'enquete porte tres souvent une feuille par annee, par site ou
-# par vague.
-# ===========================================================================
+# type.
 
 # Noms des feuilles d'un classeur.
 hstat_excel_sheets <- function(path) {
@@ -7716,8 +7380,7 @@ hstat_merge_frames <- function(frames, type = "inner",
 
   # ---- Empilement de lignes (UNION) ----
   if (type %in% c("rows", "union_distinct")) {
-    # Valeur d'origine inscrite dans la colonne source : nom du fichier, ou nombre
-    # extrait du nom (utile pour une colonne "année" depuis 2021.csv, 2022.csv...).
+    # Valeur d'origine inscrite dans la colonne source.
     scol <- if (is.null(source_col) || !nzchar(trimws(source_col))) ".source" else trimws(source_col)
     src_values <- source_names
     if (identical(source_mode, "number")) {
@@ -7798,8 +7461,7 @@ hstat_merge_frames <- function(frames, type = "inner",
 
   # ---- Jointure CROISÉE (produit cartésien, sans clé) ----
   if (type == "cross") {
-    # Garde-fou mémoire : le produit cartésien peut exploser. On refuse au-delà
-    # d'un seuil pour éviter de saturer la mémoire et de faire planter l'app.
+    # Garde-fou mémoire : le produit cartésien peut exploser.
     total_rows <- prod(vapply(frames, nrow, numeric(1)))
     if (!is.finite(total_rows) || total_rows > 5e6)
       return(list(ok = FALSE, data = NULL,
@@ -7895,11 +7557,7 @@ hstat_merge_frames <- function(frames, type = "inner",
 hstat_duckdb_connect <- function() {
   if (!hstat_has_duckdb()) stop("Le package 'duckdb' est requis pour le mode hors-mémoire.")
   con <- DBI::dbConnect(duckdb::duckdb())
-  # Reglages "tres gros volumes" :
-  # - temp_directory : DuckDB deborde sur disque au lieu d'echouer en RAM
-  #   (tris, agregations et echantillonnages sur des milliards de lignes) ;
-  # - preserve_insertion_order=false : reduit fortement la memoire des scans ;
-  # - memory_limit optionnel via HSTAT_DUCKDB_MEMORY (ex. "8GB").
+  # Reglages "tres gros volumes" : - temp_directory.
   tryCatch({
     tmp <- file.path(tempdir(), "hstat_duckdb_spill")
     dir.create(tmp, showWarnings = FALSE, recursive = TRUE)
@@ -7915,7 +7573,7 @@ hstat_duckdb_connect <- function() {
 }
 
 # -- Enregistrement d'une source dans DuckDB sous forme de VUE ----------------
-# Aucune donnee n'est materialisee : DuckDB interroge le fichier sur disque.
+# Aucune donnee n'est materialisee.
 hstat_duckdb_register <- function(con, path, kind, header = TRUE, sep = ",") {
   p   <- hstat_sql_path(path)
   tbl <- "hstat_source"
@@ -7939,9 +7597,7 @@ hstat_duckdb_register <- function(con, path, kind, header = TRUE, sep = ",") {
 HSTAT_DUCKDB_FICHIER_CONFIG <- list(enable_external_access = "false")
 hstat_duckdb_open_file <- function(path) {
   if (!hstat_has_duckdb()) stop("Le package 'duckdb' est requis.")
-  # Un fichier .duckdb televerse n'est pas qu'un conteneur de tables : il peut
-  # porter des VUES, et une vue peut lire n'importe quel fichier du serveur
-  # (read_csv, read_text…) ou une adresse distante, a la premiere requete.
+  # Un fichier .duckdb televerse n'est pas qu'un conteneur de tables.
   con <- DBI::dbConnect(duckdb::duckdb(config = HSTAT_DUCKDB_FICHIER_CONFIG),
                         dbdir = path, read_only = TRUE)
   tbls <- DBI::dbListTables(con)
@@ -7971,9 +7627,8 @@ hstat_duckdb_sample <- function(con, tbl, n = HSTAT_SAMPLE_SIZE) {
   if (total <= n) {
     df <- DBI::dbGetQuery(con, sprintf("SELECT * FROM %s", hstat_sql_ident(tbl)))
   } else {
-    # %.0f et non %d : n reste < 2^31 mais la table, elle, peut depasser
-    # 2 147 483 647 lignes (COUNT(*) revient en numeric) ; aucun passage
-    # par as.integer() sur des comptages issus de DuckDB.
+    # %.0f et non %d : n reste < 2^31 mais la table, elle, peut depasser 2 147
+    # 483 647 lignes (COUNT(*) revient en numeric).
     df <- DBI::dbGetQuery(con, sprintf("SELECT * FROM %s USING SAMPLE %.0f ROWS",
                                        hstat_sql_ident(tbl), floor(as.numeric(n))))
   }
@@ -7992,8 +7647,7 @@ hstat_duckdb_close <- function(con) {
 }
 
 # -- Chargeur unifie ----------------------------------------------------------
-# Retourne une liste : data (data.frame de travail), mode ("memory"/"duckdb"),
-# con (connexion DuckDB ou NULL), table, full_nrow, full_ncol, full_na,
+# Retourne une liste.
 hstat_load_data <- function(path, kind, header = TRUE, sep = ",",
                             sheet = 1,
                             threshold = HSTAT_BIGDATA_THRESHOLD,
@@ -8057,9 +7711,7 @@ hstat_load_data <- function(path, kind, header = TRUE, sep = ",",
   }
 
   # --- Sortie mode memoire -------------------------------------------------
-  # Assainissement final : garantit des chaines UTF-8 valides quel que soit le
-  # format (Excel/SPSS/Stata/RDS peuvent aussi contenir du non-UTF-8), ce qui
-  # evite les erreurs "invalid multibyte string" en aval (nchar, affichage...).
+  # Assainissement final.
   df <- hstat_df_to_utf8(df)
   list(data = df, mode = "memory", con = NULL, table = NULL,
        full_nrow = nrow(df), full_ncol = ncol(df),
@@ -8072,9 +7724,7 @@ hstat_load_data <- function(path, kind, header = TRUE, sep = ",",
 # 2. LA PLUPART DE CES JEUX NE SONT PAS DES `data.frame`.
 # 3. CE QUI NE SE CONVERTIT PAS EST NOMME.
 
-# Colonne qui recueille les noms de lignes -- « mtcars » porte les modeles de
-# voiture en noms de lignes, et HStat n'a pas de notion de nom de ligne : sans
-# cette colonne, l'identite des individus est PERDUE au chargement.
+# Colonne qui recueille les noms de lignes.
 HSTAT_DONNEES_R_COL <- "Nom"
 
 # Le catalogue ne depend pas de la session : les paquets installes sont une
@@ -8082,8 +7732,7 @@ HSTAT_DONNEES_R_COL <- "Nom"
 .hstat_dr_cat <- new.env(parent = emptyenv())
 
 # -- Catalogue des jeux de donnees disponibles --------------------------------
-# Rend un data.frame : Nom (l'alias, celui que l'utilisateur ecrit), Paquet,
-# Fichier (celui qu'il faut passer a `data()`), Titre.
+# Rend un data.frame.
 hstat_donnees_r_catalogue <- function(packages = NULL, rafraichir = FALSE) {
   if (is.null(packages)) {
     packages <- tryCatch(rownames(utils::installed.packages()),
@@ -8130,9 +7779,7 @@ hstat_donnees_r_catalogue <- function(packages = NULL, rafraichir = FALSE) {
   rn
 }
 
-# `make.unique` et non le nom nu : un tableau qui porte DEJA une colonne « Nom
-# » en verrait une seconde du meme nom, et toute lecture par nom rendrait la
-# premiere sans qu'on sache laquelle.
+# `make.unique` et non le nom nu.
 .hstat_dr_avec_noms <- function(df, noms, col = HSTAT_DONNEES_R_COL) {
   if (is.null(noms) || !length(noms)) return(df)
   cand <- make.unique(c(names(df), col))
@@ -8150,10 +7797,9 @@ hstat_donnees_r_convertir <- function(x, nom = "donnees") {
   rien <- function(motif) list(data = NULL, classe = cl, note = NULL, msg = motif)
   if (is.null(x)) return(rien(tr("objet vide")))
 
-  # --- serie temporelle -------------------------------------------------------
-  # AVANT le test `is.matrix` : une serie multiple (`mts`) est aussi une
-  # matrice, et la prendre pour telle perdrait son temps -- c'est-a-dire la
-  # seule variable qu'une serie temporelle apporte.
+  # --- serie temporelle
+  # ------------------------------------------------------- AVANT le test
+  # `is.matrix`.
   if (inherits(x, "ts")) {
     tt <- as.numeric(stats::time(x))
     fr <- stats::frequency(x)
@@ -8254,9 +7900,7 @@ hstat_donnees_r_convertir <- function(x, nom = "donnees") {
 .hstat_dr_proches <- function(nom, noms, n = 6L) {
   if (!length(noms) || !nzchar(nom)) return(character(0))
   # RECHERCHE LITTERALE, et la casse est retiree des DEUX cotes plutot que
-  # passee en `ignore.case` : `grepl(fixed = TRUE, ignore.case = TRUE)` IGNORE
-  # l'argument et AVERTIT a chaque appel -- un avertissement permanent en
-  # console finit par masquer ceux qui comptent.
+  # passee en `ignore.case`.
   dedans <- noms[grepl(tolower(nom), tolower(noms), fixed = TRUE)]
   dedans <- dedans[order(nchar(dedans), tolower(dedans))]
   d <- tryCatch(as.vector(utils::adist(nom, noms, ignore.case = TRUE)),
@@ -8300,8 +7944,7 @@ hstat_donnees_r_convertir <- function(x, nom = "donnees") {
 }
 
 # -- Chargement d'un jeu integre ----------------------------------------------
-# MEME FORME QUE `hstat_load_data()` : mode, con, table, full_nrow, full_ncol,
-# full_na, is_sampled, kind, size.
+# MEME FORME QUE `hstat_load_data()`.
 hstat_donnees_r <- function(nom, packages = NULL, catalogue = NULL) {
   ko <- function(msg, sug = character(0))
     list(ok = FALSE, msg = msg, suggestions = sug, data = NULL)
@@ -8354,14 +7997,12 @@ hstat_donnees_r <- function(nom, packages = NULL, catalogue = NULL) {
        full_nrow = nrow(d), full_ncol = ncol(d),
        full_na = sum(is.na(d)), is_sampled = FALSE,
        kind = "rdata",
-       # La taille n'a pas de sens ici : rien n'est lu sur disque. `NA` le dit,
-       # la ou `0` se lirait « fichier vide ».
+       # La taille n'a pas de sens ici : rien n'est lu sur disque.
        size = NA_real_,
        nom = r$nom, paquet = r$paquet, titre = r$titre,
        classe = conv$classe, notes = notes,
        suggestions = character(0))
 }
-
 
 #  Statistiques exactes sur le jeu COMPLET via DuckDB (mode hors-memoire)
 
@@ -8385,7 +8026,7 @@ hstat_donnees_r <- function(nom, packages = NULL, catalogue = NULL) {
 }
 
 # -- Statistiques descriptives GLOBALES exactes sur le jeu complet ------------
-# Sortie identique a make_summ_global : Facteurs, Variable, <stats...>
+# Sortie identique a make_summ_global.
 hstat_duckdb_describe_global <- function(con, tbl, num_vars, stats_sel) {
   rows <- lapply(num_vars, function(v) {
     ex <- .hstat_sql_stat_exprs(v, stats_sel)
@@ -8398,7 +8039,7 @@ hstat_duckdb_describe_global <- function(con, tbl, num_vars, stats_sel) {
 }
 
 # -- Statistiques descriptives GROUPEES exactes sur le jeu complet -----------
-# Sortie identique a make_summ_grouped : <group_vars...>, Variable, <stats...>
+# Sortie identique a make_summ_grouped.
 hstat_duckdb_describe_grouped <- function(con, tbl, group_vars, num_vars, stats_sel) {
   gcols <- paste(hstat_sql_ident(group_vars), collapse = ", ")
   rows <- lapply(num_vars, function(v) {
@@ -8449,7 +8090,6 @@ hstat_set_seed <- function(seed = NULL) {
   invisible(s)
 }
 
-
 # Cache memoire pour les agregations DuckDB (evite de relancer une requete SQL
 # identique sur un tres gros fichier).
 
@@ -8476,8 +8116,7 @@ hstat_cache_clear <- function(id = NULL) {
   invisible(NULL)
 }
 
-# Memoise le resultat de 'fn()' sous une cle. Si la cle existe deja, renvoie
-# la valeur en cache sans relancer le calcul.
+# Memoise le resultat de 'fn()' sous une cle.
 hstat_cache_get <- function(key, fn) {
   if (exists(key, envir = .hstat_cache, inherits = FALSE))
     return(get(key, envir = .hstat_cache, inherits = FALSE))
@@ -8490,15 +8129,13 @@ hstat_cache_get <- function(key, fn) {
 hstat_cache_key <- function(...) {
   parts <- vapply(list(...), function(x) paste(as.character(x), collapse = "|"),
                   character(1))
-  # L'IDENTIFIANT DE SESSION VIENT EN TETE, et il n'est pas decoratif : sans
-  # lui, deux sessions du meme processus qui interrogent les memes colonnes du
-  # meme nom de vue partagent leurs resultats.
+  # L'IDENTIFIANT DE SESSION VIENT EN TETE, et il n'est pas decoratif.
   paste(c(.hstat_session_id(), parts), collapse = "::")
 }
 
-# Protege les noms de colonnes contenant des caracteres speciaux dans une formule
-# de calcul, et convertit mean()/sum() en rowMeans()/rowSums() sur plusieurs
-# colonnes. Defini globalement (utilise par mod_clean et par le serveur).
+# Protege les noms de colonnes contenant des caracteres speciaux dans une
+# formule de calcul, et convertit mean()/sum() en rowMeans()/rowSums() sur
+# plusieurs colonnes.
 auto_quote_colnames <- function(formula_str, col_names) {
   # CE QUI EST CITE SORT DU JEU.
   jetons <- character(0)
@@ -8535,13 +8172,11 @@ auto_quote_colnames <- function(formula_str, col_names) {
   formula_str
 }
 
-# -- Evaluation SECURISEE des formules du calculateur de variables ------------
-# Empeche l'execution de code arbitraire via le champ formule (system(),
-# file.remove(), source(), install.packages(), etc.) :
-#   1) l'expression est analysee (AST) : seules les fonctions de la liste
-#      blanche HSTAT_FORMULA_FUNS sont autorisees ;
-#   2) l'evaluation se fait dans un environnement clos (parent = emptyenv())
-#      ne contenant que les colonnes du jeu de donnees et ces fonctions.
+# -- Evaluation SECURISEE des formules du calculateur de variables.
+# 1) l'expression est analysee (AST) : seules les fonctions de la liste blanche
+#    HSTAT_FORMULA_FUNS sont autorisees ;
+# 2) l'evaluation se fait dans un environnement clos (parent = emptyenv()) ne
+#    contenant que les colonnes du jeu de donnees et ces fonctions.
 HSTAT_FORMULA_FUNS <- c(
   "+", "-", "*", "/", "^", "%%", "%/%", "(",
   "==", "!=", "<", "<=", ">", ">=", "&", "|", "!",
@@ -8573,8 +8208,7 @@ hstat_check_formula_ast <- function(expr) {
 }
 
 # -- Cout d'une formule : la liste blanche ne borne que ce qu'on appelle -----
-# Le bac a sable empeche d'EXECUTER autre chose ; il ne borne pas ce que les
-# fonctions autorisees peuvent COUTER.
+# Le bac a sable empeche d'EXECUTER autre chose.
 HSTAT_FORMULA_MAX_CHARS <- {
   v <- suppressWarnings(as.integer(Sys.getenv("HSTAT_FORMULA_MAX_CHARS", "10000")))
   if (!is.finite(v) || v < 100) 10000L else v
@@ -8605,10 +8239,7 @@ hstat_safe_eval <- function(formula_str, data) {
   eval(expr, envir = as.list(data), enclos = enclos)
 }
 
-
-# ==============================================================================
-#  Modelisation predictive (series temporelles / ML / DL) : infrastructure
-# ==============================================================================
+# Modelisation predictive (series temporelles / ML / DL) : infrastructure
 
 # Plafond de lignes pour l'entrainement des modeles ML/DL (certains algorithmes
 # comme SVM ou randomForest deviennent impraticables au-dela).
@@ -8676,8 +8307,8 @@ hstat_confusion_df <- function(obs, pred) {
   as.data.frame.matrix(table(Observe = obs, Predit = pred))
 }
 
-# -- Metriques de CLASSIFICATION avec interpretation ----------------------------
-# prob : matrice/vecteur de probabilites (facultatif, pour l'AUC binaire).
+# -- Metriques de CLASSIFICATION avec interpretation
+# ---------------------------- prob.
 hstat_metrics_cls <- function(obs, pred, prob = NULL) {
   obs  <- factor(obs); pred <- factor(pred, levels = levels(obs))
   ok   <- !is.na(obs) & !is.na(pred)
@@ -8762,13 +8393,10 @@ hstat_model_interpretation <- function(task, metrics_df, model_label,
   paste(c(head_txt, core, notes), collapse = " ")
 }
 
-# ==============================================================================
-#  Le cadre carre des analyses multivariees : les dimensions d'origine de ggplot2
-# ==============================================================================
+# Le cadre carre des analyses multivariees : les dimensions d'origine de
+# ggplot2
 
-# Le peripherique que R ouvre par defaut -- celui pour lequel les valeurs par
-# defaut de ggplot2 sont reglees, celui des manuels et des exemples -- fait 7 x
-# 7 pouces, et il est CARRE (mesure : `dev.size()`).
+# Le peripherique que R ouvre par defaut.
 HSTAT_CARRE_RES <- 120
 HSTAT_CARRE_PX  <- 840   # 7 pouces a HSTAT_CARRE_RES
 
@@ -8789,9 +8417,7 @@ hstat_carre_hauteur <- function(session, id, defaut = HSTAT_CARRE_PX) {
   }
 }
 
-# ==============================================================================
-#  Export universel de graphiques : PNG/JPG/TIFF/BMP/PDF/SVG, DPI jusqu'a 20 000
-# ==============================================================================
+# Export universel de graphiques : PNG/JPG/TIFF/BMP/PDF/SVG, DPI jusqu'a 20 000
 
 # Bloc UI reutilisable : format, dimensions, DPI (max 20 000) + bouton.
 hstat_export_plot_ui <- function(ns, prefix, width = 10, height = 6,
@@ -8869,9 +8495,7 @@ hstat_export_plot_handler <- function(input, prefix, plot_fun, fname = "graphiqu
 
 # NB : hstat_finite() est defini plus haut dans ce fichier.
 
-# ==============================================================================
-#  Personnalisation d'apparence reutilisable pour les graphiques de modelisation
-# ==============================================================================
+# Personnalisation d'apparence reutilisable pour les graphiques de modelisation
 
 hstat_plot_opts_ui <- function(ns, prefix) {
   shiny::tagList(
@@ -8901,16 +8525,13 @@ hstat_plot_opts_ui <- function(ns, prefix) {
       shiny::column(4, shiny::numericInput(ns(paste0(prefix, "Rot")), "Rotation des labels X (°)",
                              value = 0, min = 0, max = 90, step = 15))),
     # UNE CORRECTION FAITE ICI PROFITE AUX TROIS MODULES qui passent par ce kit
-    # (apprentissage, apprentissage profond, series temporelles) : le trait des
-    # axes, la taille des cles et les quatre marges leur arrivent sans qu'aucun
-    # des trois ait une ligne a ecrire.
+    # (apprentissage, apprentissage profond, series temporelles).
     hstat_plot_extras_ui(ns, prefix,
                          familles = c("axe", "cles", "marges", "styles", "bornes"))
   )
 }
 
-# Applique les options ci-dessus a un ggplot. La couleur/epaisseur sont lues par
-# les fonctions de trace via hstat_plot_opt(input, prefix, "Col"/"Lwd").
+# Applique les options ci-dessus a un ggplot.
 hstat_apply_plot_opts <- function(g, input, prefix) {
   if (is.null(g)) return(g)
   # UN SEUL CHOISISSEUR DE THEME.
@@ -8940,9 +8561,7 @@ hstat_plot_opt <- function(input, prefix, what, default) {
   if (is.null(v) || (is.character(v) && !nzchar(v))) default else v
 }
 
-# ==============================================================================
-#  Export de tableaux (CSV / Excel) et simulateur de predictions
-# ==============================================================================
+# Export de tableaux (CSV / Excel) et simulateur de predictions
 
 hstat_export_table_ui <- function(ns, prefix) {
   shiny::div(style = "margin-top:6px;",
@@ -9007,12 +8626,8 @@ hstat_export_table_handlers <- function(output, prefix, data_fun, fname = "resul
   output[[paste0(prefix, "Xlsx")]] <- hstat_classeur_handler(tables, fname)
 }
 
-# ---------------------------------------------------------------------------
-#  UN SEUL ECRIVAIN DE TABLEAUX, comme il n'y a qu'un ecrivain d'image
-# ---------------------------------------------------------------------------
-# Vingt telechargements de tableaux montaient chacun leur classeur : meme
-# boucle sur les feuilles, meme archive ZIP de CSV, meme `tryCatch`, meme
-# notification.
+# UN SEUL ECRIVAIN DE TABLEAUX, comme il n'y a qu'un ecrivain d'image
+# Vingt telechargements de tableaux montaient chacun leur classeur.
 
 HSTAT_MIME_XLSX <-
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
@@ -9090,8 +8705,7 @@ hstat_tables_non_vides <- function(tables) {
 }
 
 # UN `content =` QUI LEVE OU N'ECRIT RIEN FAIT RENVOYER A SHINY SA PAGE
-# D'ERREUR HTML, que le navigateur enregistre sous le nom demande : on croit
-# tenir un CSV ou un classeur, on ouvre du HTML.
+# D'ERREUR HTML, que le navigateur enregistre sous le nom demande.
 hstat_contenu_sur <- function(content, motif_vide = NULL) {
   force(content)
   function(file) {
@@ -9204,7 +8818,7 @@ hstat_sim_collect <- function(input, df, vars, prefix) {
 }
 
 # Aligne un nouveau jeu de donnees (simulation par import) sur les types et
-# niveaux de facteurs du jeu d'entrainement. Retourne list(data, warn).
+# niveaux de facteurs du jeu d'entrainement.
 hstat_align_newdata <- function(newdf, ref, vars) {
   miss <- setdiff(vars, names(newdf))
   if (length(miss) > 0)
@@ -9226,10 +8840,7 @@ hstat_align_newdata <- function(newdf, ref, vars) {
   list(data = out, warn = if (length(warns)) paste(warns, collapse = " ; ") else NULL)
 }
 
-
-# ==============================================================================
-#  Fiches des modeles : principe, objectif, conditions d'application
-# ==============================================================================
+# Fiches des modeles : principe, objectif, conditions d'application
 
 hstat_model_doc <- function(id) {
   d <- list(
@@ -9398,18 +9009,12 @@ hstat_model_doc_ui <- function(id) {
       shiny::tags$p(shiny::strong("Conditions d'application : "), f$conditions))
 }
 
-# ---------------------------------------------------------------------------
 # EXPORT D'IMAGE : les pixels saisis sont une MISE EN PAGE, pas la sortie
-# ---------------------------------------------------------------------------
 # `ggsave` raisonne en pouces : le fichier fait pouces x DPI.
 
-# =============================================================================
-#  PIXELS ET RESOLUTION : DEUX MODELES, ET IL FAUT DIRE LEQUEL
-# -----------------------------------------------------------------------------
+# PIXELS ET RESOLUTION : DEUX MODELES, ET IL FAUT DIRE LEQUEL
 # Quand les champs de largeur/hauteur sont RECALCULES a chaque changement de
-# DPI -- c'est le cas des analyses multivariees -- ils affichent les pixels
-# reellement produits, et la taille physique est l'invariant.
-# =============================================================================
+# DPI -- c'est le cas des analyses multivariees.
 
 # Nouvelle taille en pixels apres un changement de resolution, a taille
 # physique constante.
@@ -9430,8 +9035,7 @@ hstat_px_en_pouces <- function(px, dpi, defaut = 8, max_in = 200) {
   max(1, min(px / d, max_in))
 }
 
-# Pixels a produire pour une taille physique et une resolution donnees --
-# l'operation inverse de la precedente, et celle qui doit piloter les champs.
+# Pixels a produire pour une taille physique et une resolution donnees.
 hstat_px_pour_dpi <- function(pouces, dpi, max_px = HSTAT_EXPORT_MAX_PX) {
   n <- function(x) suppressWarnings(as.numeric(x)[1])
   po <- n(pouces); d <- n(dpi)
@@ -9454,8 +9058,7 @@ HSTAT_EXPORT_REF_DPI <- 96
 HSTAT_EXPORT_MAX_PX <- 20000L
 
 # Plafond propre a l'export de l'onglet Visualisation, ou la taille physique
-# est fixe et seul le DPI varie : au-dela, `ggsave` echoue sur l'allocation du
-# bitmap et l'utilisateur n'obtient AUCUN fichier.
+# est fixe et seul le DPI varie.
 HSTAT_DPI_MAX <- 20000L
 
 # Cote maximal, en pixels, d'une image MATRICIELLE.
@@ -9475,7 +9078,6 @@ hstat_dpi_effectif <- function(w_in, h_in, dpi, max_px = HSTAT_RASTER_MAX_PX) {
              round(dem), round(eff), format(max_px, big.mark = " ")) else NULL)
 }
 
-
 # Dimensions d'export de l'onglet Visualisation, EN UN SEUL ENDROIT.
 hstat_viz_export_dims <- function(dpi, base_w = 12, base_h = 8,
                                   max_px = HSTAT_RASTER_MAX_PX) {
@@ -9486,7 +9088,6 @@ hstat_viz_export_dims <- function(dpi, base_w = 12, base_h = 8,
        px_w = round(base_w * eff$dpi), px_h = round(base_h * eff$dpi),
        plafonne = eff$plafonne, note = eff$note)
 }
-
 
 hstat_export_dims <- function(width_px, height_px, dpi,
                               ref = HSTAT_EXPORT_REF_DPI,
@@ -9647,19 +9248,13 @@ hstat_y_multi_valides <- function(data, y_vars, x_var = NULL) {
        motif = if (length(ecart_x)) "axe X" else NULL)
 }
 
-# ---------------------------------------------------------------------------
-#  Replis des paquets d'interface optionnels
-# ---------------------------------------------------------------------------
-# DEFINIR ces replis appartient au paquet ; DECIDER de les installer appartient
-# au demarrage, car la reponse depend de ce qui est installe sur la machine
-# d'EXECUTION -- pas sur celle qui a construit le paquet.
+# Replis des paquets d'interface optionnels
+# DEFINIR ces replis appartient au paquet.
 layout <- function(p, ...) {
   if (isTRUE(requireNamespace("plotly", quietly = TRUE))) plotly::layout(p, ...) else p
 }
 
-# ---------------------------------------------------------------------------
 # Dependances web declarees mais introuvables
-# ---------------------------------------------------------------------------
 # `shiny::sliderInput()` attache la dependance « strftime » en annoncant
 # `strftime-min.js` -- alors que le paquet livre `strftime.min.js`.
 .hstat_nouislider_casse <- function(f = system.file("htmlwidgets/lib/nouislider/jquery.nouislider.min.js",
@@ -9706,9 +9301,7 @@ HSTAT_ENTETES_SECURITE <- list(
   `X-Content-Type-Options`  = "nosniff",
   `Referrer-Policy`         = "strict-origin-when-cross-origin")
 
-# ---------------------------------------------------------------------------
 # La page se serialise a la demande, une fois, et ses erreurs se levent
-# ---------------------------------------------------------------------------
 # L'interface est un objet construit une fois au demarrage, et elle rend le
 # meme HTML a chaque requete.
 hstat_ui_en_cache <- function(ui, prechauffer = TRUE) {
@@ -9750,20 +9343,13 @@ hstat_ui_en_cache <- function(ui, prechauffer = TRUE) {
   f
 }
 
-# ---------------------------------------------------------------------------
 # La premiere session ne paie plus la compilation de toute l'application
-# ---------------------------------------------------------------------------
-# Mesure, profil a l'appui : la PREMIERE session ouverte apres le demarrage
-# bloquait le processus 27 a 28 s, et plus de 80 % de ce temps etait le
-# compilateur d'octets de R (`compiler:::tryCmpfun`).
 HSTAT_PRECHAUFFAGE_ECART <- 1
 
 hstat_prechauffer_session <- function(server, differer = TRUE) {
   if (!is.function(server)) return(server)
   courant <- server
-  # Une VRAIE session ouverte avant la session fictive rend celle-ci inutile :
-  # le visiteur a deja paye la compilation que le prechauffage devait lui
-  # epargner, et la rejouer bloquerait 25 s de plus le processus partage.
+  # Une VRAIE session ouverte avant la session fictive rend celle-ci inutile.
   en_fictive <- FALSE
   vraie_session <- FALSE
   enveloppe <- function(input, output, session) {
@@ -9778,8 +9364,7 @@ hstat_prechauffer_session <- function(server, differer = TRUE) {
     if (is.function(cf)) courant <<- cf
   }
   session_fictive <- function() {
-    # Les gestionnaires vivent DANS le rappel : `later` evalue ses rappels hors
-    # de ceux de l'appelant, un `suppressMessages()` pose autour serait ignore.
+    # Les gestionnaires vivent DANS le rappel.
     if (vraie_session) return(invisible(FALSE))
     t0 <- proc.time()[["elapsed"]]
     en_fictive <<- TRUE
@@ -9826,17 +9411,14 @@ hstat_installer_replis_ui <- function(envir = globalenv()) {
   poser("config", if (has("plotly")) plotly::config else function(p, ...) p)
 
   # Le nettoyage du polyfill obsolete est pose sur `renderPlotly` LUI-MEME
-  # plutot qu'a chacun des appels : leurs corps comportent plusieurs
-  # `return()`, qu'un habillage de l'expression sauterait purement et
-  # simplement.
+  # plutot qu'a chacun des appels.
   poser("renderPlotly", if (has("plotly"))
     function(expr, env = parent.frame(), quoted = FALSE) {
       fn <- shiny::exprToFunction(expr, env, quoted)
       rf <- plotly::renderPlotly(hstat_plotly_clean(fn()),
                                  env = environment(), quoted = FALSE)
       # La serialisation refait `plotly_build()`, donc reverifie la mise en
-      # page : le meme avertissement tolere (`boxmode`) y est etouffe, et lui
-      # seul. La fonction de rendu garde ses attributs (classe, sortie).
+      # page.
       w <- function(...) withCallingHandlers(rf(...), warning = function(x) {
         if (grepl(HSTAT_PLOTLY_LAYOUT_TOLERES, conditionMessage(x)))
           invokeRestart("muffleWarning")
@@ -9865,8 +9447,6 @@ hstat_installer_replis_ui <- function(envir = globalenv()) {
     })
 
   # -- ggtext
-  # ------------------------------------------------------------------
-  # VINGT-QUATRE APPELS ECRIVAIENT `ggtext::element_markdown(...)` EN DUR.
   poser("element_markdown", if (has("ggtext")) ggtext::element_markdown
         else function(family = NULL, face = NULL, size = NULL, colour = NULL,
                       fill = NULL, box.colour = NULL, linetype = NULL,
@@ -9917,12 +9497,9 @@ hstat_installer_replis_ui <- function(envir = globalenv()) {
   invisible(TRUE)
 }
 
-# ==============================================================================
-#  DIVERSITE ECOLOGIQUE : matrice sites x especes, indices alpha et beta
-# ==============================================================================
+# DIVERSITE ECOLOGIQUE : matrice sites x especes, indices alpha et beta
 # Toutes les statistiques vivent ICI et non dans le module : c'est la regle du
-# depot, et elle a une raison pratique -- une statistique posee dans un
-# `observeEvent` n'est pas testable, et `vegan` n'est pas garanti present.
+# depot, et elle a une raison pratique.
 
 # -- LA BASE DU LOGARITHME N'EST PAS UN DETAIL D'AFFICHAGE
 # --------------------- `vegan::diversity()` calcule en logarithme NATUREL.
@@ -9939,37 +9516,23 @@ hstat_div_convertir <- function(h, de = "2", vers = "2") {
   h * lb(de) / lb(vers)
 }
 
-
-# -- Matrice sites x especes --------------------------------------------------
-# Deux formes de fichier existent sur le terrain, et aucune ne se devine :
-# ---------------------------------------------------------------------------
-#  UN RELEVE PEUT ETRE DESIGNE PAR PLUSIEURS COLONNES
-# ---------------------------------------------------------------------------
-# Une fiche d'entomologie identifie rarement son releve par une seule colonne :
-# c'est le croisement (traitement x periode d'observation x semaine) qui fait
-# l'unite d'echantillonnage.
+# -- Matrice sites x especes.
 .hstat_div_cle <- function(data, cols) {
   parts <- lapply(cols, function(k) {
     v <- data[[k]]
     # Une date doit entrer par son ECRITURE, pas par son nombre de jours depuis
-    # 1970 : `as.character()` sur un `Date` rend bien l'ISO, mais un `POSIXct`
-    # y perdrait son fuseau.
+    # 1970.
     if (inherits(v, c("Date", "POSIXct", "POSIXlt"))) format(v) else as.character(v)
   })
   parts <- lapply(parts, function(x) { x[is.na(x)] <- ""; trimws(x) })
   trimws(do.call(paste, c(parts, sep = " | ")))
 }
 
-# ---------------------------------------------------------------------------
-#  LES STADES D'UNE MEME ESPECE NE SONT PAS DEUX ESPECES
-# ---------------------------------------------------------------------------
-# Un fichier de comptages entomologiques porte le stade en prefixe : `ch_Cocc`
-# (chrysalide/larve) et `ad_Cocc` (adulte) sont LA MEME ESPECE observee a deux
-# stades.
+# LES STADES D'UNE MEME ESPECE NE SONT PAS DEUX ESPECES
+# Un fichier de comptages entomologiques porte le stade en prefixe.
 hstat_div_stades <- function(cols) {
   cols <- as.character(cols)
-  # `[A-Za-z]+` ne peut pas franchir le souligne : la coupe se fait donc au
-  # PREMIER souligne, et `ad_Fourmi_Noire` rend bien (« ad », « Fourmi_Noire »).
+  # `[A-Za-z]+` ne peut pas franchir le souligne.
   mm <- regmatches(cols, regexec("^([A-Za-z]+)_(.+)$", cols))
   stade  <- vapply(mm, function(x) if (length(x) == 3L) x[2] else NA_character_, character(1))
   espece <- vapply(mm, function(x) if (length(x) == 3L) x[3] else NA_character_, character(1))
@@ -9981,9 +9544,7 @@ hstat_div_stades <- function(cols) {
     k <- which(espece == e & !sans)
     if (length(unique(stade[k])) >= 2L) multi <- c(multi, e)
   }
-  # Ce qui n'a pas au moins deux stades garde son nom de colonne : renommer
-  # `ad_Chrysope` en `Chrysope` sur la foi d'un prefixe isole inventerait une
-  # lecture que le fichier ne porte pas.
+  # Ce qui n'a pas au moins deux stades garde son nom de colonne.
   final <- cols
   keep <- espece %in% multi
   final[keep] <- espece[keep]
@@ -9992,13 +9553,11 @@ hstat_div_stades <- function(cols) {
 }
 
 # -- Bornes de la matrice releves x especes ---------------------------------
-# La matrice est DENSE : une colonne de texte libre choisie comme espece ou
-# comme releve -- une valeur par ligne -- donne autant de lignes et de colonnes
-# que le fichier compte de lignes.
+# La matrice est DENSE.
 HSTAT_DIV_CELLULES_MAX <- 2e6
 
 # Les analyses PAR PAIRE (diversite beta, partition de Baselga) rendent n x n
-# valeurs, ou n (n - 1) / 2 lignes : 1 000 releves font deja 499 500 paires.
+# valeurs, ou n (n - 1) / 2 lignes.
 HSTAT_DIV_RELEVES_MAX <- 1000L
 
 .hstat_div_releves_max <- function(n) {
@@ -10010,8 +9569,7 @@ HSTAT_DIV_RELEVES_MAX <- 1000L
   invisible(TRUE)
 }
 
-# Le meme motif, rendu comme texte : les deux tableaux par paire de l'onglet
-# l'affichent par `validate()`, ou une erreur levee sortirait en rouge.
+# Le meme motif, rendu comme texte.
 .hstat_div_trop_de_releves <- function(n)
   tryCatch({ .hstat_div_releves_max(n); "" }, error = function(e) conditionMessage(e))
 
@@ -10041,9 +9599,7 @@ hstat_div_matrice <- function(data, format = c("long", "large"),
     sites <- intersect(as.character(var_site %||% character(0)), names(data))
     lignes <- if (length(sites)) .hstat_div_cle(data, sites)
               else paste0("Relevé ", seq_len(nrow(data)))
-    # Deux lignes de meme nom de releve sont AGREGEES, pas empilees : un fichier
-    # qui repete un releve sur plusieurs lignes est courant, et deux lignes
-    # homonymes compteraient sinon pour deux sites dans toute la beta-diversite.
+    # Deux lignes de meme nom de releve sont AGREGEES, pas empilees.
     if (anyDuplicated(lignes)) {
       m <- rowsum(m, group = lignes, reorder = FALSE)
       msg <- c(msg, trf("%d relevé(s) apparaissaient sur plusieurs lignes : leurs effectifs ont été additionnés.",
@@ -10084,9 +9640,7 @@ hstat_div_matrice <- function(data, format = c("long", "large"),
   m[!is.finite(m)] <- 0
 
   # LE REGROUPEMENT SE FAIT ICI, sur la matrice montee, et non dans chacune des
-  # deux branches : les deux formes portent le meme piege (`ch_Cocc` peut tout
-  # aussi bien etre une MODALITE de la colonne d'especes en forme longue), et
-  # deux copies de la regle finiraient par diverger.
+  # deux branches.
   st <- hstat_div_stades(colnames(m))
   if (st$n_multi) {
     if (isTRUE(grouper_stades)) {
@@ -10101,8 +9655,7 @@ hstat_div_matrice <- function(data, format = c("long", "large"),
     }
   }
   # Une espece absente de TOUS les releves n'apporte rien et fausse la richesse
-  # si elle reste en colonne : `Sobs` compte les colonnes non nulles, mais les
-  # estimateurs de richesse comptent les singletons sur la matrice entiere.
+  # si elle reste en colonne.
   vides_esp <- colSums(m) <= 0
   if (any(vides_esp)) {
     msg <- c(msg, trf("%d espèce(s) absente(s) de tous les relevés, écartée(s).", sum(vides_esp)))
@@ -10119,10 +9672,8 @@ hstat_div_matrice <- function(data, format = c("long", "large"),
   m
 }
 
-
 # -- Estimateurs de richesse --------------------------------------------------
-# Un inventaire ne voit jamais toutes les especes presentes : celles qui n'ont
-# ete rencontrees qu'une ou deux fois disent combien il en reste a voir.
+# Un inventaire ne voit jamais toutes les especes presentes.
 hstat_div_richesse <- function(x) {
   x <- as.numeric(x); x <- x[is.finite(x) & x > 0]
   S <- length(x); N <- sum(x)
@@ -10144,9 +9695,7 @@ hstat_div_richesse <- function(x) {
     } else if (F1 > 0) {
       chao1_var <- F1 * (F1 - 1) / 2 + F1 * (2 * F1 - 1)^2 / 4 - F1^4 / (4 * chao1_bc)
     }
-    # Intervalle LOG-NORMAL (Chao 1987) et non symetrique : la borne basse ne
-    # peut pas descendre sous le nombre d'especes REELLEMENT observees, et un
-    # intervalle symetrique le fait des que la variance est grande.
+    # Intervalle LOG-NORMAL (Chao 1987) et non symetrique.
     est <- if (is.finite(chao1)) chao1 else chao1_bc
     if (is.finite(chao1_var) && chao1_var > 0 && est > S) {
       K <- exp(1.96 * sqrt(log(1 + chao1_var / (est - S)^2)))
@@ -10157,10 +9706,10 @@ hstat_div_richesse <- function(x) {
     }
 
     # Couverture de Good (1953) : part des individus appartenant a des especes
-    # deja vues plus d'une fois. C'est la mesure d'effort la plus lisible.
+    # deja vues plus d'une fois.
     if (N > 0) couverture <- 1 - F1 / N
 
-    # ACE -- Chao & Lee (1992). Le seuil de rarete est 10, la valeur du papier.
+    # ACE -- Chao & Lee (1992).
     rares <- x[x <= 10]; abondantes <- x[x > 10]
     S_rare <- length(rares); S_abond <- length(abondantes)
     N_rare <- sum(rares)
@@ -10190,10 +9739,7 @@ hstat_div_richesse <- function(x) {
     stringsAsFactors = FALSE)
 }
 
-
-# -- Indices de diversite et d'equitabilite, releve par releve -----------------
-# Tout est calcule sur les proportions p_i = n_i / N, et sur elles seules : un
-# indice de diversite ne depend pas de l'unite de comptage.
+# -- Indices de diversite et d'equitabilite, releve par releve.
 hstat_div_indices <- function(x, base = "2") {
   x <- as.numeric(x); x <- x[is.finite(x) & x > 0]
   S <- length(x); N <- sum(x)
@@ -10272,16 +9818,14 @@ hstat_div_indices <- function(x, base = "2") {
     stringsAsFactors = FALSE)
 }
 
-
 # -- Alpha de Fisher ----------------------------------------------------------
-# Fisher, Corbet & Williams (1943) : S = a * ln(1 + N/a), a resoudre en `a`.
+# Fisher, Corbet & Williams (1943).
 hstat_div_fisher <- function(S, N) {
   S <- as.numeric(S)[1]; N <- as.numeric(N)[1]
   if (!is.finite(S) || !is.finite(N) || S < 1 || N <= S) return(NA_real_)
   f <- function(a) a * log(1 + N / a) - S
   lo <- 1e-8; hi <- 1
-  # L'alpha d'un peuplement tres divers monte vite : on elargit tant que la
-  # borne haute n'encadre pas, plutot que de la figer a une valeur choisie.
+  # L'alpha d'un peuplement tres divers monte vite.
   k <- 0L
   while (f(hi) < 0 && k < 200L) { hi <- hi * 2; k <- k + 1L }
   if (f(hi) < 0) return(NA_real_)
@@ -10293,12 +9837,7 @@ hstat_div_fisher <- function(S, N) {
   (lo + hi) / 2
 }
 
-
-# -- Nombres de Hill : une seule famille, trois indices connus
-# ----------------- Hill (1973) montre que richesse, Shannon et Simpson sont le
-# MEME nombre a trois valeurs de q : q = 0 compte les especes sans regarder
-# leur abondance, q = 1 les pondere par leur frequence, q = 2 favorise les
-# dominantes.
+# -- Nombres de Hill : une seule famille, trois indices connus.
 hstat_div_hill <- function(x, q = c(0, 1, 2, Inf)) {
   x <- as.numeric(x); x <- x[is.finite(x) & x > 0]
   if (!length(x)) return(stats::setNames(rep(NA_real_, length(q)), paste0("q=", q)))
@@ -10310,7 +9849,6 @@ hstat_div_hill <- function(x, q = c(0, 1, 2, Inf)) {
   }, numeric(1))
   stats::setNames(v, paste0("q=", q))
 }
-
 
 # -- Profil de Renyi ----------------------------------------------------------
 # Renyi (1961) : H_a = ln(sum p^a) / (1 - a).
@@ -10326,7 +9864,6 @@ hstat_div_renyi <- function(x, alphas = c(0, 0.25, 0.5, 1, 2, 4, 8, Inf)) {
   stats::setNames(v, as.character(alphas))
 }
 
-
 # -- Entropie de Tsallis (HCDT) -----------------------------------------------
 # Tsallis (1988) : (1 - sum p^q) / (q - 1).
 hstat_div_tsallis <- function(x, q = c(0, 1, 2)) {
@@ -10340,10 +9877,7 @@ hstat_div_tsallis <- function(x, q = c(0, 1, 2)) {
   stats::setNames(v, paste0("q=", q))
 }
 
-
-# -- Abondances : absolue, relative, frequence d'occurrence -------------------
-# « Abondance relative » est ambigue et les deux lectures existent : la part
-# d'une espece DANS son releve, et sa part dans l'ENSEMBLE du jeu.
+# -- Abondances : absolue, relative, frequence d'occurrence.
 hstat_div_abondance <- function(m) {
   m <- as.matrix(m)
   tot <- sum(m)
@@ -10368,13 +9902,9 @@ hstat_div_abondance_site <- function(m) {
              check.names = FALSE, stringsAsFactors = FALSE, row.names = NULL)
 }
 
-
-# ==============================================================================
-#  DIVERSITE BETA : ce que deux releves ont en commun, et ce qui les separe
-# ==============================================================================
+# DIVERSITE BETA : ce que deux releves ont en commun, et ce qui les separe
 # TOUS LES COEFFICIENTS SE CALCULENT SUR a, b, c -- et c'est ce qui permet de
-# les poser une seule fois : a = especes presentes dans LES DEUX releves b =
-# presentes dans le premier seulement c = presentes dans le second seulement
+# les poser une seule fois.
 HSTAT_DIV_BETA_BINAIRES <- c(
   "Jaccard"              = "jaccard",
   "Sørensen (Dice)"      = "sorensen",
@@ -10411,9 +9941,8 @@ hstat_div_sim_binaire <- function(u, v, methode = "jaccard") {
     kulczynski = if ((a + b) > 0 && (a + cc) > 0) (a / (a + b) + a / (a + cc)) / 2 else NA_real_,
     # Simpson (1943) : rapporte au PLUS PETIT des deux releves.
     simpson    = if (a + min(b, cc) > 0) a / (a + min(b, cc)) else NA_real_,
-    # Whittaker (1960) est une DISSIMILARITE par construction : beta_w = S/alpha - 1.
-    # Sur deux releves, elle vaut (b + c) / (2a + b + c) ; on rend sa similarite
-    # pour que la colonne « similarite » garde le meme sens partout.
+    # Whittaker (1960) est une DISSIMILARITE par construction : beta_w =
+    # S/alpha - 1.
     whittaker  = if (2 * a + b + cc > 0) 1 - (b + cc) / (2 * a + b + cc) else NA_real_,
     russell    = if (a + b + cc + d > 0) a / (a + b + cc + d) else NA_real_,
     sokal      = if (a + b + cc + d > 0) (a + d) / (a + b + cc + d) else NA_real_,
@@ -10427,9 +9956,7 @@ hstat_div_sim_abondance <- function(u, v, methode = "bray") {
   su <- sum(u); sv <- sum(v)
   s <- switch(as.character(methode),
     bray = if (su + sv > 0) 1 - sum(abs(u - v)) / (su + sv) else NA_real_,
-    # Morisita-Horn (Horn 1966) : insensible a la taille de l'echantillon, ce
-    # qui en fait le coefficient d'abondance le plus employe pour comparer des
-    # releves d'effort inegal.
+    # Morisita-Horn (Horn 1966).
     horn = {
       if (su > 0 && sv > 0) {
         pu <- u / su; pv <- v / sv
@@ -10476,8 +10003,7 @@ hstat_div_sim_abondance <- function(u, v, methode = "bray") {
   if (identical(forme, "jaccard")) U * V / (U + V - U * V) else 2 * U * V / (U + V)
 }
 
-# -- Matrice de (dis)similarite entre tous les releves ------------------------
-# LE CALCUL SE FAIT PAR PRODUITS MATRICIELS, jamais paire par paire.
+# -- Matrice de (dis)similarite entre tous les releves.
 .hstat_div_abc_mat <- function(m) {
   P <- (m > 0) * 1
   A <- tcrossprod(P)
@@ -10486,8 +10012,7 @@ hstat_div_sim_abondance <- function(u, v, methode = "bray") {
   list(a = A, b = B, c = t(B), d = ncol(m) - A - B - t(B))
 }
 
-# Division qui rend NA quand le denominateur ne l'autorise pas -- la forme
-# vectorisee des `if (den > 0) num / den else NA` de la definition par paire.
+# Division qui rend NA quand le denominateur ne l'autorise pas.
 .hstat_div_quot <- function(num, den, ok = den > 0) {
   out <- num / den
   out[!ok] <- NA_real_
@@ -10548,9 +10073,8 @@ hstat_div_sim_abondance <- function(u, v, methode = "bray") {
     NULL)
 }
 
-# Une ligne contre TOUTES les suivantes, d'un coup : n appels au lieu de
-# n (n - 1) / 2. C'est la forme qui reste aux coefficients qui ne s'ecrivent
-# pas en produit matriciel.
+# Une ligne contre TOUTES les suivantes, d'un coup : n appels au lieu de n (n -
+# 1) / 2.
 .hstat_div_par_ligne <- function(m, f) {
   n <- nrow(m)
   out <- matrix(NA_real_, n, n)
@@ -10630,8 +10154,7 @@ hstat_div_beta <- function(m, methode = "jaccard", sortie = c("similarite", "dis
 }
 
 # -- Partition de Baselga : remplacement contre emboitement -------------------
-# Baselga (2010) : une meme dissimilarite de Sorensen recouvre DEUX phenomenes
-# opposes.
+# Baselga (2010).
 hstat_div_baselga <- function(m) {
   m <- as.matrix(m); n <- nrow(m)
   if (n < 2) stop("Au moins deux relevés sont nécessaires.", call. = FALSE)
@@ -10656,8 +10179,7 @@ hstat_div_baselga <- function(m) {
 }
 
 # -- Partition de Whittaker : alpha, beta, gamma ------------------------------
-# Whittaker (1960) : gamma = diversite de l'ENSEMBLE, alpha = moyenne des
-# releves, beta = ce qui les separe.
+# Whittaker (1960).
 hstat_div_whittaker <- function(m, base = "2") {
   m <- as.matrix(m)
   alpha_S <- mean(rowSums(m > 0))
@@ -10683,7 +10205,6 @@ hstat_div_whittaker <- function(m, base = "2") {
                        NA_real_, NA_real_),
     stringsAsFactors = FALSE)
 }
-
 
 # -- Rarefaction : comparer a effort egal -------------------------------------
 # Sanders (1968), corrige par Hurlbert (1971).
@@ -10735,10 +10256,7 @@ hstat_div_accumulation <- function(m, permutations = 100L, graine = 123L) {
              stringsAsFactors = FALSE)
 }
 
-
-# ==============================================================================
-#  SEUILS DE LECTURE : qui les a poses, et sur quelle base
-# ==============================================================================
+# SEUILS DE LECTURE : qui les a poses, et sur quelle base
 # DEUX ORIGINES, ET LES CONFONDRE SERAIT MALHONNETE.
 HSTAT_DIV_SEUILS <- list(
 
@@ -10942,11 +10460,8 @@ HSTAT_DIV_SEUILS <- list(
     origine = "usage")
 )
 
-
 # -- Le verdict : jamais de branchement sur une valeur non calculable ---------
-# Un indice rend NA des que le releve est degenere -- une seule espece, aucun
-# individu, des effectifs non entiers pour un estimateur qui compte des
-# singletons.
+# Un indice rend NA des que le releve est degenere.
 hstat_div_verdict <- function(indice, valeur, base = "2") {
   g <- HSTAT_DIV_SEUILS[[as.character(indice)[1]]]
   if (is.null(g))
@@ -10955,8 +10470,7 @@ hstat_div_verdict <- function(indice, valeur, base = "2") {
                 reference = NA_character_, origine = NA_character_,
                 grille = NA_character_, valeur = NA_real_))
   v <- suppressWarnings(as.numeric(valeur)[1])
-  # LA CONVERSION DE BASE EST LE COEUR DU MECANISME. Une grille en bits lue sur
-  # une valeur en nats classe « faible » un peuplement moyen, sans rien signaler.
+  # LA CONVERSION DE BASE EST LE COEUR DU MECANISME.
   if (!is.na(g$base) && !identical(as.character(base), as.character(g$base)))
     v <- hstat_div_convertir(v, base, g$base)
   grille <- .hstat_div_grille_texte(g)
@@ -10992,10 +10506,7 @@ hstat_div_verdict <- function(indice, valeur, base = "2") {
   sub("[.]?0+$", "", formatC(x, format = "f", digits = 3))
 }
 
-
-# -- Tableau d'interpretation complet -----------------------------------------
-# Un indice sans sa grille, son auteur et sa reference n'est pas interpretable
-# par le lecteur du rapport : les quatre voyagent ensemble.
+# -- Tableau d'interpretation complet.
 hstat_div_interpreter <- function(indices, base = "2", cles = NULL) {
   cles <- cles %||% names(HSTAT_DIV_SEUILS)
   cles <- intersect(cles, names(HSTAT_DIV_SEUILS))
@@ -11020,9 +10531,7 @@ hstat_div_interpreter <- function(indices, base = "2", cles = NULL) {
   res[!is.na(res$Indice), , drop = FALSE]
 }
 
-# =============================================================================
-#  UN COMPTAGE N'A PAS DE DECIMALES
-# -----------------------------------------------------------------------------
+# UN COMPTAGE N'A PAS DE DECIMALES
 # `DT::formatRound()` applique le meme nombre de decimales a toutes les
 # colonnes qu'on lui nomme.
 hstat_cols_entieres <- function(df, tol = 1e-9) {
@@ -11044,9 +10553,7 @@ hstat_dt_arrondi <- function(d, df, digits = 4) {
   d
 }
 
-# ===========================================================================
-#  EPIDEMIOLOGIE -- les modeles que la discipline emploie, et leurs pieges
-# ===========================================================================
+# EPIDEMIOLOGIE -- les modeles que la discipline emploie, et leurs pieges
 # Regle du depot appliquee a la lettre : TOUT le calcul vit ici, le module ne
 # fait que choisir, afficher et mettre en forme.
 
@@ -11093,12 +10600,9 @@ HSTAT_EPI_ANALYSES <- list(
     "Un tableau 2x2 exposition x issue, et la prévalence de l'exposition pour la FAP.")
 )
 
-# ---------------------------------------------------------------------------
-#  UN INTERVALLE DE COMPTAGE EST EXACT, PAS NORMAL
-# ---------------------------------------------------------------------------
+# UN INTERVALLE DE COMPTAGE EST EXACT, PAS NORMAL
 # L'approximation normale sur un decompte d'evenements rend une borne basse
-# NEGATIVE des que le compte est petit -- et un nombre de deces negatif n'est
-# pas un intervalle, c'est un aveu.
+# NEGATIVE des que le compte est petit.
 hstat_epi_ic_poisson <- function(x, conf = 0.95) {
   x <- suppressWarnings(as.numeric(x))
   conf <- suppressWarnings(as.numeric(conf)[1])
@@ -11111,10 +10615,7 @@ hstat_epi_ic_poisson <- function(x, conf = 0.95) {
   list(bas = bas, haut = haut, conf = conf)
 }
 
-
-# ===========================================================================
-#  DLNM -- surface exposition / retard / reponse
-# ===========================================================================
+# DLNM -- surface exposition / retard / reponse
 # Ce n'est PAS le DLNM de l'onglet Series temporelles, qui est une methode de
 # PREVISION.
 
@@ -11124,21 +10625,18 @@ HSTAT_EPI_DLNM_FAMILLES <- c(
   "Quasi-Poisson (surdispersion)"        = "quasipoisson",
   "Binomiale négative"                   = "nb")
 
-# ---------------------------------------------------------------------------
-#  LE CHOIX AUTOMATIQUE SE FAIT EN DEUX TEMPS, ET CE N'EST PAS UN DETOUR
-# ---------------------------------------------------------------------------
+# LE CHOIX AUTOMATIQUE SE FAIT EN DEUX TEMPS, ET CE N'EST PAS UN DETOUR
 # « Automatique » ne comparait que Poisson et la binomiale negative par AIC,
 # puis, sous Poisson surdisperse, se contentait de CONSEILLER quasi-Poisson --
 # un reglage que l'utilisateur devait aller changer a la main, sur une analyse
 # qu'il croyait deja ajustee au mieux.
 # 1. AIC entre Poisson et binomiale negative -- quel AJUSTEMENT est meilleur ;
 # 2. si Poisson l'emporte mais que les residus sont surdisperses, on passe a
-# quasi-Poisson -- ce n'est plus l'ajustement qui est en cause mais la FONCTION
-# DE VARIANCE, que l'AIC ne voit pas.
+#    quasi-Poisson.
 HSTAT_EPI_DISP_SEUIL <- 1.5
 
 # La surdispersion se MESURE : somme des residus de Pearson au carre rapportee
-# au degre de liberte residuel. Une seule definition, deux lecteurs.
+# au degre de liberte residuel.
 .hstat_epi_disp <- function(fit) {
   tryCatch({
     rp <- stats::residuals(fit, type = "pearson")
@@ -11160,8 +10658,7 @@ hstat_epi_famille_auto <- function(aic_poisson, aic_nb, dispersion,
   ap <- suppressWarnings(as.numeric(aic_poisson)[1])
   an <- suppressWarnings(as.numeric(aic_nb)[1])
   dp <- suppressWarnings(as.numeric(dispersion)[1])
-  # UN AIC ABSENT N'EST PAS UN AIC PERDANT : `which.min` sur un `NA` designe le
-  # survivant, ce qui ferait gagner la binomiale negative par sa seule absence.
+  # UN AIC ABSENT N'EST PAS UN AIC PERDANT.
   if (isTRUE(nb_dispo) && isTRUE(is.finite(an)) &&
       (!isTRUE(is.finite(ap)) || an < ap))
     return(list(famille = "nb", motif = "aic"))
@@ -11174,9 +10671,7 @@ hstat_epi_famille_auto <- function(aic_poisson, aic_nb, dispersion,
 # Les percentiles auxquels la surface est lue.
 HSTAT_EPI_DLNM_PCT <- c(0.01, 0.05, 0.10, 0.25, 0.50, 0.75, 0.90, 0.95, 0.99)
 
-# ---------------------------------------------------------------------------
-#  LES NOEUDS SONT DES PERCENTILES, ET DEUX PERCENTILES PEUVENT COINCIDER
-# ---------------------------------------------------------------------------
+# LES NOEUDS SONT DES PERCENTILES, ET DEUX PERCENTILES PEUVENT COINCIDER
 # Sur une exposition peu variable -- une temperature de saison seche, une serie
 # tronquee -- P25 et P50 tombent sur la meme valeur.
 .hstat_epi_noeuds <- function(x, probs) {
@@ -11192,15 +10687,10 @@ HSTAT_EPI_DLNM_PCT <- c(0.01, 0.05, 0.10, 0.25, 0.50, 0.75, 0.90, 0.95, 0.99)
   list(noeuds = k, message = msg)
 }
 
-# ---------------------------------------------------------------------------
-#  LE DENOMINATEUR NE S'INVENTE PAS
+# LE DENOMINATEUR NE S'INVENTE PAS
 
-# ---------------------------------------------------------------------------
-#  UNE DATE COMPLETE SE DECOMPOSE, ET C'EST DEMANDE, JAMAIS FAIT D'OFFICE
-# ---------------------------------------------------------------------------
-# Le chemin inverse du couple mois + annee : l'utilisateur porte deja une date
-# complete (jour, mois, annee) et veut en tirer ses trois morceaux -- pour
-# grouper, filtrer, ou ajuster sur la saison et le rythme hebdomadaire.
+# UNE DATE COMPLETE SE DECOMPOSE, ET C'EST DEMANDE, JAMAIS FAIT D'OFFICE
+# Le chemin inverse du couple mois + annee.
 HSTAT_EPI_PARTIES <- c(
   "Année (entier)"                          = "annee",
   "Mois (facteur 01-12)"                    = "mois",
@@ -11208,7 +10698,7 @@ HSTAT_EPI_PARTIES <- c(
   "Jour de la semaine (facteur, lundi en tête)" = "sem")
 
 # Suffixe de colonne, stable : c'est lui que relisent l'export et les autres
-# onglets. Le libelle du catalogue, lui, peut changer sans rien casser.
+# onglets.
 HSTAT_EPI_PARTIES_SUFFIXE <- c(annee = "_annee", mois = "_mois",
                                jour = "_jour", sem = "_jour_sem")
 
@@ -11244,8 +10734,7 @@ hstat_epi_date_parts <- function(data, var_date,
   msg <- character(0)
   if (isTRUE(da$auto) && isTRUE(nzchar(da$format %||% "")))
     msg <- c(msg, trf("Format de date reconnu automatiquement : %s.", da$format))
-  # UNE LIGNE ILLISIBLE NE DISPARAIT PAS EN SILENCE : sans ce decompte, la
-  # colonne extraite porterait des NA dont personne ne connaitrait le nombre.
+  # UNE LIGNE ILLISIBLE NE DISPARAIT PAS EN SILENCE.
   if (n_ok < length(d))
     msg <- c(msg, trf("%d ligne(s) sur %d n'ont pas pu être lues comme une date : les colonnes extraites y valent NA.",
                       length(d) - n_ok, length(d)))
@@ -11261,9 +10750,7 @@ hstat_epi_date_parts <- function(data, var_date,
   ajout <- character(0)
   for (p in parties) {
     base <- paste0(var_date, HSTAT_EPI_PARTIES_SUFFIXE[[p]])
-    # LA COLONNE D'ORIGINE EST CONSERVEE, et une homonyme aussi : ecraser
-    # « Date_mois » deja present ferait perdre une colonne du fichier sans un
-    # mot. `make.unique` sur l'ensemble des noms distingue les deux.
+    # LA COLONNE D'ORIGINE EST CONSERVEE, et une homonyme aussi.
     nom <- make.unique(c(names(data), base))[length(names(data)) + 1L]
     if (!identical(nom, base))
       msg <- c(msg, trf("La colonne « %s » existe déjà : l'extraction est déposée sous « %s ».",
@@ -11277,9 +10764,7 @@ hstat_epi_date_parts <- function(data, var_date,
        message = paste(msg, collapse = " "))
 }
 
-# ---------------------------------------------------------------------------
-#  UNE DATE SE COMPOSE PARFOIS DE DEUX COLONNES
-# ---------------------------------------------------------------------------
+# UNE DATE SE COMPOSE PARFOIS DE DEUX COLONNES
 # Beaucoup de fichiers de suivi mensuel ne portent AUCUNE colonne de date : ils
 # portent « Mois » en toutes lettres et « Annee » a cote.
 hstat_epi_mois_num <- function(x) {
@@ -11291,9 +10776,7 @@ hstat_epi_mois_num <- function(x) {
   if (length(reste)) {
     cle <- hstat_sans_accents(tolower(trimws(as.character(x)[reste])))
     mv <- .hstat_mois_variantes()
-    # Correspondance EXACTE, jamais par prefixe : « ju » ne doit designer ni
-    # juin ni juillet, et rendre l'un des deux au hasard serait la faute la
-    # plus couteuse -- un mois faux decale toute la serie d'un rang.
+    # Correspondance EXACTE, jamais par prefixe.
     out[reste] <- mv$num[match(cle, mv$noms)]
   }
   as.integer(out)
@@ -11337,9 +10820,7 @@ hstat_epi_date_mois_annee <- function(mois, annee) {
        message = if (length(msg)) paste(msg, collapse = " ") else NULL)
 }
 
-# ---------------------------------------------------------------------------
-#  LE TEMPS SE RESOUT A UN SEUL ENDROIT
-# ---------------------------------------------------------------------------
+# LE TEMPS SE RESOUT A UN SEUL ENDROIT
 # Trois sources possibles -- une colonne de date, un couple mois + annee, ou
 # rien (l'ordre des lignes).
 hstat_epi_temps <- function(data, var_temps = NULL, var_mois = NULL,
@@ -11388,7 +10869,6 @@ hstat_epi_temps <- function(data, var_temps = NULL, var_mois = NULL,
        message = if (length(msg)) paste(msg, collapse = " ") else NULL)
 }
 
-# ---------------------------------------------------------------------------
 # L'usage courant ecrit `offset = log(N + 1)` pour eviter log(0).
 .hstat_epi_offset <- function(off) {
   if (is.null(off)) return(list(log_off = NULL, garde = NULL, ecartes = 0L))
@@ -11415,10 +10895,7 @@ hstat_epi_temps <- function(data, var_temps = NULL, var_mois = NULL,
   m
 }
 
-#  UNE SEULE EXPOSITION NE SUFFIT JAMAIS
-# ---------------------------------------------------------------------------
-# La temperature n'agit pas seule : la pluviometrie, l'humidite relative, le
-# vent et les polluants varient ENSEMBLE, et souvent fortement.
+# UNE SEULE EXPOSITION NE SUFFIT JAMAIS
 .hstat_epi_cb <- function(x, L, pct_noeuds, nk_lag, nom) {
   # ZERO NOEUD DEMANDE N'EST PAS ZERO NOEUD SUBI.
   lineaire <- !length(pct_noeuds)
@@ -11443,9 +10920,7 @@ hstat_epi_temps <- function(data, var_temps = NULL, var_mois = NULL,
        message = if (!is.null(nd$message)) paste0(nom, " — ", nd$message) else NULL)
 }
 
-# ---------------------------------------------------------------------------
-#  DEUX EXPOSITIONS TRES CORRELEES SE PARTAGENT L'EFFET, ET AUCUNE NE RESSORT
-# ---------------------------------------------------------------------------
+# DEUX EXPOSITIONS TRES CORRELEES SE PARTAGENT L'EFFET, ET AUCUNE NE RESSORT
 # Temperature maximale et humidite relative correlent souvent a -0,8 ; en
 # saison seche, temperature et pluviometrie tout autant.
 hstat_epi_collinearite <- function(data, vars, seuil = 0.7) {
@@ -11502,10 +10977,7 @@ hstat_epi_dlnm <- function(data, var_y, var_expo, var_offset = NULL,
 
   y <- suppressWarnings(as.numeric(data[[var_y]]))
   x <- suppressWarnings(as.numeric(data[[var_expo]]))
-  # LA MESURE D'AMBIANCE SE RAMENE A L'EXPOSITION SUBIE AVANT TOUT LE RESTE :
-  # les noeuds, la reference et les percentiles se lisent sur la serie
-  # transformee, sans quoi le tableau annoncerait des °C releves en station
-  # sous une etiquette qui promet des °C subis.
+  # LA MESURE D'AMBIANCE SE RAMENE A L'EXPOSITION SUBIE AVANT TOUT LE RESTE.
   px <- hstat_epi_proxy(x, proxy_a, proxy_b, nom = var_expo)
   x <- px$x
   if (!is.null(px$message)) msg <- c(msg, px$message)
@@ -11598,9 +11070,7 @@ hstat_epi_dlnm <- function(data, var_y, var_expo, var_offset = NULL,
                   sum(garde), L)))
 
   # Les surfaces entrent dans la formule sous des noms STABLES (`cb1`, `cb2`…)
-  # et non sous le nom de la colonne : un intitule de fichier porte accents,
-  # espaces et parentheses, que `as.formula` refuse -- et le contourner par des
-  # accents graves casse l'appariement des coefficients de `crosspred`.
+  # et non sous le nom de la colonne.
   cbn <- sprintf("cb%0*d", nchar(length(cbs)), seq_along(cbs))
   env <- new.env(parent = parent.frame())
   for (k in seq_along(cbs)) assign(cbn[k], cbs[[k]], envir = env)
@@ -11634,8 +11104,7 @@ hstat_epi_dlnm <- function(data, var_y, var_expo, var_offset = NULL,
   fam_dem <- if (famille %in% c("auto", "poisson", "quasipoisson", "nb")) famille else "auto"
   if (identical(fam_dem, "auto")) {
     m_p <- ajuster("poisson"); m_n <- ajuster("nb")
-    # L'AIC N'EST PAS DEFINI POUR UN QUASI-MODELE : le comparer reviendrait a
-    # comparer un nombre a NA, et `which.min` designerait alors le survivant.
+    # L'AIC N'EST PAS DEFINI POUR UN QUASI-MODELE.
     a_p <- if (!is.null(m_p)) stats::AIC(m_p) else NA_real_
     a_n <- if (!is.null(m_n)) suppressWarnings(stats::AIC(m_n)) else NA_real_
     d_p <- if (!is.null(m_p)) .hstat_epi_disp(m_p) else NA_real_
@@ -11643,8 +11112,7 @@ hstat_epi_dlnm <- function(data, var_y, var_expo, var_offset = NULL,
     fam_ret <- ch$famille
     fit <- switch(fam_ret, nb = m_n, quasipoisson = ajuster("quasipoisson"), m_p)
     # SI LE REPLI NE S'AJUSTE PAS, on garde Poisson plutot que de rendre
-    # `NULL` : une loi de second choix vaut mieux qu'une analyse perdue, et le
-    # message dit alors ce qui a servi.
+    # `NULL`.
     if (is.null(fit)) { fit <- m_p; fam_ret <- "poisson" }
     if (isTRUE(is.finite(a_p)) && isTRUE(is.finite(a_n)))
       msg <- c(msg, trf("Choix automatique par AIC : Poisson %.1f, binomiale négative %.1f.", a_p, a_n))
@@ -11705,9 +11173,7 @@ hstat_epi_dlnm <- function(data, var_y, var_expo, var_offset = NULL,
        message = if (length(msg)) paste(msg, collapse = " ") else NULL)
 }
 
-# ---------------------------------------------------------------------------
-#  TOUS LES SCENARIOS : chaque exposition tour a tour, et la comparaison
-# ---------------------------------------------------------------------------
+# TOUS LES SCENARIOS : chaque exposition tour a tour, et la comparaison
 # Un essai porte rarement une seule question.
 hstat_epi_dlnm_multi <- function(data, vars_y, vars_expo, mutuel = TRUE,
                                  proxy_a = NULL, proxy_b = NULL, ...) {
@@ -11723,9 +11189,7 @@ hstat_epi_dlnm_multi <- function(data, vars_y, vars_expo, mutuel = TRUE,
   for (y in vars_y) for (v in vars_expo) {
     cle <- if (plusieurs) sprintf("%s \u2014 %s", y, v) else v
     autres <- if (isTRUE(mutuel)) setdiff(vars_expo, v) else character(0)
-    # LE FACTEUR DE TRANSFERT EST PROPRE A CHAQUE EXPOSITION : un facteur
-    # d'infiltration de logement n'a rien a voir avec celui d'un polluant, et
-    # appliquer le meme aux deux transformerait une serie sans raison.
+    # LE FACTEUR DE TRANSFERT EST PROPRE A CHAQUE EXPOSITION.
     pa <- suppressWarnings(as.numeric(proxy_a[[v]] %||% 1)[1])
     pb <- suppressWarnings(as.numeric(proxy_b[[v]] %||% 0)[1])
     r <- tryCatch(hstat_epi_dlnm(data, y, v, vars_ajust_cb = autres,
@@ -11751,7 +11215,6 @@ hstat_epi_dlnm_multi <- function(data, vars_y, vars_expo, mutuel = TRUE,
 # 10e percentile, reference la mediane de CHAQUE exposition.
 hstat_epi_dlnm_comparaison <- function(res_list) {
   if (!length(res_list)) return(NULL)
-  # UNE LISTE NON NOMMEE NE RENDAIT AUCUNE LIGNE.
   cles <- names(res_list)
   if (is.null(cles) || !all(nzchar(cles)))
     cles <- vapply(seq_along(res_list), function(i)
@@ -11782,9 +11245,7 @@ hstat_epi_dlnm_comparaison <- function(res_list) {
   d
 }
 
-# ---------------------------------------------------------------------------
-#  UN RETARD SE DESIGNE PAR SA VALEUR, JAMAIS PAR SON RANG DE COLONNE
-# ---------------------------------------------------------------------------
+# UN RETARD SE DESIGNE PAR SA VALEUR, JAMAIS PAR SON RANG DE COLONNE
 # `crosspred(..., bylag = 0.5)` rend une colonne tous les DEMI-retards :
 # colonne 1 = lag 0, colonne 2 = lag 0,5, colonne 3 = lag 1...
 .hstat_epi_lag_grille <- function(pred) {
@@ -11828,8 +11289,7 @@ hstat_epi_dlnm_rr <- function(res, probs = HSTAT_EPI_DLNM_PCT) {
     check.names = FALSE, stringsAsFactors = FALSE)
 }
 
-# Effets PAR RETARD a une exposition donnee : c'est la structure temporelle,
-# celle qui dit si l'effet frappe le mois meme ou trois mois plus tard.
+# Effets PAR RETARD a une exposition donnee.
 hstat_epi_dlnm_lags <- function(res, at = NULL, prob = 0.90) {
   if (!isTRUE(res$ok)) return(NULL)
   p <- res$pred
@@ -11854,9 +11314,7 @@ hstat_epi_dlnm_lags <- function(res, at = NULL, prob = 0.90) {
     exposition = unname(p$predvar[i]))
 }
 
-# ---------------------------------------------------------------------------
-#  LE TEST GLOBAL SE FAIT SUR LES COEFFICIENTS, PAS PAR UN REAJUSTEMENT
-# ---------------------------------------------------------------------------
+# LE TEST GLOBAL SE FAIT SUR LES COEFFICIENTS, PAS PAR UN REAJUSTEMENT
 # `lmtest::waldtest(fit, .
 hstat_epi_dlnm_wald <- function(res, exposition = NULL) {
   if (!isTRUE(res$ok)) return(NULL)
@@ -11889,11 +11347,9 @@ hstat_epi_dlnm_diag <- function(res, dates = NULL) {
              Temps = d[ok], check.names = FALSE, stringsAsFactors = FALSE)
 }
 
-# ===========================================================================
-#  VARIANCE ROBUSTE (SANDWICH) -- ecrite ici, pas empruntee
-# ===========================================================================
-# Le paquet `sandwich` est optionnel ; la variance robuste, elle, ne l'est pas
-# : c'est elle qui rend le RR de la Poisson robuste utilisable.
+# VARIANCE ROBUSTE (SANDWICH) -- ecrite ici, pas empruntee
+# Le paquet `sandwich` est optionnel ; la variance robuste, elle, ne l'est pas :
+# c'est elle qui rend le RR de la Poisson robuste utilisable.
 hstat_epi_vcov_robuste <- function(fit) {
   X <- tryCatch(stats::model.matrix(fit), error = function(e) NULL)
   if (is.null(X)) return(NULL)
@@ -11911,8 +11367,8 @@ hstat_epi_vcov_robuste <- function(fit) {
   V
 }
 
-# Un tableau de coefficients exponentiels (OR, RR, IRR, HR) avec son intervalle.
-# `exponentiel = FALSE` sert aux modeles dont le coefficient se lit tel quel.
+# Un tableau de coefficients exponentiels (OR, RR, IRR, HR) avec son
+# intervalle.
 .hstat_epi_coefs <- function(fit, V = NULL, conf = 0.95, exposant = TRUE,
                              etiquette = "RR", retirer = "\\(Intercept\\)") {
   b <- stats::coef(fit)
@@ -11937,9 +11393,7 @@ hstat_epi_vcov_robuste <- function(fit) {
   out
 }
 
-# ===========================================================================
-#  TAUX D'INCIDENCE -- le temps-personne est l'offset, jamais un predicteur
-# ===========================================================================
+# TAUX D'INCIDENCE -- le temps-personne est l'offset, jamais un predicteur
 # Mettre le temps-personne en variable explicative estimerait un coefficient la
 # ou la theorie en impose un (le taux est un rapport).
 hstat_epi_taux <- function(data, var_y, vars_x, var_temps_personne = NULL,
@@ -11971,9 +11425,7 @@ hstat_epi_taux <- function(data, var_y, vars_x, var_temps_personne = NULL,
   if (sum(garde) < length(vars_x) + 2L)
     return(ko(tr("Trop peu d'observations complètes pour ajuster le modèle.")))
 
-  # L'offset passe par la FORMULE, pour la meme raison que dans le DLNM :
-  # `glm()` sous-ensemble aussi l'argument `offset =`, si bien qu'un vecteur
-  # deja filtre est filtre deux fois et l'appel leve.
+  # L'offset passe par la FORMULE, pour la meme raison que dans le DLNM.
   fml <- stats::as.formula(paste(".y ~", paste(sprintf("`%s`", vars_x), collapse = " + "),
                                  if (!is.null(lo)) "+ offset(.logoff)" else ""))
   aj <- function(fam) {
@@ -12012,9 +11464,7 @@ hstat_epi_taux <- function(data, var_y, vars_x, var_temps_personne = NULL,
        message = if (length(msg)) paste(msg, collapse = " ") else NULL)
 }
 
-# ===========================================================================
-#  OR ET RR NE SONT PAS INTERCHANGEABLES, ET L'ECART SE MESURE
-# ===========================================================================
+# OR ET RR NE SONT PAS INTERCHANGEABLES, ET L'ECART SE MESURE
 # C'est l'erreur la plus repandue de la litterature epidemiologique.
 hstat_epi_risque <- function(data, var_y, vars_x, cas = NULL, conf = 0.95) {
   ko <- function(m) list(ok = FALSE, message = m)
@@ -12044,9 +11494,7 @@ hstat_epi_risque <- function(data, var_y, vars_x, cas = NULL, conf = 0.95) {
                     error = function(e) NULL)
   if (is.null(m_log)) return(ko(tr("La régression logistique n'a pas pu être ajustée.")))
 
-  # LA LOG-BINOMIALE NE CONVERGE PAS TOUJOURS, ET C'EST SA FAIBLESSE CONNUE :
-  # elle doit garder la probabilite predite sous 1, contrainte que
-  # l'optimisation viole des que l'exposition est forte.
+  # LA LOG-BINOMIALE NE CONVERGE PAS TOUJOURS, ET C'EST SA FAIBLESSE CONNUE.
   m_lb <- tryCatch(suppressWarnings(
     stats::glm(fml, data = d, family = stats::binomial(link = "log"),
                start = c(log(prev), rep(0, length(stats::coef(m_log)) - 1L)))),
@@ -12054,7 +11502,7 @@ hstat_epi_risque <- function(data, var_y, vars_x, cas = NULL, conf = 0.95) {
   lb_ok <- !is.null(m_lb) && isTRUE(m_lb$converged)
 
   # POISSON ROBUSTE (Zou, 2004) : la Poisson sur une issue binaire rend le bon
-  # RR mais une variance TROP GRANDE ; la variance sandwich la corrige.
+  # RR mais une variance TROP GRANDE.
   m_pr <- tryCatch(suppressWarnings(stats::glm(fml, data = d, family = stats::poisson())),
                    error = function(e) NULL)
   V_pr <- if (!is.null(m_pr)) hstat_epi_vcov_robuste(m_pr) else NULL
@@ -12067,9 +11515,7 @@ hstat_epi_risque <- function(data, var_y, vars_x, cas = NULL, conf = 0.95) {
   rr_pr <- if (!is.null(m_pr) && !is.null(V_pr))
     .hstat_epi_coefs(m_pr, V = V_pr, conf = conf, etiquette = "RR") else NULL
 
-  # L'ecart OR/RR, terme a terme : c'est la colonne qui dit s'il fallait s'en
-  # soucier sur CE jeu de donnees, plutot que de s'en remettre a « l'issue est
-  # rare » qui n'est jamais verifie.
+  # L'ecart OR/RR, terme a terme.
   ecart <- NULL
   rr_ref <- if (!is.null(rr_lb)) rr_lb else rr_pr
   if (!is.null(rr_ref)) {
@@ -12091,14 +11537,9 @@ hstat_epi_risque <- function(data, var_y, vars_x, cas = NULL, conf = 0.95) {
        model = m_log, message = paste(msg, collapse = " "))
 }
 
-# ---------------------------------------------------------------------------
-#  UNE ISSUE BINAIRE SE DECLARE, ELLE NE SE DEVINE PAS
-# ---------------------------------------------------------------------------
+# UNE ISSUE BINAIRE SE DECLARE, ELLE NE SE DEVINE PAS
 # Prendre « la premiere modalite par ordre alphabetique » comme cas donnerait
-# des OR parfaitement plausibles et INVERSES : sur « Deces » / « Survie », le
-# tri met « Deces » en premier -- juste par hasard -- et sur « Malade » / «
-# Sain » il met « Malade » ; mais sur « Negatif » / « Positif » il met le
-# temoin.
+# des OR parfaitement plausibles et INVERSES.
 hstat_epi_binaire <- function(x, cas = NULL) {
   if (is.null(x)) return(list(ok = FALSE, message = tr("Colonne absente.")))
   if (is.logical(x)) return(list(ok = TRUE, y = as.integer(x), ecartes = sum(is.na(x)),
@@ -12117,9 +11558,7 @@ hstat_epi_binaire <- function(x, cas = NULL) {
   list(ok = FALSE, message = tr("L'issue n'est pas codée 0/1 : déclarez explicitement la modalité qui représente le cas."))
 }
 
-# ===========================================================================
-#  SURVIE -- Kaplan-Meier, log-rank, Cox, et l'hypothese qu'on oublie
-# ===========================================================================
+# SURVIE -- Kaplan-Meier, log-rank, Cox, et l'hypothese qu'on oublie
 # Au-dela de ce nombre de valeurs distinctes, une variable numerique n'est pas
 # un facteur de groupement pour Kaplan-Meier et le log-rank.
 HSTAT_EPI_KM_GROUPES_MAX <- 10L
@@ -12154,10 +11593,7 @@ hstat_epi_survie <- function(data, var_duree, var_event, vars_x = NULL,
 
   srv <- survival::Surv(d$.t, d$.e)
   grp <- if (length(vars_x)) vars_x[1] else NULL
-  # UN FACTEUR CONTINU NE FAIT PAS DES GROUPES : un age en annees en donnait
-  # 57, une courbe par sujet ou presque, et un log-rank a 56 ddl lu «
-  # significatif » (p = 8,6e-21) la ou le modele de Cox, sur la meme variable,
-  # ne voyait rien (p = 0,45).
+  # UN FACTEUR CONTINU NE FAIT PAS DES GROUPES.
   if (!is.null(grp) && is.numeric(d[[grp]]) &&
       length(unique(d[[grp]])) > HSTAT_EPI_KM_GROUPES_MAX) {
     msg <- c(msg, trf("« %s » est numérique et compte plus de %d valeurs : elle n'est pas un facteur de groupement. Elle entre au modèle de Cox ; la courbe de Kaplan-Meier et le log-rank portent sur l'ensemble. Pour comparer des groupes, découpez-la en classes.",
@@ -12188,10 +11624,7 @@ hstat_epi_survie <- function(data, var_duree, var_event, vars_x = NULL,
     cx <- tryCatch(survival::coxph(fml_cox, data = d), error = function(e) NULL)
     if (!is.null(cx)) {
       cox <- .hstat_epi_coefs(cx, conf = conf, etiquette = "HR", retirer = "")
-      # L'HYPOTHESE DE RISQUES PROPORTIONNELS N'EST PAS UN DETAIL : si elle
-      # tombe, le HR n'est plus constant dans le temps et le chiffre unique
-      # publie est une MOYENNE sur une periode -- qui peut cacher un effet qui
-      # s'inverse.
+      # L'HYPOTHESE DE RISQUES PROPORTIONNELS N'EST PAS UN DETAIL.
       z <- tryCatch(survival::cox.zph(cx), error = function(e) NULL)
       if (!is.null(z)) {
         tb <- as.data.frame(z$table)
@@ -12213,12 +11646,9 @@ hstat_epi_survie <- function(data, var_duree, var_event, vars_x = NULL,
        donnees = d, message = if (length(msg)) paste(msg, collapse = " ") else NULL)
 }
 
-# ===========================================================================
-#  CAS-CROISE STRATIFIE SUR LE TEMPS
-# ===========================================================================
+# CAS-CROISE STRATIFIE SUR LE TEMPS
 # Chaque cas est son propre temoin : tout ce qui ne varie pas a l'interieur
-# d'une strate -- sexe, tabagisme, comorbidites, mais aussi la saison et la
-# tendance longue -- s'elimine sans etre modelise.
+# d'une strate.
 hstat_epi_cas_croise <- function(data, var_date, var_cas, var_expo,
                                  vars_ajust = NULL, conf = 0.95) {
   ko <- function(m) list(ok = FALSE, message = m)
@@ -12227,8 +11657,7 @@ hstat_epi_cas_croise <- function(data, var_date, var_cas, var_expo,
     if (!isTRUE(nzchar(v %||% "")) || !v %in% names(data))
       return(ko(tr("Choisissez la date, le nombre de cas et l'exposition.")))
 
-  # Meme lecteur que le DLNM, et pour la meme raison : `hstat_date_parse()` nu
-  # leve sur son `fmt` sans defaut des que la colonne est en caracteres.
+  # Meme lecteur que le DLNM, et pour la meme raison.
   dt <- data[[var_date]]
   dd <- hstat_date_auto(dt)$dates
   if (all(is.na(dd)))
@@ -12277,9 +11706,7 @@ hstat_epi_cas_croise <- function(data, var_date, var_cas, var_expo,
        conf = conf, message = if (length(msg)) paste(msg, collapse = " ") else NULL)
 }
 
-# ===========================================================================
-#  STANDARDISATION ET SMR
-# ===========================================================================
+# STANDARDISATION ET SMR
 # Deux populations n'ont pas la meme structure d'age : comparer leurs taux
 # bruts, c'est comparer leurs pyramides des ages.
 hstat_epi_smr <- function(data, var_evenements, var_population,
@@ -12319,10 +11746,7 @@ hstat_epi_smr <- function(data, var_evenements, var_population,
     msg <- c(msg, tr("Aucun taux de référence déclaré : les taux de l'ensemble du fichier servent de référence (standardisation interne). Le SMR moyen vaut alors 1 par construction — ce n'est pas une comparaison à une population externe."))
   }
 
-  # UNE LIGNE SANS TAUX DE REFERENCE EST ECARTEE, pas seulement ses attendus :
-  # ses evenements entreraient dans O pendant que `sum(na.rm = TRUE)` retire
-  # ses attendus de E, et le SMR monterait d'autant -- un « exces » publie sur
-  # une simple case vide du fichier.
+  # UNE LIGNE SANS TAUX DE REFERENCE EST ECARTEE, pas seulement ses attendus.
   sans_ref <- keep & (!is.finite(ref) | ref < 0)
   if (any(sans_ref)) {
     msg <- c(msg, trf("%d ligne(s) écartée(s) : taux de référence manquant ou négatif.", sum(sans_ref)))
@@ -12383,9 +11807,7 @@ hstat_epi_smr <- function(data, var_evenements, var_population,
        message = if (length(msg)) paste(msg, collapse = " ") else NULL)
 }
 
-# ===========================================================================
-#  TEST DIAGNOSTIQUE -- et la valeur predictive depend de la prevalence
-# ===========================================================================
+# TEST DIAGNOSTIQUE -- et la valeur predictive depend de la prevalence
 # Sensibilite et specificite sont des proprietes DU TEST ; les valeurs
 # predictives sont des proprietes du test DANS UNE POPULATION.
 hstat_epi_diagnostic <- function(data, var_test, var_reference,
@@ -12427,8 +11849,7 @@ hstat_epi_diagnostic <- function(data, var_test, var_reference,
   ic_p <- function(k, n) {
     if (!isTRUE(n > 0)) return(c(NA_real_, NA_real_))
     # WILSON, pas Wald : l'intervalle de Wald sort de [0 ; 1] des que la
-    # proportion approche une borne -- et une sensibilite de 100 % est le cas
-    # le plus courant sur un petit echantillon.
+    # proportion approche une borne.
     z <- stats::qnorm(1 - (1 - conf) / 2); ph <- k / n
     d <- 1 + z^2 / n
     c <- (ph + z^2 / (2 * n)) / d
@@ -12443,9 +11864,7 @@ hstat_epi_diagnostic <- function(data, var_test, var_reference,
                          100 * prev, 100 * prev_obs))
 
   # LES VALEURS PREDICTIVES PASSENT PAR BAYES, jamais par les effectifs du
-  # tableau : sur un plan cas-temoins, le tableau porte une prevalence CHOISIE
-  # par l'echantillonnage, et les VPP qu'on en tire ne valent dans aucune
-  # population reelle.
+  # tableau.
   vpp <- se * prev / (se * prev + (1 - sp) * (1 - prev))
   vpn <- sp * (1 - prev) / (sp * (1 - prev) + (1 - se) * prev)
   rvp <- if (isTRUE((1 - sp) > 0)) se / (1 - sp) else NA_real_
@@ -12480,13 +11899,8 @@ hstat_epi_diagnostic <- function(data, var_test, var_reference,
        message = if (length(msg)) paste(msg, collapse = " ") else NULL)
 }
 
-# ---------------------------------------------------------------------------
-#  ROC : l'aire EST la statistique de Mann-Whitney, et c'est ce qui la teste
-# ---------------------------------------------------------------------------
-#  UNE MESURE D'AMBIANCE N'EST PAS L'EXPOSITION D'UNE PERSONNE
-# ---------------------------------------------------------------------------
-# Demande a l'ecran : tenir compte des variables d'environnement « comme s'il
-# s'agissait de celles des individus ».
+# ROC : l'aire EST la statistique de Mann-Whitney, et c'est ce qui la teste
+# UNE MESURE D'AMBIANCE N'EST PAS L'EXPOSITION D'UNE PERSONNE
 HSTAT_EPI_PROXY_MSG <- paste(
   "Exposition ramenée à l'échelle individuelle (personnelle = a × ambiance + b).",
   "L'axe, la référence et les valeurs des tableaux sont désormais des expositions subies ;",
@@ -12512,9 +11926,7 @@ hstat_epi_proxy <- function(x, a = 1, b = 0, nom = NULL) {
                        tr(HSTAT_EPI_PROXY_MSG)))
 }
 
-# ---------------------------------------------------------------------------
-#  LA SOUPLESSE DE LA SURFACE EST UN REGLAGE, PAS UNE CONSTANTE
-# ---------------------------------------------------------------------------
+# LA SOUPLESSE DE LA SURFACE EST UN REGLAGE, PAS UNE CONSTANTE
 # Elle valait `c(0.25, 0.50, 0.75)` en dur -- trois noeuds, donc quatre degres
 # de liberte sur l'exposition, multiplies par ceux du retard.
 HSTAT_EPI_NOEUDS_EXPO <- list(
@@ -12540,12 +11952,9 @@ hstat_epi_noeuds_probs <- function(code) {
   if (is.null(e)) HSTAT_EPI_NOEUDS_EXPO$k3$probs else e$probs
 }
 
-# ---------------------------------------------------------------------------
-#  UNE LIGNE DE REPERE SANS ETIQUETTE OBLIGE A SE SOUVENIR DE CE QU'ELLE MARQUE
-# ---------------------------------------------------------------------------
+# UNE LIGNE DE REPERE SANS ETIQUETTE OBLIGE A SE SOUVENIR DE CE QU'ELLE MARQUE
 # Le trait pointille de la reference porte une valeur -- la mediane de
-# l'exposition, ou le RR neutre -- et rien ne la nomme sur la figure : il faut
-# la relire dans le sous-titre, puis revenir au trait.
+# l'exposition, ou le RR neutre -- et rien ne la nomme sur la figure.
 HSTAT_EPI_REPERE_POS <- c("En haut" = "haut", "Au milieu" = "milieu",
                           "En bas" = "bas")
 HSTAT_EPI_REPERE_COTE <- c("À droite du trait" = "droite",
@@ -12571,9 +11980,7 @@ hstat_ligne_repere <- function(valeur, sens = "v", etiquette = NULL,
   lab <- as.character(etiquette %||% "")[1]
   if (!isTRUE(nzchar(lab))) return(list(cou))
 
-  # « milieu » sans etendue ne peut pas etre place : on retombe sur le haut
-  # PLUTOT QUE DE POSER L'ETIQUETTE HORS DU CADRE, ou elle disparaitrait sans
-  # un mot -- le defaut que ce depot traque.
+  # « milieu » sans etendue ne peut pas etre place.
   mid <- if (length(etendue) == 2L && all(is.finite(etendue)))
     mean(range(etendue)) else NULL
   if (identical(position, "milieu") && is.null(mid)) position <- "haut"
@@ -12596,10 +12003,7 @@ hstat_ligne_repere <- function(valeur, sens = "v", etiquette = NULL,
   list(cou, do.call(ggplot2::annotate, arg))
 }
 
-# ---------------------------------------------------------------------------
-#  UN INTERVALLE ENORME N'EST PAS UN DEFAUT D'AFFICHAGE : C'EST UN BUDGET
-# ---------------------------------------------------------------------------
-# Signale a l'ecran : RR = 19,7 avec IC [1,10 ; 352,1].
+# UN INTERVALLE ENORME N'EST PAS UN DEFAUT D'AFFICHAGE : C'EST UN BUDGET
 HSTAT_EPI_BUDGET_SEUILS <- c(confortable = 10, juste = 5)
 
 hstat_epi_dlnm_budget <- function(res) {
@@ -12610,8 +12014,7 @@ hstat_epi_dlnm_budget <- function(res) {
   cbn <- res$cb_noms %||% character(0)
 
   # Chaque surface est reconnue par le SYMBOLE sous lequel elle est entree dans
-  # la formule (`cb1`, `cb2`...), pas par le nom de la colonne : un intitule de
-  # fichier porte accents et espaces, et n'apparait pas dans les coefficients.
+  # la formule (`cb1`, `cb2`...), pas par le nom de la colonne.
   fam <- rep(tr("Autres termes du modèle"), length(nm))
   fam[nm == "(Intercept)"] <- tr("Constante")
   etiq <- names(cbn); if (is.null(etiq)) etiq <- cbn
@@ -12634,8 +12037,7 @@ hstat_epi_dlnm_budget <- function(res) {
     else if (ratio >= HSTAT_EPI_BUDGET_SEUILS[["confortable"]]) "confortable"
     else if (ratio >= HSTAT_EPI_BUDGET_SEUILS[["juste"]]) "juste" else "insuffisant"
 
-  # Le cout REEL de chaque levier, sur ce modele-ci. `attr(cb, "df")` rend le
-  # couple (df exposition, df retard) ; le produit est la taille de la surface.
+  # Le cout REEL de chaque levier, sur ce modele-ci.
   df1 <- tryCatch(as.integer(attr(res$cbs[[1]], "df")), error = function(e) NULL)
   n_surf <- length(cbn)
   levier <- character(0)
@@ -12671,28 +12073,21 @@ hstat_epi_dlnm_budget <- function(res) {
             verdict = verdict, message = msg)
 }
 
-# ---------------------------------------------------------------------------
-#  PLUSIEURS EXPOSITIONS SUR UNE MEME FIGURE
-# ---------------------------------------------------------------------------
-# Demande a l'ecran : quand deux variables d'influence sont analysees, les voir
-# ensemble.
+# PLUSIEURS EXPOSITIONS SUR UNE MEME FIGURE
 HSTAT_EPI_MULTI_MODES <- c(
   "Facettes (une échelle par exposition)" = "facettes",
   "Superposées sur les percentiles"       = "percentiles")
 
-# Les figures qui acceptent PLUSIEURS expositions. Les autres decrivent une
-# surface unique (3D, diagnostics) ou n'existent pas en DLNM.
+# Les figures qui acceptent PLUSIEURS expositions.
 HSTAT_EPI_MULTI_FIG <- c("cumul", "retard", "carte", "coupes")
 
-# La valeur du selecteur qui demande TOUTES les expositions. Un jeton, pas un
-# libelle : un nom de colonne du fichier peut valoir « Toutes ensemble ».
+# La valeur du selecteur qui demande TOUTES les expositions.
 HSTAT_EPI_TOUTES <- "__toutes__"
 
 # LES DEUX LISTES DISAIENT LA MEME CHOSE, ET ELLES DISENT L'INVERSE.
 HSTAT_EPI_MULTI_FACETTES <- "carte"
 
-# Les figures dont l'axe est le PERCENTILE quoi qu'on demande : le mode n'y a
-# pas de prise, et l'offrir donnerait un reglage que l'image ignore.
+# Les figures dont l'axe est le PERCENTILE quoi qu'on demande.
 HSTAT_EPI_MULTI_PCT <- "coupes"
 
 #' Percentile de chaque valeur d'exposition dans sa propre distribution.
@@ -12720,8 +12115,7 @@ hstat_epi_figure_multi <- function(figure, res_list, mode = "facettes",
   # une image ou seule la derniere exposition se voit.
   if (figure %in% HSTAT_EPI_MULTI_FACETTES) mode <- "facettes"
   # Redondant avec la branche « coupes », qui pose son axe en percentiles quoi
-  # qu'on lui passe : une mutation qui retire cette ligne ne change donc rien a
-  # la figure, et aucune assertion ne la garde.
+  # qu'on lui passe.
   if (figure %in% HSTAT_EPI_MULTI_PCT) mode <- "percentiles"
   mode <- if (identical(mode, "percentiles")) "percentiles" else "facettes"
   noms <- names(res_list)
@@ -12739,7 +12133,7 @@ hstat_epi_figure_multi <- function(figure, res_list, mode = "facettes",
     pct <- identical(mode, "percentiles")
     d$ax <- if (pct) d$pct else d$x
     # LE CADRE SE BORNE SUR LES CENTILES DE L'INTERVALLE, comme la figure a une
-    # exposition : une bande qui explose aux extremes ecrase toutes les courbes.
+    # exposition.
     hi <- stats::quantile(d$hi, 0.98, na.rm = TRUE)
     lo <- max(0, stats::quantile(d$lo, 0.02, na.rm = TRUE))
     g <- ggplot2::ggplot(d, ggplot2::aes(x = .data[["ax"]], colour = .data[["Exposition"]],
@@ -12761,8 +12155,7 @@ hstat_epi_figure_multi <- function(figure, res_list, mode = "facettes",
         subtitle = if (pct)
           tr("Axe en percentiles : sans dimension, donc comparable d'une variable à l'autre.")
         else tr("Un panneau par variable : les unités diffèrent, les échelles aussi."))
-    # `free_x` N'EST PAS UN CONFORT : sans lui, un axe unique en °C recevrait
-    # aussi des millimetres, et la courbe de l'une s'ecraserait sur un bord.
+    # `free_x` N'EST PAS UN CONFORT.
     if (!pct) g <- g + ggplot2::facet_wrap(~ Exposition,
                                            scales = hstat_epi_facet_scales(o$facettes))
     return(g)
@@ -12850,7 +12243,6 @@ hstat_epi_figure_multi <- function(figure, res_list, mode = "facettes",
   NULL
 }
 
-# ---------------------------------------------------------------------------
 # AUC = P(score d'un malade > score d'un sain), ex aequo comptes pour moitie.
 hstat_epi_roc <- function(score, etat) {
   s <- suppressWarnings(as.numeric(score)); e <- as.integer(etat)
@@ -12867,8 +12259,7 @@ hstat_epi_roc <- function(score, etat) {
   courbe <- courbe[order(courbe$Un_moins_Sp, courbe$Sensibilite), , drop = FALSE]
   aire <- sum(diff(courbe$Un_moins_Sp) *
                 (utils::head(courbe$Sensibilite, -1) + courbe$Sensibilite[-1]) / 2)
-  # Le rang : meme quantite, autre chemin. `rank` traite les ex aequo par leur
-  # moyenne, ce qui est exactement la convention « ex aequo pour moitie ».
+  # Le rang : meme quantite, autre chemin.
   r <- rank(s)
   auc_rang <- (sum(r[e == 1L]) - np * (np + 1) / 2) / (np * nn)
   j <- which.max(courbe$Sensibilite + courbe$Specificite - 1)
@@ -12878,11 +12269,8 @@ hstat_epi_roc <- function(score, etat) {
        n_positifs = np, n_negatifs = nn)
 }
 
-# ===========================================================================
-#  MESURES D'IMPACT -- ce qu'une decision de sante publique demande vraiment
-# ===========================================================================
-#  Un RR de 2 ne dit pas s'il faut agir. Ce qui le dit, c'est le nombre de cas
-#  qu'on eviterait : c'est la difference entre une association et une priorite.
+# MESURES D'IMPACT -- ce qu'une decision de sante publique demande vraiment
+# Un RR de 2 ne dit pas s'il faut agir.
 hstat_epi_impact <- function(a, b, c, d, conf = 0.95, prevalence_expo = NULL) {
   v <- suppressWarnings(as.numeric(c(a, b, c, d)))
   if (any(!is.finite(v)) || any(v < 0))
@@ -12890,10 +12278,7 @@ hstat_epi_impact <- function(a, b, c, d, conf = 0.95, prevalence_expo = NULL) {
   a <- v[1]; b <- v[2]; c <- v[3]; d <- v[4]
   msg <- character(0)
 
-  # LA GARDE DES GROUPES VIDES PRECEDE LA CORRECTION DE HALDANE : apres elle,
-  # chaque groupe compte au moins 1 et la garde ne se declenchait jamais -- un
-  # groupe expose VIDE rendait « RR 1,0 [0,13 ; 7,75] », un resultat qu'aucun
-  # sujet n'a produit.
+  # LA GARDE DES GROUPES VIDES PRECEDE LA CORRECTION DE HALDANE.
   if (!isTRUE(a + b > 0) || !isTRUE(c + d > 0))
     return(list(ok = FALSE, message = tr("Un des deux groupes est vide : aucun risque n'est comparable.")))
 
@@ -12951,9 +12336,7 @@ hstat_epi_impact <- function(a, b, c, d, conf = 0.95, prevalence_expo = NULL) {
        prevalence_expo = pe, message = if (length(msg)) paste(msg, collapse = " ") else NULL)
 }
 
-# ===========================================================================
-#  FIGURES -- le catalogue est declare une fois, le selecteur en derive
-# ===========================================================================
+# FIGURES -- le catalogue est declare une fois, le selecteur en derive
 HSTAT_EPI_FIGURES <- list(
   dlnm = c("Effet cumulé (tous retards)" = "cumul",
            "Carte de chaleur exposition × retard" = "carte",
@@ -12973,10 +12356,6 @@ HSTAT_EPI_FIGURES <- list(
 # LES FIGURES TRACEES EN GRAPHIQUES DE BASE N'OBEISSENT PAS AU KIT GGPLOT.
 HSTAT_EPI_FIGURES_BASE <- c("surface3d", "diag")
 
-# ---------------------------------------------------------------------------
-#  L'ECHELLE DES FACETTES EST UN CHOIX, ET LES DEUX LECTURES SONT LEGITIMES
-# ---------------------------------------------------------------------------
-# `scales = "free_x"` etait ecrit en dur.
 HSTAT_EPI_FACET_SCALES <- c(
   "Axe X libre (unités différentes)"        = "free_x",
   "Échelles fixes (RR comparables)"         = "fixed",
@@ -12990,12 +12369,7 @@ hstat_epi_facet_scales <- function(code) {
   if (v %in% HSTAT_EPI_FACET_SCALES) v else "free_x"
 }
 
-# ---------------------------------------------------------------------------
-#  LA CARTE CHANGE DE COULEURS, JAMAIS DE NATURE
-# ---------------------------------------------------------------------------
-# Demande a l'ecran : une carte de temperature se lit bien en bleu-rouge, mais
-# une pluviometrie, une humidite ou un polluant appellent d'autres couleurs --
-# le bleu y dit « beaucoup », pas « peu ».
+# LA CARTE CHANGE DE COULEURS, JAMAIS DE NATURE
 HSTAT_EPI_CARTE_PALETTES <- list(
   thermique  = list(label = "Thermique (bleu → rouge) — température",
                     low = "#4575b4", mid = "#ffffbf", high = "#a50026"),
@@ -13016,16 +12390,13 @@ hstat_epi_carte_choix <- function() {
 }
 
 # Un nom inconnu rend le triplet thermique plutot que `NULL` : une echelle
-# absente laisserait ggplot poser la sienne, qui est SEQUENTIELLE -- donc la
-# seule chose que ce catalogue existe pour empecher.
+# absente laisserait ggplot poser la sienne, qui est SEQUENTIELLE.
 hstat_epi_carte_palette <- function(code) {
   v <- as.character(code %||% "")[1]
   HSTAT_EPI_CARTE_PALETTES[[if (v %in% names(HSTAT_EPI_CARTE_PALETTES)) v else "thermique"]]
 }
 
-# L'echelle de remplissage de la carte, posee une seule fois : les deux
-# constructeurs (figure simple et figure multi) la lisent, ils ne peuvent donc
-# pas diverger sur le centrage.
+# L'echelle de remplissage de la carte, posee une seule fois.
 hstat_epi_carte_fill <- function(code) {
   pal <- hstat_epi_carte_palette(code)
   ggplot2::scale_fill_gradient2(low = pal$low, mid = pal$mid, high = pal$high,
@@ -13042,9 +12413,7 @@ hstat_epi_carte_fill <- function(code) {
                             height = 0.18, colour = "#2c3e50") +
     ggplot2::geom_point(size = 2.6, colour = "#d73027") +
     ggplot2::labs(x = etiquette, y = NULL, title = titre)
-  # L'ECHELLE EST LOGARITHMIQUE PARCE QUE LA MESURE EST UN RAPPORT : un RR de 2
-  # et un RR de 0,5 sont le meme ecart en sens inverse, et une echelle lineaire
-  # ecrase le second contre l'axe.
+  # L'ECHELLE EST LOGARITHMIQUE PARCE QUE LA MESURE EST UN RAPPORT.
   if (all(df$IC_bas > 0, na.rm = TRUE)) p <- p + ggplot2::scale_x_log10()
   p
 }
@@ -13053,20 +12422,10 @@ hstat_epi_carte_fill <- function(code) {
 #'
 #' Rend un objet ggplot, OU une fonction sans argument pour les figures tracees
 #' en graphiques de base (`hstat_ecrire_image` accepte les deux).
-# ---------------------------------------------------------------------------
-#  LE REPERE DE REFERENCE SE POSE PARTOUT OU L'AXE PORTE L'EXPOSITION
-# ---------------------------------------------------------------------------
-# Les six reglages de l'etiquette (affichage, texte, position, cote, taille,
-# style) n'etaient lus QUE par la figure « effet cumule ».
-# ---------------------------------------------------------------------------
-#  LES PERCENTILES SE MATERIALISENT SUR LA COURBE, AVEC LEUR RR
-# ---------------------------------------------------------------------------
-# Demande a l'ecran, figure de these a l'appui : un point sur la courbe a
-# chaque percentile d'interet, etiquete « P90 / RR=1,23 ».
+# LE REPERE DE REFERENCE SE POSE PARTOUT OU L'AXE PORTE L'EXPOSITION
 HSTAT_EPI_PCT_MARQUEURS <- c(10, 25, 75, 90)
 
-# Les choix offerts. Le percentile 50 en fait partie : c'est la reference par
-# defaut, et l'y voir confirme que la courbe passe bien par RR = 1.
+# Les choix offerts.
 HSTAT_EPI_PCT_CHOIX <- c(1, 2.5, 5, 10, 25, 50, 75, 90, 95, 97.5, 99)
 
 # Les percentiles retenus, bornes et ordonnes.
@@ -13119,12 +12478,8 @@ hstat_epi_pct_valides <- function(x) {
                      etendue = etendue)
 }
 
-# ===========================================================================
-#  FENETRES DE RETARD : « lag 0-1 », « lag 2-4 », et leurs noms
-# ===========================================================================
-# Demande a l'ecran, tableau de these a l'appui : publier le RR CUMULE SUR UN
-# INTERVALLE de retards -- « Lag 0-1 mois (court terme) », « Lag 2-4 mois
-# (differe) » -- et non le retard par retard.
+# FENETRES DE RETARD : « lag 0-1 », « lag 2-4 », et leurs noms
+# INTERVALLE de retards.
 .hstat_epi_W <- function(cb, x, lags, ref) {
   av <- attributes(cb)$argvar; al <- attributes(cb)$arglag
   bv <- function(v) as.vector(do.call(dlnm::onebasis, c(list(x = v), av)))
@@ -13157,9 +12512,7 @@ hstat_epi_fenetres_parse <- function(txt, lag_max = Inf) {
     nom <- trimws(g[4])
     if (!isTRUE(is.finite(de)) || !isTRUE(is.finite(a))) { rejets <- c(rejets, m); next }
     # LES BORNES SE REMETTENT DANS L'ORDRE plutot que de rendre une fenetre
-    # vide : « 4-2 » est une inversion de saisie, elle n'apprend rien a
-    # personne, et un tableau ampute d'une ligne se lit comme un essai qui
-    # n'en comptait pas davantage.
+    # vide.
     if (a < de) { t0 <- de; de <- a; a <- t0 }
     if (de > lag_max) { rejets <- c(rejets, m); next }
     a <- min(a, lag_max)
@@ -13254,8 +12607,7 @@ hstat_epi_figure <- function(analyse, figure, res, o = NULL, titre = NULL) {
       hi <- stats::quantile(d$hi, 0.98, na.rm = TRUE)
       lo <- max(0, stats::quantile(d$lo, 0.02, na.rm = TRUE))
       # L'ETIQUETTE SE POSE A COTE DU TRAIT, et son etendue de placement est
-      # celle du CADRE (`lo`, `hi`), pas celle des donnees : la figure recadre,
-      # et une etiquette placee au milieu des donnees sortirait du cadre.
+      # celle du CADRE (`lo`, `hi`), pas celle des donnees.
       return(th(ggplot2::ggplot(d, ggplot2::aes(x = .data[["x"]])) +
         ggplot2::geom_ribbon(ggplot2::aes(ymin = .data[["lo"]], ymax = .data[["hi"]]),
                              fill = "#d73027", alpha = 0.15) +
@@ -13279,8 +12631,7 @@ hstat_epi_figure <- function(analyse, figure, res, o = NULL, titre = NULL) {
                                                 fill = .data[["RR"]])) +
         ggplot2::geom_raster(interpolate = TRUE) +
         # L'ECHELLE RESTE DIVERGENTE ET CENTREE SUR 1 quelle que soit la
-        # palette : le RR est un rapport, sa valeur neutre est 1, pas la
-        # moyenne du jeu. Seules les COULEURS suivent le type de variable.
+        # palette.
         hstat_epi_carte_fill(o$carte_palette) +
         .hstat_epi_repere_couche(o, res$reference, etendue = range(lagg, na.rm = TRUE)) +
         ggplot2::labs(x = tr("Exposition"), y = tr("Retard"), fill = "RR",
@@ -13321,9 +12672,7 @@ hstat_epi_figure <- function(analyse, figure, res, o = NULL, titre = NULL) {
         ggplot2::geom_ribbon(ggplot2::aes(ymin = .data[["lo"]], ymax = .data[["hi"]]),
                              fill = "#d73027", alpha = 0.15) +
         ggplot2::geom_hline(yintercept = 1, linetype = "dashed", colour = "grey40") +
-        # LE REPERE MANQUAIT ICI, et c'est la figure qui en a le plus besoin :
-        # chaque panneau lit un retard, et sans le trait on ne sait pas de
-        # quelle exposition part la comparaison. Demande a l'ecran.
+        # LE REPERE MANQUAIT ICI, et c'est la figure qui en a le plus besoin.
         .hstat_epi_repere_couche(o, res$reference,
                                  etendue = range(c(d$lo, d$hi), na.rm = TRUE)) +
         ggplot2::geom_line(ggplot2::aes(y = .data[["fit"]]), colour = "#d73027") +
@@ -13352,10 +12701,7 @@ hstat_epi_figure <- function(analyse, figure, res, o = NULL, titre = NULL) {
                        xlab = tr("Valeurs ajustées"), ylab = tr("Résidus de déviance"),
                        main = tr("Résidus contre ajustés"))
         graphics::abline(h = 0, col = "#d73027", lty = 2, lwd = 2)
-        # `lowess` leve « delta doit etre fini et > 0 » sur des non-finis : ils
-        # sont deja retires par `hstat_epi_dlnm_diag`, mais un jeu a moins de
-        # deux points distincts le ferait encore tomber -- et l'erreur emporte
-        # le panneau entier.
+        # `lowess` leve « delta doit etre fini et > 0 » sur des non-finis.
         if (length(unique(dg$Ajuste)) > 2L)
           graphics::lines(stats::lowess(dg$Ajuste, dg$Residu), col = "#4575b4", lwd = 2)
         stats::qqnorm(dg$Residu, pch = 16, cex = 0.7, col = "grey40",
@@ -13448,9 +12794,7 @@ hstat_epi_figure <- function(analyse, figure, res, o = NULL, titre = NULL) {
                                                y = .data[["Sensibilite"]])) +
       ggplot2::geom_abline(slope = 1, intercept = 0, linetype = "dashed", colour = "grey50") +
       ggplot2::geom_line(colour = "#d73027", linewidth = 1) +
-      # LE CADRE EST CARRE PARCE QUE L'AIRE EN DEPEND : un cadre etire change
-      # l'aire PERCUE sans changer l'aire calculee, et c'est l'aire percue que
-      # le lecteur retient.
+      # LE CADRE EST CARRE PARCE QUE L'AIRE EN DEPEND.
       ggplot2::coord_equal(xlim = c(0, 1), ylim = c(0, 1)) +
       ggplot2::labs(x = tr("1 − spécificité"), y = tr("Sensibilité"),
                     title = titre %||% tr("Courbe ROC"),
@@ -13471,19 +12815,14 @@ hstat_epi_figure <- function(analyse, figure, res, o = NULL, titre = NULL) {
   NULL
 }
 
-# ---------------------------------------------------------------------------
 # Valeurs manquantes : le seuil de chaque methode
-# ---------------------------------------------------------------------------
 # Visualisation : une variable lue d'ensemble, sans le detail des niveaux de X
-# ---------------------------------------------------------------------------
-# Les types ou X est un axe de categories et Y la mesure.
 HSTAT_VIZ_X_REGROUPABLE <- c("box", "violin", "bar", "scatter")
 
 hstat_viz_x_regroupe <- function(coche, type) {
   isTRUE(coche) && length(type) == 1L && type %in% HSTAT_VIZ_X_REGROUPABLE
 }
 
-# ---------------------------------------------------------------------------
 # Une methode d'imputation n'est pas bonne ou mauvaise dans l'absolu : elle
 # l'est jusqu'a une certaine proportion de valeurs manquantes.
 HSTAT_NA_METHODES <- data.frame(
@@ -13549,23 +12888,18 @@ hstat_na_recommandation <- function(pct, categorielle = FALSE) {
   list(txt = "Plus de 30 % de NA sur au moins une variable : aucune méthode n'est sûre, envisagez de retirer la variable ; sinon MICE/PMM avec prudence.", m = "mice")
 }
 
-# ---------------------------------------------------------------------------
 # Diagramme volcan
-# ---------------------------------------------------------------------------
 # Un volcan croise l'AMPLEUR d'un effet (abscisse : log2 du rapport, ou
 # difference) et sa SIGNIFICATIVITE (ordonnee : -log10 de la p-value).
 # 1. UNE P-VALUE NULLE N'A PAS DE LOGARITHME.
 # 2. CE QUI N'EST PAS UNE P-VALUE EST ECARTE ET COMPTE : manquante, negative,
-# superieure a 1. Une colonne prise par erreur (une moyenne, un effectif) se
-# reconnait ainsi au lieu de dessiner un nuage plausible et faux.
+#    superieure a 1.
 # 3. UN RAPPORT N'EST PAS UN LOG2.
 HSTAT_VOLCAN_CLASSES <- c(hausse = "Hausse significative",
                           baisse = "Baisse significative",
                           ns = "Non significatif")
 
-# -- Arbre CART : un predicteur qualitatif a trop de modalites ----------------
-# Avec une cible a TROIS classes ou plus, rpart essaie les 2^(k-1) partitions
-# des k modalites d'un predicteur qualitatif, a chaque noeud.
+# -- Arbre CART : un predicteur qualitatif a trop de modalites.
 HSTAT_CART_NIVEAUX_MAX <- 20L
 
 hstat_cart_niveaux_bloquants <- function(d, cible, preds,
@@ -13627,7 +12961,7 @@ hstat_volcan_donnees <- function(d, x_var, p_var, seuil_fc = 1, seuil_p = 0.05,
         ifelse(sig & out$.x < 0 & out$.x <= -seuil_fc, "baisse", "ns"))
   out$.classe <- factor(cl, levels = names(HSTAT_VOLCAN_CLASSES))
   # Les etiquettes vont aux points significatifs les plus hauts : ce sont ceux
-  # qu'on cherche du regard. Un point non significatif n'en recoit jamais.
+  # qu'on cherche du regard.
   out$.label <- NA_character_
   # Le curseur s'arrete a 50 ; la valeur vient pourtant du navigateur.
   n_labels <- min(suppressWarnings(as.integer(n_labels))[1], HSTAT_VOLCAN_LABELS_MAX)
@@ -13678,9 +13012,7 @@ hstat_volcan_plot <- function(vd, couleurs = c(hausse = "#d7301f",
     sprintf("%s (n = %d)", tr(HSTAT_VOLCAN_CLASSES[[k]]), as.integer(b[[k]])),
     character(1))
   couleurs <- unname(couleurs[names(HSTAT_VOLCAN_CLASSES)])
-  # La couleur porte le LIBELLE et non le code : `ggplotly` ignore les
-  # `labels` d'une echelle et afficherait « hausse », « ns » dans la legende
-  # interactive.
+  # La couleur porte le LIBELLE et non le code.
   vd$.classe_lib <- factor(unname(lib[as.character(vd$.classe)]), levels = unname(lib))
   p <- ggplot2::ggplot(vd, ggplot2::aes(x = .data$.x, y = .data$.y,
                                         colour = .data$.classe_lib)) +
@@ -13708,14 +13040,11 @@ hstat_volcan_plot <- function(vd, couleurs = c(hausse = "#d7301f",
   p
 }
 
-# ---------------------------------------------------------------------------
 # Numeros de lignes des valeurs identifiees (manquantes, aberrantes)
-# ---------------------------------------------------------------------------
 # Le numero rendu est le NOM DE LIGNE du jeu de travail, celui qu'affiche
 # l'apercu des donnees nettoyees (`rownames = TRUE`).
 
-# Suite d'entiers ecrite en plages : 3, 5-8, 12. Une liste de cinq cents
-# numeros ne se lit pas, et une plage dit la meme chose sans rien perdre.
+# Suite d'entiers ecrite en plages : 3, 5-8, 12.
 hstat_lignes_compactes <- function(x, max = 100L) {
   x <- as.character(x)
   if (!length(x)) return("")
@@ -13803,9 +13132,7 @@ hstat_outlier_lignes <- function(d, vars, method = "iqr", iqr_k = 1.5, z_thr = 3
   res
 }
 
-# ---------------------------------------------------------------------------
 # « Tout sélectionner » / « Tout désélectionner » : une couleur chacun
-# ---------------------------------------------------------------------------
 # Quatorze boutons dans quatre modules portaient chacun leur couleur -- vert,
 # rouge, orange ou gris selon le module.
 hstat_btn_tout <- function(inputId, label = "Tout sélectionner", ..., class = NULL) {
@@ -13818,17 +13145,11 @@ hstat_btn_aucun <- function(inputId, label = "Tout désélectionner", ..., class
                       class = paste(c("hstat-btn-aucun", class), collapse = " "))
 }
 
-# =============================================================================
 # DOUBLONS : reperer, puis traiter (supprimer, marquer, modifier)
-# =============================================================================
 # Deux lignes sont des doublons quand elles portent les MEMES valeurs sur les
-# colonnes de comparaison -- toutes par defaut, ou une cle choisie
-# (identifiant, parcelle x date).
+# colonnes de comparaison.
 # 1. DEUX NA SONT EGAUX.
-# 2. LA LIGNE SE NOMME PAR SON NOM DE LIGNE, jamais par sa position : une
-# position se decale a chaque ligne supprimee, et l'utilisateur chercherait
-# dans son fichier une ligne qui n'est plus la bonne (meme regle que
-# hstat_na_lignes()).
+# 2. LA LIGNE SE NOMME PAR SON NOM DE LIGNE, jamais par sa position.
 # 3. LA CASSE ET LES ESPACES NE S'IGNORENT QUE SUR DEMANDE.
 .hstat_doublons_cle <- function(d, cles, ignorer_casse = FALSE, ignorer_espaces = FALSE) {
   parts <- lapply(cles, function(cn) {
@@ -13869,7 +13190,7 @@ hstat_doublons <- function(d, cles = NULL, ignorer_casse = FALSE, ignorer_espace
 }
 
 # Les lignes SUPERFLUES : toutes sauf une par groupe -- la premiere ou la
-# derniere occurrence, au choix. Rendues par leur nom de ligne.
+# derniere occurrence, au choix.
 hstat_doublons_superflus <- function(d, cles = NULL, garder = c("premier", "dernier"),
                                      ignorer_casse = FALSE, ignorer_espaces = FALSE) {
   garder <- match.arg(garder)
@@ -13911,8 +13232,7 @@ hstat_valeur_saisie <- function(col, valeur) {
   list(ok = TRUE, valeur = v)
 }
 
-# Ecrit la valeur dans la colonne. Un facteur recoit le niveau s'il est neuf :
-# l'affecter sans le niveau rendrait NA, et la saisie disparaitrait.
+# Ecrit la valeur dans la colonne.
 hstat_ecrire_cellule <- function(d, ligne, colonne, valeur) {
   if (is.factor(d[[colonne]]) && !is.na(valeur) && !(valeur %in% levels(d[[colonne]])))
     levels(d[[colonne]]) <- c(levels(d[[colonne]]), valeur)
@@ -13920,9 +13240,7 @@ hstat_ecrire_cellule <- function(d, ligne, colonne, valeur) {
   d
 }
 
-# ---------------------------------------------------------------------------
 # ANOVA a mesures repetees a plusieurs facteurs : termes, strates, post-hoc
-# ---------------------------------------------------------------------------
 # Le modele portait deja le plan factoriel complet (`A * B`), mais trois choses
 # manquaient pour lire un plan a plusieurs facteurs.
 # 1. CHOISIR LES INTERACTIONS.
@@ -13934,8 +13252,7 @@ HSTAT_RM_INTERACTIONS <- c(
   "Interactions d'ordre 2 seulement"            = "ordre2",
   "Effets principaux seuls (sans interaction)"  = "aucune")
 
-# Partie fixe de la formule. Une valeur inconnue retombe sur le plan complet,
-# le comportement d'avant : un reglage de travers ne retire pas d'interaction.
+# Partie fixe de la formule.
 hstat_rm_termes <- function(facteurs, interactions = "complet") {
   bt <- paste0("`", facteurs, "`")
   if (length(bt) < 2) return(bt)
@@ -14006,9 +13323,7 @@ hstat_rm_posthoc <- function(modele, within, between = character(0),
   }
   res <- if (length(lignes)) do.call(rbind, lignes) else NULL
 
-  # Les interactions significatives se nomment : sans elles, on lirait les
-  # effets principaux comme si l'effet de chaque facteur ne dependait pas des
-  # autres.
+  # Les interactions significatives se nomment.
   notes <- character(0)
   if (length(p_effets)) {
     noms <- gsub("`", "", names(p_effets))
@@ -14057,9 +13372,7 @@ hstat_rm_graphique_interaction <- function(d, f1, f2, theme = NULL) {
     (theme %||% ggplot2::theme_minimal())
 }
 
-# ---------------------------------------------------------------------------
 # Barres groupees et courbes a barres d'erreur, dans les couleurs de ggplot2
-# ---------------------------------------------------------------------------
 
 # Les couleurs par defaut de ggplot2 : celles que `scale_colour_hue()` pose
 # d'elle-meme.
@@ -14069,8 +13382,7 @@ hstat_couleurs_series <- function(n) {
   scales::hue_pal()(n)
 }
 
-# Ce que portent les barres d'erreur. Elles entourent toujours la MOYENNE :
-# une erreur-type autour d'une mediane ne veut rien dire.
+# Ce que portent les barres d'erreur.
 HSTAT_VIZ_ERREURS <- c(
   "Aucune"                                    = "aucune",
   "Erreur-type (moyenne ± SE)"           = "se",
@@ -14140,9 +13452,7 @@ hstat_barres_groupees <- function(traces, x, y = ".y2_scaled",
     na.rm = TRUE, show.legend = NA)
 }
 
-# Vit dans le socle et non dans `mod_dosage.R` : c'est un constructeur de
-# widget a identifiant libre, comme `hstat_format_input()`, et l'appelant
-# fournit `ns(...)`.
+# Vit dans le socle et non dans `mod_dosage.R`.
 hstat_ma_input <- function(id, label, selected = "", saisies = character(0),
                            placeholder = NULL) {
   selected <- trimws(as.character(selected %||% ""))[1]
@@ -14150,7 +13460,7 @@ hstat_ma_input <- function(id, label, selected = "", saisies = character(0),
   choix <- hstat_ma_choix(c(saisies, selected))
   shiny::selectizeInput(id, label, choices = c("", choix), selected = selected,
     # `delimiter` : par defaut la virgule, qui couperait « 2,4-D (amine salt) »
-    # en deux entrees a la creation. Un caractere qu'aucun nom ne porte.
+    # en deux entrees a la creation.
     options = list(create = TRUE, createOnBlur = TRUE, persist = FALSE,
                    delimiter = "\u001f",
                    maxOptions = 500, placeholder = placeholder %||% "",

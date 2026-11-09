@@ -1,9 +1,5 @@
-/* =====================================================================
-   HStat — Thème issu de la maquette Claude Design « HStat Refonte »
-   Palette + composants (clair / sombre). N'altère pas la logique R ;
-   ne fait que remapper l'apparence d'AdminLTE/shinydashboard.
-   Polices IBM Plex chargées LOCALEMENT (fonts/) -> fonctionne hors-ligne.
-   ===================================================================== */
+/* HStat — Thème issu de la maquette Claude Design « HStat Refonte » */
+/* Palette + composants (clair / sombre). */
 
 @font-face { font-family:'IBM Plex Sans'; font-style:normal; font-weight:400;
   font-display:swap; src:url('fonts/ibm-plex-sans-latin-400-normal.woff2') format('woff2'); }
@@ -20,7 +16,7 @@
 @font-face { font-family:'IBM Plex Mono'; font-style:normal; font-weight:600;
   font-display:swap; src:url('fonts/ibm-plex-mono-latin-600-normal.woff2') format('woff2'); }
 
-/* ---- Palette CLAIR (par défaut) ---- */
+/* Palette CLAIR (par défaut) */
 :root,
 body.hstat-light {
   --bg:        #f3f5f8;
@@ -53,7 +49,7 @@ body.hstat-light {
   --mono:  'IBM Plex Mono', ui-monospace, 'Cascadia Code', Menlo, Consolas, monospace;
 }
 
-/* ---- Palette SOMBRE ---- */
+/* Palette SOMBRE */
 body.hstat-dark {
   --bg:        #0e1117;
   --paper:     #161b23;
@@ -81,7 +77,7 @@ body.hstat-dark {
   --shadow2:   0 10px 30px rgba(0,0,0,.5);
 }
 
-/* ===================== TYPOGRAPHIE & FOND ===================== */
+/* TYPOGRAPHIE & FOND */
 body, .content-wrapper, .wrapper {
   font-family: var(--sans);
   background: var(--bg) !important;
@@ -92,7 +88,7 @@ body, .content-wrapper, .wrapper {
 h1,h2,h3,h4,h5 { font-family: var(--sans); letter-spacing: -0.01em; color: var(--ink); }
 .text-muted, small { color: var(--ink3); }
 
-/* ===================== EN-TÊTE (top bar) — BLEU d'origine ===================== */
+/* EN-TÊTE (top bar) — BLEU d'origine */
 .skin-blue .main-header .navbar { background: #28699a !important; border-bottom: none; }
 .skin-blue .main-header .logo {
   background: #225a85 !important;
@@ -113,7 +109,7 @@ h1,h2,h3,h4,h5 { font-family: var(--sans); letter-spacing: -0.01em; color: var(-
 .hstat-theme-toggle .seg { color: rgba(255,255,255,.85); }
 .hstat-theme-toggle .seg.active { background: #ffffff; color: #2c3e50; }
 
-/* ===================== BARRE LATÉRALE — BLEU foncé d'origine ===================== */
+/* BARRE LATÉRALE — BLEU foncé d'origine */
 .skin-blue .main-sidebar, .skin-blue .left-side { background: #222d32 !important; }
 .skin-blue .main-sidebar { border-right: none; }
 .skin-blue .sidebar-menu > li.header {
@@ -121,10 +117,8 @@ h1,h2,h3,h4,h5 { font-family: var(--sans); letter-spacing: -0.01em; color: var(-
   color: #8aa4af !important;
   font-size: 14.5px; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase;
   padding: 16px 16px 7px;
-  /* AdminLTE pose white-space:nowrap + overflow:hidden : un titre plus large
-     que sa place passerait sous le chevron ou serait coupe. Il revient a la
-     ligne, et le padding-right reserve la place du chevron quelle que soit la
-     police du systeme. */
+  /* AdminLTE pose white-space:nowrap + overflow:hidden : un titre plus large */
+  /* que sa place passerait sous le chevron ou serait coupe. */
   white-space: normal; overflow: visible;
 }
 .skin-blue .sidebar-menu > li > a {
@@ -149,7 +143,7 @@ h1,h2,h3,h4,h5 { font-family: var(--sans); letter-spacing: -0.01em; color: var(-
 .skin-blue .sidebar .form-control { background:#2c3b41; color:#e6edf0; border-color:#374850; }
 .skin-blue .sidebar label, .skin-blue .sidebar .control-label { color:#b8c7ce; }
 
-/* ===================== ENCADRÉS (box) ===================== */
+/* ENCADRÉS (box) */
 .box {
   background: var(--paper);
   border: 1px solid var(--line);
@@ -161,9 +155,7 @@ h1,h2,h3,h4,h5 { font-family: var(--sans); letter-spacing: -0.01em; color: var(-
 .box-body { color: var(--ink); }
 .box-footer { background: var(--panel); border-top: 1px solid var(--line); color: var(--ink3); }
 
-/* En-têtes colorés des box selon le statut -> COULEURS ADMINLTE D'ORIGINE.
-   On colore aussi bien les solidHeader (.box-solid) que la barre superieure des
-   box non-solid (border-top epais facon AdminLTE). */
+/* En-têtes colorés des box selon le statut -> COULEURS ADMINLTE D'ORIGINE. */
 .box.box-primary { border-top: 3px solid #2b6f99; }
 .box.box-info    { border-top: 3px solid #0278a8; }
 .box.box-success { border-top: 3px solid #007f46; }
@@ -192,7 +184,7 @@ h1,h2,h3,h4,h5 { font-family: var(--sans); letter-spacing: -0.01em; color: var(-
 }
 .box.bg-yellow h3, .box.bg-yellow p { color: #fff !important; }
 
-/* ===================== BOUTONS ===================== */
+/* BOUTONS */
 .btn {
   border-radius: 8px;
   font-weight: 500;
@@ -200,13 +192,9 @@ h1,h2,h3,h4,h5 { font-family: var(--sans); letter-spacing: -0.01em; color: var(-
   box-shadow: none;
   transition: all .12s;
 }
-/* `.btn-default` passe AVANT les couleurs, et ce n'est pas de l'ordre de
-   lecture : `shiny::actionButton()` et `downloadButton()` ajoutent TOUJOURS
-   `btn-default` a la classe demandee. A specificite egale c'est la regle
-   posee en dernier qui gagne -- posee apres, elle repeignait en blanc tout
-   bouton declare `btn-success`, `btn-primary` ou `btn-warning` de
-   l'application. Mesure au navigateur : « Charger » et les boutons de test
-   sortaient rgb(255, 255, 255). */
+/* `.btn-default` passe AVANT les couleurs, et ce n'est pas de l'ordre de */
+/* lecture : `shiny::actionButton()` et `downloadButton()` ajoutent TOUJOURS */
+/* `btn-default` a la classe demandee. */
 .btn-default {
   background: var(--paper); color: var(--ink2); border: 1px solid var(--line2);
 }
@@ -220,21 +208,15 @@ h1,h2,h3,h4,h5 { font-family: var(--sans); letter-spacing: -0.01em; color: var(-
 .btn-success { background: var(--mixte); border-color: var(--mixte); color: #fff; }
 .btn-warning { background: var(--quali); border-color: var(--quali); color: #fff; }
 .btn-danger  { background: var(--danger); border-color: var(--danger); color: #fff; }
-/* Meme piege au survol : `.btn-default:hover` (une classe et une pseudo-classe)
-   l'emporte sur `.btn-success` (une classe) -- un bouton vert blanchissait
-   sous la souris. Chaque couleur garde donc la sienne au survol. */
+/* Meme piege au survol : `.btn-default:hover` (une classe et une pseudo-classe) */
+/* l'emporte sur `.btn-success` (une classe) -- un bouton vert blanchissait sous */
+/* la souris. */
 .btn-success:hover, .btn-success:focus { background: var(--mixte); border-color: var(--mixte); color: #fff; filter: brightness(.9); }
 .btn-warning:hover, .btn-warning:focus { background: var(--quali); border-color: var(--quali); color: #fff; filter: brightness(.9); }
 .btn-danger:hover,  .btn-danger:focus  { background: var(--danger); border-color: var(--danger); color: #fff; filter: brightness(.9); }
 
-/* « Tout selectionner » et « Tout deselectionner » : une couleur chacun, sur
-   toute l'application -- violet pour cocher, ardoise pour decocher. Ni vert
-   (charger, telecharger, tests parametriques), ni bleu (non parametriques), ni
-   rouge : decocher n'efface rien. Les boutons passent par `hstat_btn_tout()` /
-   `hstat_btn_aucun()` ; les deux boutons de la boite d'actions des listes
-   `pickerInput` (`actions-box`) suivent la meme regle. `.btn.` l'emporte sur
-   `.btn-default` par la specificite, sans `!important`. Contraste du texte
-   blanc : 6,3 (violet) et 5,4 (ardoise), au-dessus du seuil WCAG de 4,5. */
+/* « Tout selectionner » et « Tout deselectionner » : une couleur chacun, sur */
+/* toute l'application -- violet pour cocher, ardoise pour decocher. */
 .btn.hstat-btn-tout, .bs-actionsbox .btn.bs-select-all {
   background: #6741d9; border-color: #6741d9; color: #fff;
 }
@@ -250,13 +232,8 @@ h1,h2,h3,h4,h5 { font-family: var(--sans); letter-spacing: -0.01em; color: var(-
   background: #5f6b7a; border-color: #5f6b7a; color: #fff; filter: brightness(.9);
 }
 
-/* Charger et telecharger sont des gestes de FICHIER : une seule couleur, le
-   vert, sur toute l'application. Posee ici et non sur chaque bouton : 98
-   `downloadButton()` portent chacun leur classe (btn-info, btn-primary...), et
-   une couleur recopiee 98 fois finit par diverger. `.btn.shiny-download-link`
-   l'emporte sur `.btn-info` par sa specificite, sans `!important`. Le
-   « Parcourir » des `fileInput` (.btn-file) et les exports CSV / Excel des
-   tableaux DT suivent la meme regle ; « Copier » non, ce n'est pas un fichier. */
+/* Charger et telecharger sont des gestes de FICHIER : une seule couleur, le */
+/* vert, sur toute l'application. */
 .btn.shiny-download-link, .btn.btn-file,
 .dt-buttons .dt-button.buttons-csv, .dt-buttons .dt-button.buttons-excel {
   background: var(--mixte); border-color: var(--mixte); color: #fff;
@@ -268,7 +245,7 @@ h1,h2,h3,h4,h5 { font-family: var(--sans); letter-spacing: -0.01em; color: var(-
   filter: brightness(.9);
 }
 
-/* ===================== CHAMPS DE FORMULAIRE ===================== */
+/* CHAMPS DE FORMULAIRE */
 .form-control, .selectize-input, .selectize-dropdown {
   background: var(--paper);
   color: var(--ink);
@@ -289,7 +266,7 @@ label, .control-label { color: var(--ink2); font-weight: 500; }
 /* Boutons radio / cases : accent */
 input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); }
 
-/* ===================== ONGLETS (nav-tabs) ===================== */
+/* ONGLETS (nav-tabs) */
 .nav-tabs-custom, .nav-tabs-custom > .tab-content {
   background: var(--paper); border-radius: var(--radius);
   box-shadow: var(--shadow); border: 1px solid var(--line);
@@ -302,7 +279,7 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); }
 }
 .nav-tabs-custom > .nav-tabs > li.active { border-top-color: var(--accent); }
 
-/* ===================== TABLES (DT) ===================== */
+/* TABLES (DT) */
 table.dataTable thead th {
   background: var(--bg); color: var(--ink2);
   font-size: 12.5px; font-weight: 700; letter-spacing: 0; text-transform: none;
@@ -312,10 +289,8 @@ table.dataTable tbody td { color: var(--ink); border-color: var(--line) !importa
 table.dataTable.stripe tbody tr.odd,
 table.dataTable.display tbody tr.odd { background: var(--stripe); }
 
-/* Les tables de synthese (HTML statique, pas DT) prennent le meme habit que
-   les tableaux DT : en-tete gris, lignes alternees, cases bordees. La case
-   d'une modalite porte la couleur de son groupe, en ligne (style), comme la
-   colonne « groups » des effets principaux. */
+/* Les tables de synthese (HTML statique, pas DT) prennent le meme habit que */
+/* les tableaux DT : en-tete gris, lignes alternees, cases bordees. */
 table.hstat-synthese {
   width: auto; min-width: 60%; margin-bottom: 20px;
   border-collapse: collapse; border: 1px solid var(--line);
@@ -346,7 +321,7 @@ table.hstat-synthese tr.hstat-synthese-test td { border-top: 2px solid var(--lin
   border: 1px solid var(--line2) !important; border-radius: 6px !important;
 }
 
-/* ===================== DIVERS ===================== */
+/* DIVERS */
 pre, .shiny-text-output.shiny-bound-output {
   background: var(--panel); color: var(--ink);
   border: 1px solid var(--line); border-radius: 8px;
@@ -357,12 +332,7 @@ pre, .shiny-text-output.shiny-bound-output {
 hr { border-top-color: var(--line); }
 a { color: var(--accent); }
 
-/* Encadré d'interprétation (onglet « Tests statistiques »).
-   La classe était posée sur 17 divs et définie NULLE PART : l'encadré que le
-   code construisait ne s'est jamais affiché, l'interprétation sortait au fil
-   du texte, sans rien qui la distingue des résultats bruts qu'elle commente.
-   Elle portait en plus un accent — un identifiant reste technique, sans quoi
-   il dépend de l'encodage du fichier de style. */
+/* Encadré d'interprétation (onglet « Tests statistiques »). */
 .hstat-interpretation {
   background: var(--accent-soft);
   border-left: 3px solid var(--accent);
@@ -391,7 +361,7 @@ a { color: var(--accent); }
 }
 .hstat-theme-toggle .seg.active { background: var(--paper); color: var(--ink); box-shadow: var(--shadow); }
 
-/* ===================== CATALOGUE DE MÉTHODES (Analyses multivariées) ===================== */
+/* CATALOGUE DE MÉTHODES (Analyses multivariées) */
 .mv-catalog-wrap { margin-bottom: 16px; }
 .mv-catalog {
   background: var(--paper); border: 1px solid var(--line);
@@ -433,9 +403,10 @@ a { color: var(--accent); }
 .mv-cat-group.mv-grp-quali  { color: #a76512; }
 .mv-cat-group.mv-grp-mixte  { color: #17774f; }
 
-/* ===================== OUTILS DU BANDEAU (graine, aide, reset) ===================== */
-/* Les <li> custom de la navbar sont centres verticalement sur la hauteur du header
-   (50px), exactement comme la bascule Clair/Sombre, pour un alignement parfait. */
+/* OUTILS DU BANDEAU (graine, aide, reset) */
+/* Les <li> custom de la navbar sont centres verticalement sur la hauteur du */
+/* header */
+/* (50px), exactement comme la bascule Clair/Sombre, pour un alignement parfait. */
 .main-header .navbar-custom-menu > .nav > li { display: flex; align-items: center; height: 50px; }
 .hstat-header-tools { display: flex; align-items: center; gap: 8px; padding: 0 6px; height: 50px; }
 .hstat-header-tools .hstat-seed { display: inline-flex; align-items: center; gap: 6px; margin-right: 4px; }
@@ -463,20 +434,19 @@ a { color: var(--accent); }
   .hstat-header-tools .hstat-seed label { display:none; }
 }
 
-/* ===================== LAYOUT Analyses multivariées (maquette : catalogue + config) ===================== */
-/* Catalogue a GAUCHE (largeur fixe, collant) + analyses a DROITE (reste de la
-   largeur). min-width:0 sur la colonne de droite evite que les box debordent. */
+/* LAYOUT Analyses multivariées (maquette : catalogue + config) */
+/* Catalogue a GAUCHE (largeur fixe, collant) + analyses a DROITE (reste de la */
+/* largeur). min-width:0 sur la colonne de droite evite que les box debordent. */
 .mv-layout { display: flex; gap: 18px; align-items: flex-start; }
 .mv-catalog-col { flex: 0 0 360px; width: 360px; position: sticky; top: 12px; align-self: flex-start; }
 .mv-analyses-col { flex: 1 1 0; min-width: 0; }
 .mv-analyses-col .box { width: 100%; }
 .mv-catalog .mv-cat-list { columns: 1; }
 @media (max-width: 1100px){
-  /* EMPILEMENT EN BLOCS, PAS EN COLONNE FLEX. `flex-direction: column` garde
-     `align-items: flex-start`, et les deux colonnes se reduisent alors a la
-     largeur de leur CONTENU : le catalogue tombait a 285 px dans une fenetre
-     de 800, et a 24 px sur telephone -- un mot par ligne, illisible. Constate
-     a l'ecran. Deux blocs empiles se comportent, eux, sans surprise. */
+  /* EMPILEMENT EN BLOCS, PAS EN COLONNE FLEX. `flex-direction: column` garde */
+  /* `align-items: flex-start`, et les deux colonnes se reduisent alors a la */
+  /* largeur de leur CONTENU : le catalogue tombait a 285 px dans une fenetre de */
+  /* 800, et a 24 px sur telephone -- un mot par ligne, illisible. */
   .mv-layout { display: block; }
   .mv-catalog-col, .mv-analyses-col {
     position: static; width: 100%; max-width: 100%; flex-basis: auto;
@@ -485,7 +455,7 @@ a { color: var(--accent); }
   .mv-catalog .mv-cat-list { columns: 2; column-gap: 18px; }
 }
 
-/* ===================== EN-TÊTE DE MÉTHODE (panneau droit, façon maquette) ===================== */
+/* EN-TÊTE DE MÉTHODE (panneau droit, façon maquette) */
 .mv-method-header {
   background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius);
   box-shadow: var(--shadow); padding: 18px 20px; margin-bottom: 16px;
@@ -512,10 +482,11 @@ a { color: var(--accent); }
 .mv-grp-mixte  .mv-grp-dot { background: #1d8a5d; }
 .mv-grp-count { margin-left: auto; font-size: 11px; font-weight: 700; color: var(--ink3); }
 
-/* ---- Separateur decimal des telechargements (www/hstat-decimale.js) ----
-   La fenetre se pose au-dessus de tout, y compris des modales de Shiny
-   (z-index 1050) : elle precede un telechargement lance DEPUIS l'une d'elles. */
-/* Un telechargement en cours : le fichier est demande par fetch (hstat-decimale.js). */
+/* Separateur decimal des telechargements (www/hstat-decimale.js) */
+/* La fenetre se pose au-dessus de tout, y compris des modales de Shiny (z-index */
+/* 1050) : elle precede un telechargement lance DEPUIS l'une d'elles. */
+/* Un telechargement en cours : le fichier est demande par fetch (hstat- */
+/* decimale.js). */
 .shiny-download-link.hstat-dl-encours { cursor: progress; opacity: .65; pointer-events: none; }
 .hstat-dec-fond {
   position: fixed; inset: 0; z-index: 2000;
@@ -541,59 +512,35 @@ a { color: var(--accent); }
 .hstat-dec-note { font-size: 12px; color: var(--ink3); margin: 0 0 10px; }
 .hstat-dec-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
 
-/* =============================================================================
-   RESPONSIVE : DE L'IPHONE SE (375 px) AU GRAND ECRAN
-   -----------------------------------------------------------------------------
-   Une seule regle de conduite : rien ne disparait, rien n'est coupe. Ce qui ne
-   tient pas en largeur se REPLIE (colonnes empilees) ou DEFILE dans son propre
-   conteneur (tableaux larges) -- jamais hors de la page, ou il serait perdu
-   sans que rien ne le signale.
+/* RESPONSIVE : DE L'IPHONE SE (375 px) AU GRAND ECRAN */
+/* Une seule regle de conduite : rien ne disparait, rien n'est coupe. */
 
-   Ces regles vivaient dans un `tags$style()` de UX.R. Elles sont ici parce que
-   c'est la feuille de theme qui porte la mise en forme, et parce qu'une regle
-   responsive dispersee en deux endroits finit par se contredire.
-   ========================================================================== */
-
-/* --- Ce qui ne doit deborder a AUCUNE taille --- */
+/* Ce qui ne doit deborder a AUCUNE taille */
 img, .shiny-plot-output, .shiny-image-output { max-width: 100%; height: auto; }
 .shiny-plot-output > img { width: 100% !important; }
 .form-group, .selectize-control, .irs { max-width: 100%; }
 .sidebar-menu > li > a { white-space: normal; }
 
-/* Un tableau plus large que l'ecran defile DANS sa boite : la donnee reste
-   atteignable. Sans conteneur defilant, `.wrapper { overflow: hidden }` la
-   coupe purement et simplement -- on ne sait meme pas qu'il manque des
-   colonnes. */
+/* Un tableau plus large que l'ecran defile DANS sa boite : la donnee reste */
+/* atteignable. */
 .box, .nav-tabs-custom { overflow-x: auto; }
 .dataTables_wrapper, .hstat-table-scroll, .table-responsive,
 pre, .shiny-table-output { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 table.dataTable { width: 100% !important; }
-/* Tableaux post-hoc : table UNIQUE (pas de scrollX) qui s'ajuste au contenu ;
-   le conteneur gere le defilement. En-tete et corps partagent la meme grille,
-   aucun decalage possible. */
+/* Tableaux post-hoc : table UNIQUE (pas de scrollX) qui s'ajuste au contenu ; le */
+/* conteneur gere le defilement. */
 .hstat-table-scroll { width: 100%; }
 table.dataTable.hstat-fixedcols { width: 100% !important; table-layout: auto; }
 table.dataTable.hstat-fixedcols th,
 table.dataTable.hstat-fixedcols td { vertical-align: middle; }
 
-/* --- Tablette et telephone : la barre laterale s'efface --- */
+/* Tablette et telephone : la barre laterale s'efface */
 @media (max-width: 991px) {
-  /* LA BARRE S'ESCAMOTE DE SA PROPRE LARGEUR.
-     `-230px` etait code en dur ici comme dans AdminLTE, alors que la barre de
-     HStat fait 300 px (`dashboardSidebar(width = 300)`) : 70 px restaient
-     poses SUR le contenu, dont le bord gauche etait coupe sur TOUS les
-     onglets -- « Charger donnees » s'affichait « er donnees ». Constate a
-     l'ecran sur un iPhone SE.
-     `-100%` ne depend d'aucun chiffre : la largeur de la barre peut changer,
-     l'escamotage suit. */
-  /* DEUX mecanismes independants, et c'est voulu. `translate(-100%)` suffit
-     tant que rien d'autre ne repositionne la barre ; mais AdminLTE, la CSS que
-     shinydashboard injecte pour `width = 300`, et le mode replie en posent
-     chacun un, a des valeurs differentes. Il suffit qu'un seul l'emporte pour
-     que la barre revienne A MOITIE sur le contenu -- signale a l'ecran, deux
-     fois, dans un contexte que la mesure locale ne reproduisait pas.
-     `left` ne depend d'aucun transform : un transform residuel ne peut alors
-     que l'eloigner davantage, jamais la ramener. */
+  /* LA BARRE S'ESCAMOTE DE SA PROPRE LARGEUR. */
+  /* DEUX mecanismes independants, et c'est voulu. `translate(-100%)` suffit */
+  /* tant que rien d'autre ne repositionne la barre ; mais AdminLTE, la CSS que */
+  /* shinydashboard injecte pour `width = 300`, et le mode replie en posent */
+  /* chacun un, a des valeurs differentes. */
   .main-sidebar, .left-side {
     left: -100% !important;
     transform: translate(-100%, 0) !important;
@@ -605,9 +552,9 @@ table.dataTable.hstat-fixedcols td { vertical-align: middle; }
   }
   .main-sidebar { width: min(300px, 86vw) !important; z-index: 1030; }
 
-  /* Ouverte, la barre se POSE sur le contenu au lieu de le pousser. Pousser de
-     230 px un contenu qu'elle recouvre sur 300 le decalait sans le degager :
-     on perdait le bord gauche ET le bord droit. */
+  /* Ouverte, la barre se POSE sur le contenu au lieu de le pousser. Pousser de */
+  /* 230 px un contenu qu'elle recouvre sur 300 le decalait sans le degager : on */
+  /* perdait le bord gauche ET le bord droit. */
   .content-wrapper, .right-side, .main-footer {
     margin-left: 0 !important; transform: none !important;
   }
@@ -619,20 +566,17 @@ table.dataTable.hstat-fixedcols td { vertical-align: middle; }
   .box { margin-bottom: 12px; }
 }
 
-/* Barre repliee (bouton ☰) : elle doit disparaitre ENTIEREMENT, a toutes les
-   largeurs. AdminLTE l'escamote de 230 px en dur -- la largeur de SA barre --
-   alors que celle de HStat en fait 300 : les 70 px de difference restaient
-   poses sur le contenu, dont le bord gauche etait coupe. La regle vaut hors de
-   toute media query, parce que le defaut, lui, ne connait pas de largeur. */
+/* Barre repliee (bouton ☰) : elle doit disparaitre ENTIEREMENT, a toutes les */
+/* largeurs. */
 .sidebar-collapse .main-sidebar, .sidebar-collapse .left-side {
   left: -100% !important;
   transform: translate(-100%, 0) !important;
 }
 .sidebar-collapse .content-wrapper, .sidebar-collapse .right-side,
 .sidebar-collapse .main-footer { margin-left: 0 !important; }
-/* Variante « mini » d'AdminLTE : elle laisse un rail d'icones de 50 px. HStat
-   n'a pas d'icones seules dans son menu -- un rail y afficherait des puces
-   muettes par-dessus le contenu. */
+/* Variante « mini » d'AdminLTE : elle laisse un rail d'icones de 50 px. HStat */
+/* n'a pas d'icones seules dans son menu -- un rail y afficherait des puces */
+/* muettes par-dessus le contenu. */
 .sidebar-mini.sidebar-collapse .main-sidebar,
 .sidebar-mini.sidebar-collapse .left-side {
   width: 300px !important;
@@ -644,11 +588,10 @@ table.dataTable.hstat-fixedcols td { vertical-align: middle; }
   .col-md-3 { width: 50%; }
 }
 
-/* --- Telephone : tout reste, tout se compacte --- */
+/* Telephone : tout reste, tout se compacte */
 @media (max-width: 767px) {
-  /* L'en-tete occupait 300 px de haut sur 667 : la moitie de l'ecran avant le
-     premier reglage. Rien n'est masque -- ce sont des commandes, pas de la
-     decoration -- mais tout est resserre et se replie proprement. */
+  /* L'en-tete occupait 300 px de haut sur 667 : la moitie de l'ecran avant le */
+  /* premier reglage. */
   .main-header .logo {
     width: 100% !important; float: none; height: 42px; line-height: 42px;
     font-size: 16px;
@@ -661,13 +604,10 @@ table.dataTable.hstat-fixedcols td { vertical-align: middle; }
   .hstat-header-tools .hstat-seed .form-control { width: 62px !important; }
   .hstat-theme-toggle .seg { font-size: 12px; padding: 3px 9px; }
 
-  /* Un libelle long se replie au lieu de sortir de l'ecran. Le bouton
-     « Telecharger le tableau des efficacites » faisait 385 px de large dans
-     une fenetre de 375. */
-  /* `white-space: normal` seul : le libelle se replie AUX ESPACES. Y ajouter
-     `word-break: break-word` cassait a l'interieur des mots, et le bouton
-     « Browse... » du selecteur de fichier s'ecrivait une lettre par ligne --
-     vu a l'ecran. */
+  /* Un libelle long se replie au lieu de sortir de l'ecran. Le bouton */
+  /* « Telecharger le tableau des efficacites » faisait 385 px de large dans une */
+  /* fenetre de 375. */
+  /* `white-space: normal` seul : le libelle se replie AUX ESPACES. Y ajouter */
   .btn { white-space: normal; max-width: 100%; }
   .btn.btn-file, .input-group-btn .btn { white-space: nowrap; }
   .box-header > .box-title { white-space: normal; font-size: 15px; line-height: 1.3; }
@@ -677,8 +617,8 @@ table.dataTable.hstat-fixedcols td { vertical-align: middle; }
   .nav-tabs > li > a { padding: 6px 9px; font-size: 12px; }
   h2 { font-size: 20px; } h3 { font-size: 18px; } h4 { font-size: 16px; }
 
-  /* Le catalogue des analyses multivariees : deux colonnes de 170 px ne se
-     lisent pas. */
+  /* Le catalogue des analyses multivariees : deux colonnes de 170 px ne se */
+  /* lisent pas. */
   .mv-catalog .mv-cat-list { columns: 1; }
   .mv-mh-title { font-size: 18px; }
   .mv-mh-desc { font-size: 13px; }
@@ -686,25 +626,21 @@ table.dataTable.hstat-fixedcols td { vertical-align: middle; }
   /* Une modale plus large que l'ecran perd ses boutons de validation. */
   .modal-dialog { width: auto !important; margin: 8px; }
 
-  /* Les marges NEGATIVES des `row` de Bootstrap (-15 px de chaque cote)
-     supposent un parent qui les rattrape par 15 px de rembourrage. Le
-     rembourrage resserre du telephone ne les rattrape plus : chaque rangee
-     depassait sa boite de 7 px, et la boite se mettait a defiler
-     horizontalement pour rien. Sur telephone les colonnes sont de toute facon
-     empilees : la gouttiere negative n'a plus d'objet. */
+  /* Les marges NEGATIVES des `row` de Bootstrap (-15 px de chaque cote) */
+  /* supposent un parent qui les rattrape par 15 px de rembourrage. */
   .row { margin-left: 0; margin-right: 0; }
   [class*="col-xs-"], [class*="col-sm-"],
   [class*="col-md-"], [class*="col-lg-"] { padding-left: 8px; padding-right: 8px; }
 
-  /* 16 px : en dessous, Safari iOS ZOOME sur le champ des qu'on y touche, et
-     la page reste zoomee -- l'utilisateur se retrouve avec une interface
-     coupee sans avoir rien demande. */
+  /* 16 px : en dessous, Safari iOS ZOOME sur le champ des qu'on y touche, et */
+  /* la page reste zoomee -- l'utilisateur se retrouve avec une interface coupee */
+  /* sans avoir rien demande. */
   input, select, textarea, .form-control { font-size: 16px; }
 }
 
-/* ===================== SECTIONS REPLIABLES DE LA BARRE LATÉRALE =====================
-   Le titre d'une section 1 à 5 se déroule au survol et reste ouvert au clic
-   (hstat-menu.js). Le chevron dit l'état ; la section épinglée s'éclaire. */
+/* SECTIONS REPLIABLES DE LA BARRE LATÉRALE */
+/* Le titre d'une section 1 à 5 se déroule au survol et reste ouvert au clic */
+/* (hstat-menu.js). */
 .skin-blue .sidebar-menu > li.header[data-hstat-repli] {
   cursor: pointer; user-select: none; position: relative; padding-right: 30px;
   transition: color .15s;
@@ -718,13 +654,10 @@ table.dataTable.hstat-fixedcols td { vertical-align: middle; }
 .skin-blue .sidebar-menu > li.header[data-hstat-repli]:hover { color: #e0e8ec !important; }
 .skin-blue .sidebar-menu > li.header[data-hstat-repli].hstat-epingle { color: #b8c7ce !important; }
 
-/* ===================================================================
-   MESSAGE D'UN WIDGET EN ERREUR (DT, plotly...)
-   htmlwidgets pose son message en position absolue, a la hauteur du
-   widget masque : un tableau vide fait 20 px, un message de deux lignes
-   deborde alors sur ce qui suit et les textes se superposent. Le message
-   reprend sa place dans le flux, et pousse ce qui le suit.
-   =================================================================== */
+/* MESSAGE D'UN WIDGET EN ERREUR (DT, plotly...) */
+/* htmlwidgets pose son message en position absolue, a la hauteur du widget */
+/* masque : un tableau vide fait 20 px, un message de deux lignes deborde alors */
+/* sur ce qui suit et les textes se superposent. */
 .html-widget-output + .htmlwidgets-error {
   position: static !important;
   height: auto !important;
@@ -732,10 +665,10 @@ table.dataTable.hstat-fixedcols td { vertical-align: middle; }
   margin: 6px 0;
 }
 
-/* ===================== ACCESSIBILITÉ =====================
-   Contrastes WCAG AA (4,5:1) sur les en-têtes de boîte, les curseurs et les
-   aides ; focus clavier toujours visible ; lien d'évitement ; retour en haut ;
-   mouvement réduit si le système le demande (hstat-a11y.js). */
+/* ACCESSIBILITÉ */
+/* Contrastes WCAG AA (4,5:1) sur les en-têtes de boîte, les curseurs et les */
+/* aides ; focus clavier toujours visible ; lien d'évitement ; retour en haut ; */
+/* mouvement réduit si le système le demande (hstat-a11y.js). */
 :focus-visible { outline: 3px solid #2f6bd4; outline-offset: 2px; }
 .skin-blue .sidebar-menu a:focus-visible,
 .skin-blue .sidebar-menu .hstat-repli-btn:focus-visible { outline: 3px solid #8ab4ff; outline-offset: -3px; }

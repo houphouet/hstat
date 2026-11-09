@@ -1,8 +1,5 @@
 # Module Shiny : Machine Learning Supervisé (régression & classification,
-# détection automatique de la tâche) : modèle linéaire/logistique,
-# Ridge/Lasso/Elastic-Net (glmnet), arbre de décision (rpart), forêt aléatoire
-# (randomForest), gradient boosting (xgboost), SVM (e1071), k plus proches
-# voisins (kknn), Naïve Bayes (e1071), réseau de neurones à une couche (nnet).
+# détection automatique de la tâche).
 
 .ml_catalog <- function() c(
   "Modèle linéaire / logistique"        = "lmglm",
@@ -15,10 +12,8 @@
   "Naïve Bayes (e1071)"                 = "nb",
   "Réseau de neurones 1 couche (nnet)"  = "nnet")
 
-# ---------------------------------------------------------------------------
 # xgboost : l'interface xgboost::xgboost() a change d'API (data -> x, label ->
 # y, 'params' supprime, 'verbose' non reconnu).
-# ---------------------------------------------------------------------------
 .hstat_xgb_fit <- function(x, y, params, nrounds) {
   dm <- xgboost::xgb.DMatrix(as.matrix(x), label = as.numeric(y))
   suppressWarnings(xgboost::xgb.train(params = params, data = dm,
@@ -26,9 +21,7 @@
                                       verbose = 0))
 }
 
-# Normalise la sortie de predict() : selon la version de xgboost, un modele
-# multi:softprob renvoie soit un vecteur a plat (n * k), soit deja une matrice
-# n x k.
+# Normalise la sortie de predict().
 .hstat_xgb_predict <- function(model, x, n_class = 1L) {
   pr <- suppressWarnings(stats::predict(model, as.matrix(x)))
   if (n_class > 2L) {
@@ -288,11 +281,8 @@ mod_ml_server <- function(id, values) {
       al
     }
 
-    # ---- Recherche d'hyperparamètres : validation interne au train --------------
-    # Le jeu de test n'est JAMAIS utilisé ici : la grille est évaluée sur une
-    # coupe de validation prélevée dans le jeu d'entraînement (plafonnée pour
-    # les algorithmes coûteux), puis le modèle final est réentraîné sur tout
-    # le train avec le meilleur réglage.
+    # ---- Recherche d'hyperparamètres : validation interne au train
+    # -------------- Le jeu de test n'est JAMAIS utilisé ici.
     tune_split <- function(tr, cap = 20000) {
       n <- nrow(tr)
       if (n > cap) tr <- tr[sample.int(n, cap), , drop = FALSE]
@@ -918,9 +908,7 @@ mod_ml_server <- function(id, values) {
                                   minPts = as.integer(hstat_finite(input$clMinPts, 5)))$cluster },
         mclust = { if (!requireNamespace("mclust", quietly = TRUE))
                      stop("Package 'mclust' requis (install.packages(\"mclust\")).")
-                   # Mclust() resout mclustBIC dans l'environnement appelant :
-                   # on le fournit localement pour rester robuste meme si le
-                   # package n'est pas attache par library().
+                   # Mclust() resout mclustBIC dans l'environnement appelant.
                    mclustBIC <- mclust::mclustBIC
                    mclust::Mclust(x, G = k, verbose = FALSE)$classification },
         stop("Méthode inconnue."))

@@ -1,5 +1,4 @@
 # Message affiche au chargement du package (library(HStat) / require(HStat)).
-# Propose immediatement a l'utilisateur comment citer HStat.
 
 .onAttach <- function(libname, pkgname) {
   vers <- hstat_version()
@@ -18,9 +17,7 @@
   packageStartupMessage(msg)
 }
 
-# ---------------------------------------------------------------------------
 # Colonnes vues par ggplot2 et dplyr, declarees pour l'analyse statique
-# ---------------------------------------------------------------------------
 # `aes(x = Efficacite)` designe une COLONNE, pas une variable de l'espace de
 # noms.
 utils::globalVariables(c(

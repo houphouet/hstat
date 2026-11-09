@@ -1,5 +1,4 @@
-# Point d entree standard Shiny : runApp(dossier) detecte ce fichier et sert
-# automatiquement le sous-dossier www/ (feuille de style + polices).
+# Point d entree standard Shiny.
 .hstat_app <- source("HStat.R", local = FALSE, encoding = "UTF-8")$value
 
 if (!inherits(.hstat_app, "shiny.appobj")) {

@@ -1,6 +1,5 @@
 #  Module Shiny : Analyses descriptives
 
-
 mod_descriptive_ui <- function(id) {
   ns <- shiny::NS(id)
   shiny::tagList(
@@ -442,8 +441,7 @@ mod_descriptive_server <- function(id, values) {
   })
 
   # NB : l'indicateur output$hstatBigData (mode hors-memoire) est defini une
-  # seule fois, dans app_server.R -- le redefinir ici ecraserait silencieusement
-  # la premiere definition (les output$ Shiny doivent etre uniques).
+  # seule fois, dans app_server.R.
 
   # Calcul des statistiques descriptives EXACTES sur le jeu complet (DuckDB)
   shiny::observeEvent(input$calcDescFull, {
@@ -525,8 +523,7 @@ mod_descriptive_server <- function(id, values) {
     }
   )
   
-  # L'ECRIVAIN COMMUN, pas une copie : le repli d'ici ecrivait du CSV dans un
-  # fichier nomme .xlsx, qu'Excel refusait d'ouvrir sans dire pourquoi.
+  # L'ECRIVAIN COMMUN, pas une copie.
   output$downloadDescExcel <- hstat_classeur_handler(
     function() if (is.null(values$descStats)) NULL else
       list("Statistiques" = values$descStats),
@@ -680,7 +677,6 @@ mod_descriptive_server <- function(id, values) {
         )
     } else {
       
-      
       base_plot <- ggplot2::ggplot(values$filteredData, ggplot2::aes(
         x = .data[[input$descPlotFactor]], 
         y = .data[[input$descPlotVar]], 
@@ -747,9 +743,7 @@ mod_descriptive_server <- function(id, values) {
         ) +
         ggplot2::labs(title = plot_title, x = x_label, y = y_label)
       
-      # Le catalogue commun pose l'echelle -- et interpole au-dela du plafond
-      # de RColorBrewer, la ou `scale_fill_brewer()` rendait les modalites en
-      # trop en gris.
+      # Le catalogue commun pose l'echelle.
       base_plot + hstat_scales_palette(color_palette, fill = TRUE, colour = FALSE)
     }
     
@@ -760,9 +754,7 @@ mod_descriptive_server <- function(id, values) {
   
   output$descPlotOutput <- shiny::renderUI({
     shiny::req(input$descPlotWidth, input$descPlotHeight)
-    # Les bornes des curseurs tiennent cote serveur : le rendu suit la largeur
-    # declaree, et une valeur forgee a 10^6 px ferait tracer une image d'un
-    # million de pixels de cote dans le processus partage.
+    # Les bornes des curseurs tiennent cote serveur.
     l <- hstat_borne_client(input$descPlotWidth, 900, 400, 2000)
     h <- hstat_borne_client(input$descPlotHeight, 600, 400, 2000)
     shiny::plotOutput(ns("descPlot"), width = paste0(l, "px"), height = paste0(h, "px"))

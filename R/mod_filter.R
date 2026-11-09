@@ -1,6 +1,5 @@
 #  Module Shiny : Filtrage des donnees
 
-
 mod_filter_ui <- function(id) {
   ns <- shiny::NS(id)
   shiny::tagList(
@@ -108,7 +107,6 @@ mod_filter_server <- function(id, values) {
     ns <- session$ns
   # ---- Filtrage ----
   
-  
   output$rowRangeUI <- shiny::renderUI({
     shiny::req(values$cleanData)
     max_rows <- nrow(values$cleanData)
@@ -149,7 +147,6 @@ mod_filter_server <- function(id, values) {
       shiny::showNotification(hstat_err_fr(e, "Erreur filtre par plage"), type = "error", duration = 10)
     })
   })
-  
   
   # Permet de rechercher des lignes contenant une ou plusieurs valeurs spécifiques
   output$valueFilterUI <- shiny::renderUI({
@@ -203,7 +200,6 @@ mod_filter_server <- function(id, values) {
     })
   })
   
-  
   output$columnSelectUI <- shiny::renderUI({
     shiny::req(values$cleanData)
     col_names <- names(values$cleanData)
@@ -254,7 +250,6 @@ mod_filter_server <- function(id, values) {
       shiny::showNotification(hstat_err_fr(e, "Erreur filtre par colonnes"), type = "error", duration = 10)
     })
   })
-  
   
   output$filterFactorA <- shiny::renderUI({
     shiny::req(values$cleanData)

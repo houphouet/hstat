@@ -1,6 +1,5 @@
 #  Module Shiny : Seuils d'efficacite
 
-
 mod_threshold_ui <- function(id) {
   ns <- shiny::NS(id)
   shiny::tagList(
@@ -62,10 +61,7 @@ mod_threshold_ui <- function(id) {
                            style = "color:#2b2b2b; font-weight:600; margin:0; font-size:13px;")
                     ),
                     
-                    # AUCUNE BORNE. Le seuil etait bride a 0-100 : on ne
-                    # pouvait donc pas poser de repere sur une efficacite
-                    # NEGATIVE (la modalite fait moins bien que le temoin), ni
-                    # au-dela de 100 sur un rapport qui le permet.
+                    # AUCUNE BORNE.
                     shiny::numericInput(ns("thresholdValue"), 
                                  shiny::tagList(shiny::icon("percent"), " Valeur du seuil (%)"), 
                                  value = 80, step = 1),
@@ -277,10 +273,7 @@ mod_threshold_ui <- function(id) {
                             shiny::conditionalPanel(
               ns = ns,
                               condition = "input.thresholdBarColor == 'palette'",
-                              # La liste vient du catalogue commun : celle qui
-                              # vivait ici n'offrait AUCUNE palette non
-                              # plafonnee, et un essai a plus de huit modalites
-                              # y perdait ses dernieres barres en gris.
+                              # La liste vient du catalogue commun.
                               shiny::selectInput(ns("thresholdPalette"), "Choisir une palette :",
                                           choices = hstat_palettes_choix(),
                                           selected = unname(HSTAT_PALETTE_GG))
@@ -310,8 +303,6 @@ mod_threshold_ui <- function(id) {
                         
                         shiny::sliderInput(ns("thresholdBarWidth"), "Largeur des barres :", 
                                     min = 0.1, max = 1, value = 0.8, step = 0.05),
-                        # La transparence etait figee a 0,8 aux six endroits ou
-                        # les barres sont tracees.
                         shiny::sliderInput(ns("thresholdBarAlpha"), "Opacité des barres :",
                                     min = 0.2, max = 1, value = 0.8, step = 0.05),
                         shiny::checkboxInput(ns("thresholdBarBorder"),
@@ -447,9 +438,6 @@ mod_threshold_ui <- function(id) {
                         ),
                         shiny::checkboxInput(ns("thresholdZeroLine"),
                           "Ligne de référence à zéro (sépare gains et pertes)", TRUE),
-                        # Sans pas de graduation, l'axe ne portait que les
-                        # reperes choisis par ggplot -- rarement ceux qu'on veut
-                        # sur un pourcentage (0, 10, 20...).
                         shiny::numericInput(ns("thresholdYBreakStep"),
                                      shiny::tagList(shiny::icon("ruler-vertical"), " Pas des graduations Y"),
                                      value = NULL, min = 0.01, step = 5),
@@ -689,12 +677,9 @@ mod_threshold_server <- function(id, values) {
     tryCatch(shinyjs::reset("thresholdValue"), error = function(e) NULL)
   }, ignoreInit = TRUE)
 
-  # =========================================================================
   # CALCUL DE L'EFFICACITE DEPUIS UN TEMOIN (formule d'Abbott)
-  # -------------------------------------------------------------------------
   # Le module tracait des courbes a partir d'une variable d'efficacite DEJA
   # calculee ailleurs.
-  # =========================================================================
   eff_res <- shiny::reactiveVal(NULL)
 
   output$effFactorSelect <- shiny::renderUI({
@@ -719,8 +704,7 @@ mod_threshold_server <- function(id, values) {
   })
 
   # « Une fois le temoin choisi, les autres modalites passent dans une
-  # variable » : on la MONTRE, pour que l'utilisateur verifie d'un coup d'oeil
-  # sur quoi la boucle va porter.
+  # variable ».
   output$effOtherLevels <- shiny::renderUI({
     d <- values$filteredData
     shiny::req(d, input$effFactor, input$effControl)
@@ -896,9 +880,7 @@ mod_threshold_server <- function(id, values) {
       attributes(x) <- attributes(x)[c("names", "class", "row.names")]
       x
     } else {
-      # `values$filteredData`, PAS `source_data()` : la substitution mecanique
-      # avait touche le corps du reactif lui-meme, qui s'appelait donc
-      # recursivement.
+      # `values$filteredData`, PAS `source_data()`.
       values$filteredData
     }
   })
@@ -924,8 +906,7 @@ mod_threshold_server <- function(id, values) {
   })
 
   # Quand la source est le tableau d'efficacites, ses colonnes portent des noms
-  # connus : on preselectionne le couple qui a du sens (Modalite / Efficacite)
-  # plutot que la premiere colonne venue.
+  # connus.
   .eff_defaut <- function(cols, souhait) {
     if (identical(input$thresholdSource %||% "donnees", "calcul")) {
       if (souhait %in% cols) return(souhait)
@@ -1056,7 +1037,6 @@ mod_threshold_server <- function(id, values) {
       note <- "Renommez les variables affichées dans la légende."
     } else {
       # Mode Y simple : la legende = les niveaux de X (traitements colores).
-      # On ne l'affiche que si les barres sont effectivement colorees.
       colored <- isTRUE(input$thresholdUseColor) &&
                  (input$thresholdBarColor %||% "") %in% c("ggplot", "palette", "custom")
       if (!colored)
@@ -1417,8 +1397,7 @@ mod_threshold_server <- function(id, values) {
                                        input$thresholdBarBorderWidth)
 
         # Libelles de legende personnalises (mode Y simple) : la legende montre
-        # les niveaux (traitements) ; on lit l'editeur thresholdLegendItem_*
-        # pour renommer ces entrees independamment de l'axe X.
+        # les niveaux (traitements).
         legend_levels <- levels(plot_data$Treatment)
         legend_labels <- sapply(legend_levels, function(lbl) {
           custom <- input[[paste0("thresholdLegendItem_", make.names(lbl))]]
@@ -1619,9 +1598,7 @@ mod_threshold_server <- function(id, values) {
       else ggplot2::scale_y_continuous(limits = c(y_min, y_max))
 
       # UNE EFFICACITE INDETERMINABLE NE TRACE AUCUNE BARRE, et rien ne le
-      # disait : l'axe gardait la place de la modalite, vide, et le seul signal
-      # partait dans la console de R (« Removed 1 row containing missing values
-      # »).
+      # disait.
       absentes <- !is.finite(plot_data$Efficacy)
       if (any(absentes)) {
         qui <- unique(as.character(plot_data$Treatment[absentes]))
@@ -1643,8 +1620,7 @@ mod_threshold_server <- function(id, values) {
           type = "warning", duration = 8, id = session$ns("seuilHorsAxe"))
 
       # LA LIGNE DE SEUIL AUSSI PEUT SORTIR DU CADRE, et son absence est plus
-      # trompeuse encore qu'une barre manquante : on croit lire un graphique
-      # sans seuil alors qu'on en a demande un.
+      # trompeuse encore qu'une barre manquante.
       seuil_v <- suppressWarnings(as.numeric(input$thresholdValue %||% NA)[1])
       if (isTRUE(is.finite(seuil_v)) &&
           ((!is.na(y_min) && seuil_v < y_min) || (!is.na(y_max) && seuil_v > y_max)))
@@ -1794,9 +1770,7 @@ mod_threshold_server <- function(id, values) {
 
     # Position de la legende choisie par l'utilisateur, traduite pour plotly.
     pos <- input$thresholdLegendPosition %||% "right"
-    # plotly gere la legende independamment du graphique : on la place SOUS ou
-    # A COTE de la zone de trace (jamais par-dessus), ce que ggplotly ne fait
-    # pas correctement a partir du theme ggplot seul.
+    # plotly gere la legende independamment du graphique.
     leg <- switch(pos,
       "bottom"       = list(orientation = "h", x = 0.5, xanchor = "center",
                             y = -0.35, yanchor = "top"),
@@ -1846,7 +1820,7 @@ mod_threshold_server <- function(id, values) {
     }
 
     # Gras et italique de l'axe X, en HTML : plotmath ne survit pas a la
-    # conversion. Les positions d'un axe discret valent 1..n.
+    # conversion.
     lv <- threshold_values$x_label_levels
     st <- threshold_values$x_label_styles
     if (!is.null(lv) && length(lv) && length(st) == length(lv) &&
@@ -1884,7 +1858,7 @@ mod_threshold_server <- function(id, values) {
     },
     content = function(file) {
       # Les pixels saisis fixent la MISE EN PAGE (lue a 96 ppp, la reference de
-      # l'ecran), le DPI la finesse du rendu. Voir hstat_export_dims().
+      # l'ecran), le DPI la finesse du rendu.
       dims <- hstat_export_dims(input$thresholdExportWidth,
                                 input$thresholdExportHeight,
                                 input$thresholdExportDPI)

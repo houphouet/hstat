@@ -1,6 +1,4 @@
-# ===========================================================================
-#  MODULE EPIDEMIOLOGIE
-# ===========================================================================
+# MODULE EPIDEMIOLOGIE
 # Le module ne CALCULE rien : tout vit dans `R/utils.R` (`hstat_epi_*`), ou
 # c'est testable.
 
@@ -63,10 +61,7 @@ mod_epidemio_ui <- function(id) {
             status = "primary", solidHeader = TRUE, width = 12, collapsible = TRUE,
             shiny::uiOutput(ns("epiFigureUI")))),
 
-        # ELLE SE RETIRE POUR LES FIGURES TRACEES EN GRAPHIQUES DE BASE : la
-        # surface 3D et les diagnostics n'obeissent pas au theme ggplot, et
-        # offrir un reglage que l'image ignore est le defaut que ce depot
-        # traque partout ailleurs.
+        # ELLE SE RETIRE POUR LES FIGURES TRACEES EN GRAPHIQUES DE BASE.
       ),
 
       shiny::column(8,
@@ -104,8 +99,6 @@ mod_epidemio_ui <- function(id) {
               shiny::column(6, shiny::downloadButton(ns("epiTCsv"), "CSV (.zip)",
                 class = "btn-info btn-block"))))),
 
-        # LA MISE EN FORME VIT SOUS L'EXPORT, ET DU MEME COTE QUE LA FIGURE :
-        # demande a l'ecran.
         shiny::conditionalPanel(
           ns = ns,
           condition = sprintf("output.hasEpi && ['%s'].indexOf(input.epiFigure) < 0",
@@ -170,8 +163,7 @@ mod_epidemio_server <- function(id, values) {
     ns <- session$ns
 
     # L'etat du module lui appartient : `values` porte l'etat de SESSION, et y
-    # ranger un modele le ferait survivre a un changement de fichier -- le
-    # defaut deja corrige sur les resultats multivaries.
+    # ranger un modele le ferait survivre a un changement de fichier.
     rv <- shiny::reactiveValues(res = NULL, analyse = NULL, message = NULL)
 
     donnees <- shiny::reactive({
@@ -204,10 +196,7 @@ mod_epidemio_server <- function(id, values) {
         dlnm = shiny::tagList(
           .hstat_opt_section("Issue et expositions", "temperature-three-quarters",
             "#c0392b", "#fdecea",
-            # PLUSIEURS ISSUES EN UN SEUL LANCEMENT : un registre en porte
-            # souvent trois ou quatre, et les relancer une par une refait a la
-            # main la boucle que le module sait faire -- en re-saisissant dix
-            # reglages a chaque tour.
+            # PLUSIEURS ISSUES EN UN SEUL LANCEMENT.
             shiny::selectInput(ns("epiY"), "Issues (décomptes d'événements)",
                                choices = n, multiple = TRUE),
             shiny::tags$small(style = "color:#6b7280;",
@@ -220,9 +209,7 @@ mod_epidemio_server <- function(id, values) {
               tr("Chaque exposition retenue est analysée à son tour ; les autres servent alors d'ajustement.")),
             shiny::checkboxInput(ns("epiMutuel"),
               "Ajuster chaque exposition sur les autres", value = TRUE),
-            # PLUSIEURS DENOMINATEURS S'AJOUTENT SUR L'ECHELLE LOG : une
-            # population ET une durée d'observation donnent des personnes-mois,
-            # donc la somme des logarithmes.
+            # PLUSIEURS DENOMINATEURS S'AJOUTENT SUR L'ECHELLE LOG.
             shiny::selectInput(ns("epiOffset"),
               "Dénominateurs (population, durée… — facultatif)",
               choices = n, multiple = TRUE),
@@ -270,9 +257,6 @@ mod_epidemio_server <- function(id, values) {
                                 min = 0, max = 60, step = 1),
             shiny::numericInput(ns("epiNkLag"), "Nœuds sur l'axe des retards",
                                 value = 2, min = 1, max = 5, step = 1),
-            # LA SOUPLESSE DE L'EXPOSITION EST LE LEVIER QUI PESE LE PLUS sur
-            # le budget de parametres, et elle n'etait pas atteignable : elle
-            # valait trois noeuds en dur.
             shiny::selectInput(ns("epiNoeuds"), "Souplesse de la réponse",
                                choices = hstat_epi_noeuds_choix(), selected = "k3"),
             shiny::tags$small(style = "color:#6b7280;",
@@ -289,9 +273,7 @@ mod_epidemio_server <- function(id, values) {
                                 value = 2, min = 0, max = 6, step = 1),
             shiny::numericInput(ns("epiTendance"), "Souplesse de la tendance longue",
                                 value = 3, min = 0, max = 20, step = 1)),
-          # LES FENETRES DE RETARD SONT UN RESULTAT, PAS UN HABILLAGE : elles
-          # produisent un tableau publiable (« Lag 0-1 mois (court terme) »),
-          # elles vivent donc avec les reglages de l'analyse.
+          # LES FENETRES DE RETARD SONT UN RESULTAT, PAS UN HABILLAGE.
           .hstat_opt_section("Fenêtres de retard", "timeline", "#d35400", "#fdf0e6",
             shiny::checkboxInput(ns("epiFenOn"),
               "Calculer le RR par fenêtre de retard", value = FALSE),
@@ -390,11 +372,7 @@ mod_epidemio_server <- function(id, values) {
                          choices = c("(à choisir)" = "", m))
     })
 
-    # ------------------------------------------------------------- LANCEMENT
-    # ------------------------------------------------ DECOMPOSITION D'UNE DATE
-    # Les colonnes rejoignent le JEU DE TRAVAIL, comme le fait le typage de
-    # l'onglet Nettoyage : elles derivent du fichier courant, elles ne le
-    # remplacent pas.
+    # ------------------------------------------------------------- LANCEMENT.
     shiny::observeEvent(input$epiExtraire, {
       df <- donnees()
       if (is.null(df) || !NROW(df)) {
@@ -432,8 +410,7 @@ mod_epidemio_server <- function(id, values) {
       conf <- hstat_borne_client(input$epiConf, 0.95, 0.80, 0.99)
       vide <- function(x) { v <- as.character(x %||% character(0)); v[nzchar(v)] }
       # Les facteurs de transfert sont relus PAR EXPOSITION, et seulement si la
-      # case est cochee : un champ laisse a 0,8 puis decoche ne doit pas
-      # continuer d'agir en silence.
+      # case est cochee.
       pr <- list(a = NULL, b = NULL)
       if (isTRUE(input$epiProxy)) for (v in vide(input$epiExpo)) {
         pr$a[[v]] <- hstat_finite(input[[paste0("epiPxA_", v)]], 1)
@@ -486,20 +463,15 @@ mod_epidemio_server <- function(id, values) {
       if (!isTRUE(nzchar(rv$message %||% ""))) return(NULL)
       shiny::div(class = "hstat-interpretation",
         shiny::icon("circle-info"), " ",
-        # LE MESSAGE PORTE DES NOMS DE COLONNES VENUS DU FICHIER : un intitule
-        # « Rendement <2023> » y verrait ses chevrons lus comme une balise et
-        # DISPARAITRAIT. On echappe.
+        # LE MESSAGE PORTE DES NOMS DE COLONNES VENUS DU FICHIER.
         shiny::HTML(hstat_html_escape(rv$message)))
     })
 
-    # Le drapeau double d'un `outputOptions(suspendWhenHidden = FALSE)` : sans
-    # lui, une sortie suspendue ne se recalcule pas et la boite ne reapparait
-    # jamais.
+    # Le drapeau double d'un `outputOptions(suspendWhenHidden = FALSE)`.
     output$hasEpi <- shiny::reactive(!is.null(rv$res))
     shiny::outputOptions(output, "hasEpi", suspendWhenHidden = FALSE)
 
-    # UN CHAMP PAR EXPOSITION, ET CHACUN TRAVERSE `ns()` : un widget cree sans
-    # lui porte « epiPxA_Tmax » quand le serveur lit « epidemio-epiPxA_Tmax ».
+    # UN CHAMP PAR EXPOSITION, ET CHACUN TRAVERSE `ns()`.
     output$epiProxyUI <- shiny::renderUI({
       vs <- as.character(input$epiExpo %||% character(0))
       vs <- vs[nzchar(vs)]
@@ -519,16 +491,13 @@ mod_epidemio_server <- function(id, values) {
       if (is.null(fg)) return(NULL)
       shiny::tagList(
         # `input$epiFigure` VAUT NULL AU PREMIER RENDU, et `NULL %in% fg` rend
-        # `logical(0)` : `if()` y leve « argument is of length zero », l'erreur
-        # tombe dans le `renderUI`, et LE SELECTEUR N'EXISTE JAMAIS -- donc
-        # aucune figure ne se trace, sur une analyse pourtant calculee.
+        # `logical(0)`.
         shiny::selectInput(ns("epiFigure"), tr("Figure"), choices = fg,
                            selected = shiny::isolate(
                              if (isTRUE((input$epiFigure %||% "") %in% fg))
                                input$epiFigure else fg[[1]])),
-        # PLUSIEURS EXPOSITIONS SE REPRESENTENT ENSEMBLE, et l'entree n'apparait
-        # qu'a partir de deux -- proposer « toutes » sur une seule serait un
-        # choix qui ne change rien.
+        # PLUSIEURS EXPOSITIONS SE REPRESENTENT ENSEMBLE, et l'entree
+        # n'apparait qu'a partir de deux.
         if (identical(an, "dlnm") && length(rv$res$resultats) > 1L)
           shiny::selectInput(ns("epiFigExpo"), tr("Variable représentée"),
                              choices = c(stats::setNames(
@@ -550,8 +519,7 @@ mod_epidemio_server <- function(id, values) {
     })
 
     # ------------------------------------------------------------- TABLEAUX
-    # `courant()` rend le resultat A TRACER : pour le DLNM multi-expositions,
-    # c'est celui de l'exposition choisie.
+    # `courant()` rend le resultat A TRACER.
     courant <- shiny::reactive({
       r <- rv$res; if (is.null(r)) return(NULL)
       if (!identical(rv$analyse, "dlnm")) return(r)
@@ -566,8 +534,7 @@ mod_epidemio_server <- function(id, values) {
       switch(an,
         dlnm = {
           # LE BUDGET DE PARAMETRES EST UN TABLEAU DE RESULTAT, pas une note :
-          # c'est lui qui explique un intervalle de [1,1 ; 352], et un chiffre
-          # qu'on ne peut pas exporter ne part pas dans le rapport.
+          # c'est lui qui explique un intervalle de [1,1.
           bg <- tryCatch(hstat_epi_dlnm_budget(courant()), error = function(e) NULL)
           out <- list(Comparaison = r$comparaison)
           if (!is.null(bg)) out[["Budget_parametres"]] <- as.data.frame(bg)
@@ -612,9 +579,7 @@ mod_epidemio_server <- function(id, values) {
     # UN PLAFOND, PARCE QU'UN IDENTIFIANT DE SORTIE NE SE RETIRE PAS.
     epi_max_tables <- 40L
 
-    # LES RENDUS SE POSENT UNE SEULE FOIS, jamais dans un observateur : les
-    # reenregistrer a chaque calcul empilerait un observateur de plus par
-    # passage.
+    # LES RENDUS SE POSENT UNE SEULE FOIS, jamais dans un observateur.
     for (k in seq_len(epi_max_tables)) local({
       kk <- k
       output[[paste0("epiTable", kk)]] <- DT::renderDT({
@@ -681,10 +646,7 @@ mod_epidemio_server <- function(id, values) {
     })
 
     # ------------------------------------------------------------- GRAPHIQUE
-    # L'ETIQUETTE DE LA LIGNE DE REFERENCE voyage AVEC la figure : elle est
-    # tracee en coordonnees de donnees sur l'axe du trait, donc elle ne peut
-    # pas etre posee apres coup par le kit de mise en forme, qui ne connait ni
-    # la valeur de reference ni l'etendue de l'autre axe.
+    # L'ETIQUETTE DE LA LIGNE DE REFERENCE voyage AVEC la figure.
     repere <- shiny::reactive(list(
       montrer = isTRUE(input$epiRefLab %||% TRUE),
       epaisseur = hstat_finite(input$epiRefEp, 0.5),
@@ -705,8 +667,7 @@ mod_epidemio_server <- function(id, values) {
       pct_taille    = hstat_finite(input$epiPctTaille, 3)))
 
     # LES FENETRES SE LISENT DANS LE REACTIF, pas dans une aide appelee depuis
-    # lui : la dependance existe alors a l'execution mais ne se voit pas a la
-    # lecture -- et c'est exactement ce qu'un balayage ne peut pas verifier.
+    # lui.
     fenetres <- shiny::reactive({
       # DECOCHEE, LA CASE NE REND RIEN -- pas le catalogue par defaut.
       if (!isTRUE(input$epiFenOn)) return(list())
@@ -721,9 +682,7 @@ mod_epidemio_server <- function(id, values) {
       f <- input$epiFigure %||% names(HSTAT_EPI_FIGURES[[an]])[1]
       o <- opts_fig()
 
-      # « TOUTES ENSEMBLE » N'EST PAS UN REPLI : la figure multi rend `NULL`
-      # quand elle ne s'y prete pas (surface 3D, diagnostics), et on retombe
-      # alors sur l'exposition courante -- ce que la note sous la figure dit.
+      # « TOUTES ENSEMBLE » N'EST PAS UN REPLI.
       p <- NULL
       if (identical(an, "dlnm") &&
           identical(input$epiFigExpo %||% "", HSTAT_EPI_TOUTES))

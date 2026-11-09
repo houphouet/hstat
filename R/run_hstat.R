@@ -60,8 +60,7 @@ run_hstat <- function(..., ouverture = NULL, statistiques = NULL,
   }
 
   # --- Installation prealable de TOUTES les dependances -------------------
-  # C'est indispensable : HStat.R construit l'interface (dashboardPage,
-  # dropdownMenu, pickerInput, ...) des le sourcage.
+  # C'est indispensable.
   if (isTRUE(install_missing)) {
     deps <- .hstat_required_packages()
     missing_pkgs <- deps[!vapply(deps, function(p)
@@ -95,8 +94,7 @@ run_hstat <- function(..., ouverture = NULL, statistiques = NULL,
     }
   }
 
-  # Ou ouvrir l'application. Un `launch.browser` passe explicitement
-  # l'emporte : c'est une demande, on ne la redemande pas.
+  # Ou ouvrir l'application.
   args <- list(...)
   if (!"launch.browser" %in% names(args)) {
     lanceur <- .hstat_ouverture_lanceur(.hstat_ouverture_resoudre(ouverture))
@@ -110,9 +108,7 @@ run_hstat <- function(..., ouverture = NULL, statistiques = NULL,
   do.call(shiny::runApp, c(list(app_dir), args))
 }
 
-# ---------------------------------------------------------------------------
 # Ou ouvrir l'application : navigateur ou fenetre Shiny de RStudio
-# ---------------------------------------------------------------------------
 # La question se pose une fois, et la reponse peut devenir le defaut.
 
 HSTAT_OUVERTURES <- c(navigateur = "Navigateur web",
@@ -183,9 +179,7 @@ HSTAT_OUVERTURES <- c(navigateur = "Navigateur web",
   r$mode
 }
 
-# Les lanceurs que RStudio installe lui-meme : ce sont eux qu'emploie son
-# bouton « Run App », et ils savent traverser le mandataire de RStudio Server,
-# ce que `browseURL()` sur une adresse locale ne sait pas faire.
+# Les lanceurs que RStudio installe lui-meme.
 .hstat_rstudio_fonction <- function(nom) {
   e <- tryCatch(as.environment("tools:rstudio"), error = function(e) NULL)
   if (is.null(e)) return(NULL)
@@ -204,13 +198,9 @@ HSTAT_OUVERTURES <- c(navigateur = "Navigateur web",
     function(url) utils::browseURL(url)
 }
 
-
-# ---------------------------------------------------------------------------
 # Statistiques de diffusion, anonymes et consenties
-# ---------------------------------------------------------------------------
 # Un signal par machine et par jour au plus : version de HStat, famille du
-# systeme, version de R. Le pays est deduit par GoatCounter, qui ne stocke pas
-# l'adresse. Rien n'est envoye sans accord : la politique du CRAN l'interdit.
+# systeme, version de R.
 
 HSTAT_STATS_SITE <- "https://hstat.goatcounter.com"
 
@@ -248,8 +238,7 @@ HSTAT_STATS_SITE <- "https://hstat.goatcounter.com"
   i == 1L
 }
 
-# Vrai seulement sur un accord explicite. L'option l'emporte sur tout ; une
-# question annulee (0) ne vaut ni oui ni non : elle reviendra au lancement suivant.
+# Vrai seulement sur un accord explicite.
 .hstat_stats_consentement <- function(statistiques = NULL,
                                       interactif = interactive(),
                                       demander = .hstat_stats_demander,
@@ -298,8 +287,7 @@ HSTAT_STATS_SITE <- "https://hstat.goatcounter.com"
 }
 
 # Une fois par jour et par machine : relancer HStat dix fois ne fait pas dix
-# installations. L'envoi ne retarde jamais le lancement : il part en tache de
-# fond (curl multi, relance par later) et tout echec est muet.
+# installations.
 .hstat_stats_envoyer <- function(jour = format(Sys.Date()),
                                  fichier = .hstat_stats_fichier("statistiques_dernier.txt"),
                                  url = .hstat_stats_url()) {
@@ -333,7 +321,6 @@ HSTAT_STATS_SITE <- "https://hstat.goatcounter.com"
     invisible(TRUE)
   }, error = function(e) invisible(FALSE))
 }
-
 
 # Liste des dependances requises, lue depuis inst/app/Utils.R (source unique de
 # verite) pour rester synchronisee avec l'application.
