@@ -2762,6 +2762,38 @@ hstat_ellipse_ok <- function(groupes, x, y, min_n = 3L) {
                         paste(faibles, collapse = ", "), min_n))
 }
 
+# Contours des ellipses de confiance de la MOYENNE de chaque groupe (celles
+# que trace factoextra sous ellipse.type = "confidence") : centre plus
+# sqrt(qchisq(niveau, 2)) fois la racine de la covariance divisee par n.
+# Seuls les groupes de `groupes` sont traces : un groupe de moins de trois
+# individus n'en porte pas, et ne doit pas emporter ceux qui le peuvent.
+hstat_ellipses_confiance <- function(x, y, g, groupes = NULL, niveau = 0.95,
+                                     n_points = 100L) {
+  g <- as.character(g)
+  x <- suppressWarnings(as.numeric(x)); y <- suppressWarnings(as.numeric(y))
+  garde <- !is.na(g) & is.finite(x) & is.finite(y)
+  g <- g[garde]; x <- x[garde]; y <- y[garde]
+  if (is.null(groupes)) groupes <- unique(g)
+  niveau <- suppressWarnings(as.numeric(niveau)[1])
+  if (!is.finite(niveau) || niveau <= 0 || niveau >= 1) niveau <- 0.95
+  rayon <- sqrt(stats::qchisq(niveau, df = 2))
+  t <- seq(0, 2 * pi, length.out = n_points)
+  cercle <- cbind(cos(t), sin(t))
+  morceaux <- lapply(groupes, function(lv) {
+    i <- g == lv
+    if (sum(i) < 3L) return(NULL)
+    m <- cbind(x[i], y[i])
+    s <- stats::cov(m) / nrow(m)
+    r <- tryCatch(chol(s), error = function(e) NULL)
+    if (is.null(r)) return(NULL)
+    pts <- sweep(rayon * cercle %*% r, 2, colMeans(m), "+")
+    data.frame(x = pts[, 1], y = pts[, 2], groupe = lv, stringsAsFactors = FALSE)
+  })
+  res <- do.call(rbind, morceaux)
+  if (is.null(res)) res <- data.frame(x = numeric(0), y = numeric(0), groupe = character(0))
+  res
+}
+
 # =============================================================================
 #  TELECHARGEMENT D'IMAGE : NE JAMAIS RENVOYER UNE PAGE HTML
 # -----------------------------------------------------------------------------

@@ -25359,3 +25359,32 @@ test_that("Accessibilité : contrastes AA, script commun et rôle de bouton du m
               "Replier ou déplier la boîte", "Liste de choix"))
     expect_true(k %in% dic$fr, label = k)
 })
+
+test_that("ACP : une modalité trop petite ne fait pas perdre les ellipses des autres", {
+  # iris dont une modalité ne compte que deux individus : elle ne porte pas
+  # d'ellipse, les trois autres si.
+  d <- iris[c(1:50, 51:100, 101:102), ]
+  g <- as.character(d$Species); g[101:102] <- "rare"
+  res <- FactoMineR::PCA(d[, 1:4], graph = FALSE)
+  cm <- res$ind$coord
+  ell <- hstat_ellipse_ok(g, cm[, 1], cm[, 2])
+  expect_false(ell$ok)                      # la garde signale la modalité...
+  expect_setequal(ell$groupes, c("setosa", "versicolor"))
+  e <- hstat_ellipses_confiance(cm[, 1], cm[, 2], g, groupes = ell$groupes)
+  expect_setequal(unique(e$groupe), c("setosa", "versicolor"))   # ...sans emporter les autres
+  # Même ellipse que celle de factoextra (ellipse de confiance de la moyenne).
+  skip_if_not_installed("ggpubr")
+  full <- FactoMineR::PCA(iris[, 1:4], graph = FALSE)$ind$coord
+  nous <- hstat_ellipses_confiance(full[, 1], full[, 2], iris$Species)
+  q <- ggplot2::ggplot(data.frame(x = full[, 1], y = full[, 2], g = iris$Species),
+                       ggplot2::aes(x, y, group = g)) + ggpubr::stat_conf_ellipse(level = 0.95)
+  ref <- ggplot2::ggplot_build(q)$data[[1]]
+  expect_equal(range(nous$x), range(ref$x), tolerance = 1e-3)
+  expect_equal(range(nous$y), range(ref$y), tolerance = 1e-3)
+
+  # Le module ne retombe plus sur la coloration par contribution.
+  src <- paste(readLines(file.path(.hstat_repo_root(), "inst", "app", "app_server.R"),
+                         warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  expect_true(grepl("hstat_ellipses_confiance(gx, gy, grp, groupes = ell$groupes)", src, fixed = TRUE))
+  expect_false(grepl("ellipse.type = \"confidence\", ellipse.level = 0.95,\n                            col.var", src, fixed = TRUE))
+})

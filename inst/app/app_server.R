@@ -1907,48 +1907,57 @@ server <- function(input, output, session) {
     
     p <- p + labs(x = x_label, y = y_label)
 
-    # Ellipses autour des groupes d'individus (si demande et variable choisie)
+    # Ellipses autour des groupes d'individus (si demande et variable choisie).
+    # Un groupe trop petit (moins de 3 individus) ou aligne n'en porte pas,
+    # mais il ne doit pas faire perdre le groupement a tous les autres : les
+    # individus restent colores par groupe, et chaque groupe exploitable recoit
+    # son ellipse de confiance.
     if (isTRUE(input$pcaShowEllipses) && !is.null(input$pcaEllipseGroup) &&
         input$pcaPlotType %in% c("ind", "biplot")) {
       grp <- tryCatch(as.factor(values$filteredData[[input$pcaEllipseGroup]]), error = function(e) NULL)
-      # Une ellipse de confiance suppose une covariance inversible DANS chaque
-      # groupe.
-      ell <- if (is.null(grp)) list(ok = FALSE, motif = NULL) else
-        tryCatch({
-          cm <- hstat_coord_mat(res.pca$ind$coord)
-          hstat_ellipse_ok(grp, cm[, min(axis_x, ncol(cm))], cm[, min(axis_y, ncol(cm))])
-        }, error = function(e) list(ok = FALSE, motif = NULL))
-      if (!isTRUE(ell$ok) && !is.null(ell$motif))
-        shiny::showNotification(ell$motif, type = "warning", duration = 8,
-                         id = "pcaEllipseImpossible")
-      if (isTRUE(ell$ok) && !is.null(grp) &&
-          length(grp) == nrow(res.pca$ind$coord) && nlevels(grp) >= 2) {
-        if (input$pcaPlotType == "biplot") {
-          p_ell <- tryCatch(
+      cm <- tryCatch(hstat_coord_mat(res.pca$ind$coord), error = function(e) NULL)
+      if (!is.null(grp) && !is.null(cm) && length(grp) == nrow(cm) &&
+          nlevels(droplevels(grp)) >= 2) {
+        gx <- cm[, min(axis_x, ncol(cm))]; gy <- cm[, min(axis_y, ncol(cm))]
+        ell <- hstat_ellipse_ok(grp, gx, gy)
+        if (!is.null(ell$motif))
+          shiny::showNotification(ell$motif, type = "warning", duration = 8,
+                                  id = "pcaEllipseImpossible")
+        p_ell <- if (input$pcaPlotType == "biplot") {
+          tryCatch(
             factoextra::fviz_pca_biplot(res.pca, axes = c(axis_x, axis_y),
-                            habillage = grp, addEllipses = TRUE,
-                            ellipse.type = "confidence", ellipse.level = 0.95,
+                            habillage = grp, addEllipses = FALSE,
                             col.var = if (var_coloree) col_var else "black",
                             gradient.cols = gradient_cols, repel = TRUE,
-                            labelsize = lbl_ind,
+                            labelsize = lbl_ind, pointsize = pt_sz,
                             ggtheme = mv_ggtheme("pcaPlot"), title = plot_title),
             error = function(e) NULL)
-          if (!is.null(p_ell)) {
-            if (var_coloree) p_ell <- hstat_noircir_etiquettes(p_ell, n_cible = n_var_p, n_autre = n_ind_p)
-            p_ell <- hstat_apply_label_sizes(p_ell, lbl_ind, lbl_var,
-                                             n_var_p, n_ind_p)
-          }
         } else {
-          p_ell <- tryCatch(
+          tryCatch(
             factoextra::fviz_pca_ind(res.pca, axes = c(axis_x, axis_y),
-                         geom = "point", habillage = grp, addEllipses = TRUE,
-                         ellipse.type = "confidence", ellipse.level = 0.95,
-                         labelsize = lbl_ind,
+                         geom = "point", habillage = grp, addEllipses = FALSE,
+                         labelsize = lbl_ind, pointsize = pt_sz,
                          repel = FALSE, ggtheme = mv_ggtheme("pcaPlot"), title = plot_title),
             error = function(e) NULL)
-          if (!is.null(p_ell)) p_ell <- hstat_apply_label_sizes(p_ell, lbl_ind)
         }
-        if (!is.null(p_ell)) p <- p_ell + labs(x = x_label, y = y_label)
+        if (!is.null(p_ell)) {
+          if (input$pcaPlotType == "biplot") {
+            if (var_coloree) p_ell <- hstat_noircir_etiquettes(p_ell, n_cible = n_var_p, n_autre = n_ind_p)
+            p_ell <- hstat_apply_label_sizes(p_ell, lbl_ind, lbl_var, n_var_p, n_ind_p)
+          } else {
+            p_ell <- hstat_apply_label_sizes(p_ell, lbl_ind)
+          }
+          contours <- hstat_ellipses_confiance(gx, gy, grp, groupes = ell$groupes)
+          if (nrow(contours)) {
+            contours$groupe <- factor(contours$groupe, levels = levels(grp))
+            p_ell <- p_ell + ggplot2::geom_polygon(
+              data = contours,
+              ggplot2::aes(x = x, y = y, group = groupe, colour = groupe, fill = groupe),
+              inherit.aes = FALSE, alpha = 0.2, linewidth = 0.6, show.legend = FALSE)
+          }
+          p <- p_ell + labs(x = x_label, y = y_label, colour = input$pcaEllipseGroup,
+                            fill = input$pcaEllipseGroup, shape = input$pcaEllipseGroup)
+        }
       }
     }
 
