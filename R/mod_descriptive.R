@@ -182,7 +182,7 @@ mod_descriptive_ui <- function(id) {
                                shiny::tags$div(
                                  style = "background-color: white; padding: 20px; border-radius: 10px; margin-bottom: 15px; box-shadow: 0 3px 6px rgba(0,0,0,0.08); border-top: 3px solid #27ae60;",
                                  shiny::h6(shiny::icon("arrows-alt-h"), " Labels des axes", 
-                                    style = "font-weight: bold; color: #27ae60; margin-bottom: 15px; font-size: 15px;"),
+                                    style = "font-weight: bold; color: #1e8449; margin-bottom: 15px; font-size: 15px;"),
                                  shiny::fluidRow(
                                    shiny::column(6,
                                           shiny::tags$div(
@@ -264,9 +264,9 @@ mod_descriptive_ui <- function(id) {
                                           shiny::tags$div(
                                             style = "background-color: #f0fff4; padding: 15px; border-radius: 8px; border: 2px solid #b3e6cc;",
                                             shiny::h6(shiny::icon("long-arrow-alt-up"), " Axe Y", 
-                                               style = "color: #27ae60; font-weight: bold; margin-bottom: 12px; text-align: center;"),
+                                               style = "color: #1e8449; font-weight: bold; margin-bottom: 12px; text-align: center;"),
                                             shiny::tags$div(
-                                              style = "height: 78px; display: flex; align-items: center; justify-content: center; background-color: rgba(39,174,96,0.1); border-radius: 6px; color: #27ae60; font-size: 13px; font-style: italic; padding: 10px; text-align: center;", 
+                                              style = "height: 78px; display: flex; align-items: center; justify-content: center; background-color: rgba(39,174,96,0.1); border-radius: 6px; color: #1e8449; font-size: 13px; font-style: italic; padding: 10px; text-align: center;", 
                                               "Les graduations Y restent toujours horizontales"
                                             ),
                                             shiny::tags$hr(style = "margin: 15px 0; border-color: #b3e6cc;"),

@@ -228,6 +228,8 @@ ui <- shinydashboard::dashboardPage(
       # Sections repliables de la barre laterale : 1 a 5 se deplient au survol
       # de leur titre et restent ouvertes au clic.
       shiny::tags$script(src = hstat_asset("hstat-menu.js")),
+      # Accessibilite commune : icones, etiquettes, lien d'evitement, retour en haut.
+      shiny::tags$script(src = hstat_asset("hstat-a11y.js")),
       # Dictionnaire de traduction.
       hstat_i18n_script("en"),
       shiny::tags$script(src = hstat_asset("hstat-i18n.js")),
@@ -1527,7 +1529,7 @@ ui <- shinydashboard::dashboardPage(
                                             shiny::p(style = "margin: 5px 0; font-size: 13px; color: #555;",
                                               "Sélectionnez les variables numériques qui serviront à discriminer les groupes. Plus il y a de variables pertinentes, meilleure sera la discrimination."),
                                             shiny::uiOutput("afdVarSelect"),
-                                            shiny::p(style = "margin: 5px 0 0 0; font-size: 11px; color: #27ae60; font-style: italic;",
+                                            shiny::p(style = "margin: 5px 0 0 0; font-size: 11px; color: #1e8449; font-style: italic;",
                                               shiny::icon("check-circle"), " Conseil : Sélectionnez au moins 2-3 variables pour obtenir de bons résultats.")
                                         ),
                     
@@ -2017,7 +2019,7 @@ ui <- shinydashboard::dashboardPage(
               )
             ),
             shiny::hr(),
-            shiny::p(style = "font-size:12px;color:#7f8c8d;",
+            shiny::p(style = "font-size:12px;color:#5f6b7a;",
               shiny::icon("info-circle"),
               shiny::HTML(" Dans R, vous pouvez aussi exécuter <code>citation(\"HStat\")</code> pour obtenir la citation officielle du package."))
           )

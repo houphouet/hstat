@@ -447,7 +447,7 @@ hstat_ai_reglages_ui <- function(ns, engine, prefixe = "") {
       shiny::tagList(
         shiny::passwordInput(id("key"), trf("Clé d'API - %s", f$label),
                              placeholder = trf("laisser vide pour utiliser %s", f$cle_env)),
-        shiny::tags$small(style = "color:#7f8c8d;display:block;margin-top:-8px;",
+        shiny::tags$small(style = "color:#5f6b7a;display:block;margin-top:-8px;",
           shiny::icon("key"), " ",
           trf("Clé à créer sur %s. Service payant, en ligne.",
               f$cle_url %||% tr("le site du fournisseur")))),

@@ -28,7 +28,7 @@ body.hstat-light {
   --panel:     #fbfcfe;
   --ink:       #161a20;
   --ink2:      #586273;
-  --ink3:      #8a93a3;
+  --ink3:      #5f6b7a;
   --line:      #e7eaf0;
   --line2:     #d4dae2;
   --accent:    #2f6bd4;
@@ -38,10 +38,10 @@ body.hstat-light {
   --quanti-soft: #eaf1fc;
   --quali:     #a76512;
   --quali-soft: #f6efe6;
-  --mixte:     #1d8a5d;
+  --mixte:     #17774f;
   --mixte-soft: #e6f3ed;
   --stripe:    #eef1f6;
-  --ok:        #1d8a5d;
+  --ok:        #17774f;
   --warn:      #a76512;
   --danger:    #c0392b;
   --accent-dark: #2556ab;
@@ -60,7 +60,7 @@ body.hstat-dark {
   --panel:     #1b212b;
   --ink:       #e8ecf2;
   --ink2:      #9aa5b3;
-  --ink3:      #69727f;
+  --ink3:      #8d97a5;
   --line:      #262e39;
   --line2:     #353e4b;
   --accent:    #4d86e8;
@@ -93,16 +93,16 @@ h1,h2,h3,h4,h5 { font-family: var(--sans); letter-spacing: -0.01em; color: var(-
 .text-muted, small { color: var(--ink3); }
 
 /* ===================== EN-TÊTE (top bar) — BLEU d'origine ===================== */
-.skin-blue .main-header .navbar { background: #3c8dbc !important; border-bottom: none; }
+.skin-blue .main-header .navbar { background: #28699a !important; border-bottom: none; }
 .skin-blue .main-header .logo {
-  background: #357ca5 !important;
+  background: #225a85 !important;
   color: #ffffff !important;
   border-bottom: none;
   border-right: none;
   font-family: var(--sans);
   font-weight: 600;
 }
-.skin-blue .main-header .logo:hover { background: #2f6f93 !important; }
+.skin-blue .main-header .logo:hover { background: #1d4f75 !important; }
 .skin-blue .main-header .navbar .sidebar-toggle { color: #ffffff !important; }
 .skin-blue .main-header .navbar .sidebar-toggle:hover { background: rgba(0,0,0,.1) !important; color: #fff !important; }
 .main-header .navbar-custom-menu .navbar-nav > li > a { color: #ffffff !important; }
@@ -118,7 +118,7 @@ h1,h2,h3,h4,h5 { font-family: var(--sans); letter-spacing: -0.01em; color: var(-
 .skin-blue .main-sidebar { border-right: none; }
 .skin-blue .sidebar-menu > li.header {
   background: #1a2226 !important;
-  color: #4b646f !important;
+  color: #8aa4af !important;
   font-size: 14.5px; font-weight: 700; letter-spacing: 0.02em; text-transform: uppercase;
   padding: 16px 16px 7px;
   /* AdminLTE pose white-space:nowrap + overflow:hidden : un titre plus large
@@ -164,25 +164,25 @@ h1,h2,h3,h4,h5 { font-family: var(--sans); letter-spacing: -0.01em; color: var(-
 /* En-têtes colorés des box selon le statut -> COULEURS ADMINLTE D'ORIGINE.
    On colore aussi bien les solidHeader (.box-solid) que la barre superieure des
    box non-solid (border-top epais facon AdminLTE). */
-.box.box-primary { border-top: 3px solid #3c8dbc; }
-.box.box-info    { border-top: 3px solid #00c0ef; }
-.box.box-success { border-top: 3px solid #00a65a; }
-.box.box-warning { border-top: 3px solid #f39c12; }
-.box.box-danger  { border-top: 3px solid #dd4b39; }
-.box.box-solid.box-primary > .box-header { background: #3c8dbc !important; color: #fff !important; }
-.box.box-solid.box-info    > .box-header { background: #00c0ef !important; color: #fff !important; }
-.box.box-solid.box-success > .box-header { background: #00a65a !important; color: #fff !important; }
-.box.box-solid.box-warning > .box-header { background: #f39c12 !important; color: #fff !important; }
-.box.box-solid.box-danger  > .box-header { background: #dd4b39 !important; color: #fff !important; }
+.box.box-primary { border-top: 3px solid #2b6f99; }
+.box.box-info    { border-top: 3px solid #0278a8; }
+.box.box-success { border-top: 3px solid #007f46; }
+.box.box-warning { border-top: 3px solid #a95600; }
+.box.box-danger  { border-top: 3px solid #c0392b; }
+.box.box-solid.box-primary > .box-header { background: #2b6f99 !important; color: #fff !important; }
+.box.box-solid.box-info    > .box-header { background: #0278a8 !important; color: #fff !important; }
+.box.box-solid.box-success > .box-header { background: #007f46 !important; color: #fff !important; }
+.box.box-solid.box-warning > .box-header { background: #a95600 !important; color: #fff !important; }
+.box.box-solid.box-danger  > .box-header { background: #c0392b !important; color: #fff !important; }
 .box.box-solid > .box-header,
 .box.box-solid > .box-header > .fa, .box.box-solid > .box-header > .fas,
 .box.box-solid > .box-header .box-title,
 .box.box-solid > .box-header a { color: #fff !important; }
-.box.box-solid.box-primary { border-top-color: #3c8dbc; }
-.box.box-solid.box-info    { border-top-color: #00c0ef; }
-.box.box-solid.box-success { border-top-color: #00a65a; }
-.box.box-solid.box-warning { border-top-color: #f39c12; }
-.box.box-solid.box-danger  { border-top-color: #dd4b39; }
+.box.box-solid.box-primary { border-top-color: #2b6f99; }
+.box.box-solid.box-info    { border-top-color: #0278a8; }
+.box.box-solid.box-success { border-top-color: #007f46; }
+.box.box-solid.box-warning { border-top-color: #a95600; }
+.box.box-solid.box-danger  { border-top-color: #c0392b; }
 
 /* Box "background=yellow" (bandeau titre des modules) -> orange d'origine */
 .box.bg-yellow, .bg-yellow {
@@ -431,7 +431,7 @@ a { color: var(--accent); }
 /* Couleurs des groupes du catalogue (quanti/quali/mixte, comme la maquette) */
 .mv-cat-group.mv-grp-quanti { color: #2f6bd4; }
 .mv-cat-group.mv-grp-quali  { color: #a76512; }
-.mv-cat-group.mv-grp-mixte  { color: #1d8a5d; }
+.mv-cat-group.mv-grp-mixte  { color: #17774f; }
 
 /* ===================== OUTILS DU BANDEAU (graine, aide, reset) ===================== */
 /* Les <li> custom de la navbar sont centres verticalement sur la hauteur du header
@@ -440,23 +440,23 @@ a { color: var(--accent); }
 .hstat-header-tools { display: flex; align-items: center; gap: 8px; padding: 0 6px; height: 50px; }
 .hstat-header-tools .hstat-seed { display: inline-flex; align-items: center; gap: 6px; margin-right: 4px; }
 .hstat-header-tools .hstat-seed label {
-  margin: 0; color: rgba(255,255,255,.9); font-size: 10px; font-weight: 700;
+  margin: 0; color: #ffffff; font-size: 10px; font-weight: 700;
   letter-spacing: 0.08em; text-transform: uppercase;
 }
 .hstat-header-tools .hstat-seed .form-group { margin: 0; }
 .hstat-header-tools .hstat-seed .form-control {
   height: 32px; padding: 2px 8px; border-radius: 6px; font-size: 13px;
-  background: rgba(255,255,255,.18); color: #fff; border: 1px solid rgba(255,255,255,.3);
+  background: rgba(255,255,255,.1); color: #fff; border: 1px solid rgba(255,255,255,.45);
   text-align: center;
 }
 .hstat-header-tools .hstat-hdr-btn {
   height: 32px; padding: 4px 14px; margin: 0; border-radius: 6px; font-size: 12.5px;
-  background: rgba(255,255,255,.16); color: #fff; border: 1px solid rgba(255,255,255,.28);
+  background: rgba(255,255,255,.1); color: #fff; border: 1px solid rgba(255,255,255,.45);
   font-weight: 500; display: inline-flex; align-items: center; gap: 5px;
 }
 .hstat-header-tools .hstat-hdr-btn:hover { background: rgba(255,255,255,.28); color: #fff; }
-.hstat-header-tools .hstat-hdr-btn-warn { background: rgba(243,156,18,.95); border-color: transparent; }
-.hstat-header-tools .hstat-hdr-btn-warn:hover { background: #e08e0b; }
+.hstat-header-tools .hstat-hdr-btn-warn { background: #a95600; border-color: transparent; }
+.hstat-header-tools .hstat-hdr-btn-warn:hover { background: #8f4900; }
 /* La bascule de theme : meme hauteur, sans marge superieure parasite */
 .main-header .navbar .nav > li > .hstat-theme-toggle { margin: 0 8px; }
 @media (max-width: 980px){
@@ -714,9 +714,9 @@ table.dataTable.hstat-fixedcols td { vertical-align: middle; }
   font-size: 15px; line-height: 1; transition: transform .2s;
 }
 .skin-blue .sidebar-menu > li.header[data-hstat-repli].hstat-ouvert::after { transform: rotate(90deg); }
-.skin-blue .sidebar-menu > li.header[data-hstat-repli]:hover,
-.skin-blue .sidebar-menu > li.header[data-hstat-repli]:focus-visible { color: #b8c7ce !important; outline: none; }
-.skin-blue .sidebar-menu > li.header[data-hstat-repli].hstat-epingle { color: #8aa4af !important; }
+.skin-blue .sidebar-menu > li.header[data-hstat-repli] .hstat-repli-btn:focus-visible { color: #e0e8ec; }
+.skin-blue .sidebar-menu > li.header[data-hstat-repli]:hover { color: #e0e8ec !important; }
+.skin-blue .sidebar-menu > li.header[data-hstat-repli].hstat-epingle { color: #b8c7ce !important; }
 
 /* ===================================================================
    MESSAGE D'UN WIDGET EN ERREUR (DT, plotly...)
@@ -731,3 +731,45 @@ table.dataTable.hstat-fixedcols td { vertical-align: middle; }
   max-width: 100% !important;
   margin: 6px 0;
 }
+
+/* ===================== ACCESSIBILITÉ =====================
+   Contrastes WCAG AA (4,5:1) sur les en-têtes de boîte, les curseurs et les
+   aides ; focus clavier toujours visible ; lien d'évitement ; retour en haut ;
+   mouvement réduit si le système le demande (hstat-a11y.js). */
+:focus-visible { outline: 3px solid #2f6bd4; outline-offset: 2px; }
+.skin-blue .sidebar-menu a:focus-visible,
+.skin-blue .sidebar-menu .hstat-repli-btn:focus-visible { outline: 3px solid #8ab4ff; outline-offset: -3px; }
+.main-header :focus-visible { outline: 3px solid #ffffff; outline-offset: 2px; }
+.content-wrapper:focus { outline: none; }
+.hstat-evitement {
+  position: absolute; left: 8px; top: -60px; z-index: 10000;
+  background: #161a20; color: #fff !important; padding: 10px 16px; border-radius: 6px;
+  font-weight: 600; text-decoration: none; transition: top .15s;
+}
+.hstat-evitement:focus { top: 8px; }
+.hstat-haut {
+  position: fixed; right: 18px; bottom: 18px; z-index: 1030;
+  width: 44px; height: 44px; border-radius: 50%; border: none;
+  background: #28699a; color: #fff; box-shadow: var(--shadow2);
+  opacity: 0; visibility: hidden; transition: opacity .2s, visibility .2s;
+}
+.hstat-haut.hstat-visible { opacity: .92; visibility: visible; }
+.hstat-haut:hover { opacity: 1; background: #225a85; }
+.irs--shiny .irs-bar, .irs-bar { background: #2a6496 !important; border-color: #2a6496 !important; }
+.irs--shiny .irs-single, .irs--shiny .irs-from, .irs--shiny .irs-to,
+.irs-single, .irs-from, .irs-to { background: #2a6496 !important; }
+.help-block { color: #5b6676; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important;
+                           transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}
+/* Encadrés et fonds pleins d'AdminLTE : texte blanc lisible (WCAG AA). */
+.callout.callout-info    { background-color: #0278a8 !important; border-color: #015b80 !important; }
+.callout.callout-success { background-color: #007f46 !important; border-color: #005f34 !important; }
+.callout.callout-warning { background-color: #a95600 !important; border-color: #7f4100 !important; }
+.callout.callout-danger  { background-color: #c0392b !important; border-color: #962d22 !important; }
+.bg-light-blue, .bg-primary { background-color: #2b6f99 !important; }
+.bg-aqua                 { background-color: #0278a8 !important; }
+.bg-green                { background-color: #007f46 !important; }
+.bg-yellow, .bg-orange   { background-color: #a95600 !important; }
+.bg-red                  { background-color: #c0392b !important; }

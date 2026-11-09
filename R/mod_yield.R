@@ -42,11 +42,11 @@ mod_yield_ui <- function(id) {
                        selected = "fichier"),
           shiny::conditionalPanel(
             ns = ns, condition = "input.yieldSource == 'saisie'",
-            shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
+            shiny::tags$small(style = "color:#5f6b7a;font-style:italic;",
                        "Le tableau se remplit dans l'onglet « Saisie ». Le fichier chargé, lui, reste intact.")),
           shiny::conditionalPanel(
             ns = ns, condition = "input.yieldSource == 'rendement'",
-            shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
+            shiny::tags$small(style = "color:#5f6b7a;font-style:italic;",
                        "Le rendement est lu tel quel : ni masse ni surface ne sont demandées. Déclarez son unité ci-dessous.")),
           shiny::uiOutput(ns("yieldSourceNote"))
         ),
@@ -70,7 +70,7 @@ mod_yield_ui <- function(id) {
             shiny::uiOutput(ns("yieldMasseUI")),
             shiny::uiOutput(ns("yieldSurfaceUI"))),
           shiny::uiOutput(ns("yieldRepetitionUI")),
-          shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
+          shiny::tags$small(style = "color:#5f6b7a;font-style:italic;",
                      "La répétition est facultative : elle ne change aucun chiffre, elle documente le plan.")
         ),
 
@@ -82,7 +82,7 @@ mod_yield_ui <- function(id) {
                       choices = names(HSTAT_RDT_MASSE), selected = "kilogramme (kg)"),
           shiny::selectInput(ns("yieldUniteSurface"), "Unité de la surface",
                       choices = names(HSTAT_RDT_SURFACE), selected = "hectare (ha)"),
-          shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
+          shiny::tags$small(style = "color:#5f6b7a;font-style:italic;",
                      "Le calcul part de n'importe quelle unité : elle est ramenée au kilogramme et au mètre carré avant d'être exprimée dans l'unité voulue.")
         )),
 
@@ -105,14 +105,14 @@ mod_yield_ui <- function(id) {
                         choices = names(HSTAT_RDT_MASSE), selected = "tonne (1000 kg)"),
             shiny::selectInput(ns("yieldConvSurface"), "Par unité de surface",
                         choices = names(HSTAT_RDT_SURFACE), selected = "hectare (ha)"),
-            shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
+            shiny::tags$small(style = "color:#5f6b7a;font-style:italic;",
                        "Les deux valeurs figurent dans les résultats : la colonne convertie se pose juste après son originale."))
         ),
 
         .hstat_opt_section(
           "Programme non traité", "seedling", "#c0392b", "#fdeeec",
           shiny::uiOutput(ns("yieldTemoinUI")),
-          shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
+          shiny::tags$small(style = "color:#5f6b7a;font-style:italic;",
                      "C'est la référence du gain : toutes les autres modalités lui sont comparées.")
         ),
 
@@ -120,7 +120,7 @@ mod_yield_ui <- function(id) {
         .hstat_opt_section(
           "Pertes de récolte", "arrow-trend-down", "#8e44ad", "#f4ecf7",
           shiny::uiOutput(ns("yieldRefPerteUI")),
-          shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
+          shiny::tags$small(style = "color:#5f6b7a;font-style:italic;",
                      "Chaque modalité est comparée à ces références. Un essai phytosanitaire en compte souvent deux : la protection poussée et la protection vulgarisée."),
           shiny::hr(style = "margin:10px 0;"),
           # DEUX FACONS DE TENIR COMPTE DES REPETITIONS, DEUX QUESTIONS -- le
@@ -129,7 +129,7 @@ mod_yield_ui <- function(id) {
             choices = c("En commun — une perte par modalité" = "cumul",
                         "Par répétition — une perte dans chaque bloc" = "par_repetition"),
             selected = "cumul"),
-          shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
+          shiny::tags$small(style = "color:#5f6b7a;font-style:italic;",
                      "« Par répétition » compare chaque modalité à la référence du même bloc, ce qui retire l'effet du bloc. Déclarez la variable de répétition ci-dessus.")
         ),
 
@@ -140,7 +140,7 @@ mod_yield_ui <- function(id) {
             ns = ns, condition = "input.yieldRound == true",
             shiny::numericInput(ns("yieldDecimals"), "Nombre de décimales :",
                          value = 2, min = 0, max = 8, step = 1)),
-          shiny::helpText(style = "font-size:11px;color:#7f8c8d;",
+          shiny::helpText(style = "font-size:11px;color:#5f6b7a;",
                    "Si décoché, les valeurs s'affichent sans arrondi.")
         )
       ),
@@ -243,7 +243,7 @@ mod_yield_ui <- function(id) {
         title = shiny::tagList(shiny::icon("sliders-h"), " Options du graphique"),
         status = "primary", width = 12, solidHeader = TRUE,
         collapsible = TRUE, collapsed = FALSE,
-        shiny::div(style = "font-size:12px;color:#7f8c8d;margin-bottom:12px;",
+        shiny::div(style = "font-size:12px;color:#5f6b7a;margin-bottom:12px;",
             shiny::icon("info-circle"),
             " Toute la mise en forme du graphique des rendements, de la palette à l'export."),
 
@@ -356,7 +356,7 @@ mod_yield_ui <- function(id) {
                                         "Au bout, à l'intérieur" = "dedans",
                                         "Au pied de la barre" = "pied"),
                             selected = "dessus"),
-                shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
+                shiny::tags$small(style = "color:#5f6b7a;font-style:italic;",
                            "Un gain négatif descend sous l'axe : la position suit le signe.")
               )
             )
@@ -393,7 +393,7 @@ mod_yield_ui <- function(id) {
               # UNE VALEUR NEGATIVE SE LIT PAR RAPPORT A ZERO.
               shiny::selectInput(ns("yieldZeroMode"), "Ligne du zéro",
                           choices = HSTAT_AXE_ZERO, selected = "reference"),
-              shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
+              shiny::tags$small(style = "color:#5f6b7a;font-style:italic;",
                          "Posé sur le zéro, le trait de l'axe X quitte le bas du cadre pour la ligne y = 0, où les barres prennent appui ; l'axe Y, lui, garde toute la hauteur pour porter l'échelle. Les deux se rejoignent à l'origine."),
               shiny::checkboxInput(ns("yieldErreurs"), "Barres d'erreur supérieures (rendement moyen)", value = TRUE),
               shiny::conditionalPanel(
@@ -405,7 +405,7 @@ mod_yield_ui <- function(id) {
             ),
             hstat_plot_extras_ui(ns, "yield"),
             .hstat_opt_section(
-              "Légende", "list", "#7f8c8d", "#f4f6f7",
+              "Légende", "list", "#5f6b7a", "#f4f6f7",
               shiny::selectInput(ns("yieldLegendePos"), "Position",
                           choices = list("Droite" = "right", "Gauche" = "left",
                                          "En haut" = "top", "En bas" = "bottom",
@@ -430,7 +430,7 @@ mod_yield_ui <- function(id) {
               # document remis.
               hstat_dpi_input(ns("yieldExportDPI"), "Résolution (DPI)",
                               valeur = 300, min = 300, step = 100),
-              shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
+              shiny::tags$small(style = "color:#5f6b7a;font-style:italic;",
                          "Les pixels fixent la mise en page (lue à 96 ppp) ; le DPI multiplie la finesse.")
             )
           )
@@ -737,7 +737,7 @@ mod_yield_server <- function(id, values) {
       carte <- function(titre, valeur, couleur) {
         shiny::column(4, shiny::div(
           style = sprintf("background:%s22;border-left:4px solid %s;border-radius:6px;padding:10px 14px;margin-bottom:12px;", couleur, couleur),
-          shiny::div(style = "font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:#7f8c8d;", titre),
+          shiny::div(style = "font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:#5f6b7a;", titre),
           shiny::div(style = sprintf("font-size:20px;font-weight:700;color:%s;", couleur), valeur)))
       }
       dec <- hstat_dec_affichage(input$yieldRound, input$yieldDecimals)
@@ -1007,7 +1007,7 @@ mod_yield_server <- function(id, values) {
       # l'ATTEINDRE.
       if (relatif)
         p <- p + ggplot2::geom_hline(yintercept = 100, linetype = "dashed",
-                                     colour = "#7f8c8d", linewidth = 0.5) +
+                                     colour = "#5f6b7a", linewidth = 0.5) +
                  ggplot2::expand_limits(y = 100)
 
       if (isTRUE(input$yieldValeurs)) {
@@ -1159,7 +1159,7 @@ mod_yield_server <- function(id, values) {
       else if (neg)
         lignes <- c(lignes, tr("Les valeurs négatives sont représentées telles quelles, sous la ligne de zéro : les masquer ou les ramener à zéro cacherait précisément ce qu'il faut voir."))
       if (!length(lignes)) return(NULL)
-      shiny::div(style = "font-size:12px;color:#7f8c8d;margin-bottom:10px;",
+      shiny::div(style = "font-size:12px;color:#5f6b7a;margin-bottom:10px;",
           lapply(lignes, function(t)
             shiny::div(shiny::icon("circle-info"), " ", t)))
     })

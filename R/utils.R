@@ -786,7 +786,7 @@ HSTAT_PLOTLY_POINTS_MAX <- 20000L
   b$x$layout$annotations <- c(b$x$layout$annotations, list(list(
     text = hstat_html_escape(note), showarrow = FALSE, xref = "paper",
     yref = "paper", x = 0, y = 1, xanchor = "left", yanchor = "bottom",
-    font = list(size = 11, color = "#7f8c8d"))))
+    font = list(size = 11, color = "#5f6b7a"))))
   attr(b, "hstat_allege") <- c(garde = garde, total = total)
   b
 }
@@ -2218,14 +2218,40 @@ HSTAT_OPT_TEINTES <- list(
   .hstat_opt_section(titre, icone, tc[1], tc[2], ...)
 }
 
+# Contraste WCAG entre deux couleurs hexadecimales (1 a 21).
+hstat_contraste <- function(a, b) {
+  lum <- function(h) {
+    v <- grDevices::col2rgb(h)[, 1] / 255
+    v <- ifelse(v <= 0.03928, v / 12.92, ((v + 0.055) / 1.055)^2.4)
+    sum(c(0.2126, 0.7152, 0.0722) * v)
+  }
+  l <- sort(c(lum(a), lum(b)), decreasing = TRUE)
+  (l[1] + 0.05) / (l[2] + 0.05)
+}
+
+# Une couleur de texte assombrie juste assez pour se lire sur son fond (WCAG AA,
+# 4,5:1). La teinte est gardee : seule la luminosite descend, par pas de 5 %.
+hstat_couleur_lisible <- function(couleur, fond = "#ffffff", ratio = 4.5) {
+  ok <- tryCatch({ grDevices::col2rgb(couleur); grDevices::col2rgb(fond); TRUE },
+                 error = function(e) FALSE)
+  if (!ok) return(couleur)
+  v <- grDevices::col2rgb(couleur)[, 1]
+  for (k in 0:20) {
+    c2 <- grDevices::rgb(t(round(v * (1 - k * 0.05))), maxColorValue = 255)
+    if (hstat_contraste(c2, fond) >= ratio) return(tolower(c2))
+  }
+  "#000000"
+}
+
+# Le titre est un h4 : il suit le h3 de la boite, sans sauter de niveau.
 .hstat_opt_section <- function(titre, icone, couleur, fond, ...) {
   shiny::div(
     style = sprintf(paste0("background:%s;border-left:4px solid %s;border-radius:6px;",
                            "padding:14px 16px;margin-bottom:14px;"), fond, couleur),
-    shiny::h6(shiny::icon(icone), " ", titre,
+    shiny::h4(shiny::icon(icone), " ", titre,
               style = sprintf(paste0("font-weight:700;color:%s;margin:0 0 12px 0;",
                                      "text-transform:uppercase;letter-spacing:.4px;font-size:12px;"),
-                              couleur)),
+                              hstat_couleur_lisible(couleur, fond))),
     ...)
 }
 
@@ -2375,7 +2401,7 @@ hstat_plot_extras_ui <- function(ns, prefix,
                                              value = 5, min = 0, step = 1)),
         shiny::column(6, shiny::numericInput(id("MargeDroite"), "Marge droite (pt)",
                                              value = 5, min = 0, step = 1))),
-      shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
+      shiny::tags$small(style = "color:#5f6b7a;font-style:italic;",
                         "Les marges se comptent en points, comme les tailles de texte.")))
 
   do.call(.hstat_opt_section,
@@ -2576,7 +2602,7 @@ HSTAT_AXE_ZERO <- c("Aucune ligne au zéro"                = "aucune",
 # 3. L'EXPANSION DU BAS DISPARAIT QUAND RIEN N'EST NEGATIF.
 hstat_axe_zero <- function(mode = "reference", negatifs = FALSE,
                            couleur = "#000000", epaisseur = 1,
-                           couleur_ref = "#7f8c8d") {
+                           couleur_ref = "#5f6b7a") {
   mode <- as.character(mode %||% "reference")[1]
   if (!isTRUE(mode %in% HSTAT_AXE_ZERO)) mode <- "reference"
   res <- list(mode = mode, couches = list(), expand = ggplot2::waiver())

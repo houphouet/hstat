@@ -2666,8 +2666,8 @@ mod_dl50_ui <- function(id) {
             status = "primary", width = 4, solidHeader = TRUE,
             shiny::radioButtons(ns("source"), "Source des données",
               choiceNames = list(
-                shiny::HTML("<b>Saisie directe</b> <small style='color:#7f8c8d;'>(doses, effectifs, morts)</small>"),
-                shiny::HTML("<b>Jeu de données chargé</b> <small style='color:#7f8c8d;'>(CSV, Excel, SPSS…)</small>")),
+                shiny::HTML("<b>Saisie directe</b> <small style='color:#5f6b7a;'>(doses, effectifs, morts)</small>"),
+                shiny::HTML("<b>Jeu de données chargé</b> <small style='color:#5f6b7a;'>(CSV, Excel, SPSS…)</small>")),
               choiceValues = list("manual", "dataset"), selected = "manual"),
 
             # CE QU'IL FAUT POUR CALCULER, dit avant de saisir plutot qu'en

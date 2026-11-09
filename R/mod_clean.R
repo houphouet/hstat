@@ -99,7 +99,7 @@ mod_clean_ui <- function(id) {
                       shiny::div(
                         style = "background-color: #e3f2fd; padding: 15px; border-radius: 5px;",
                         shiny::h5(shiny::icon("i-cursor"), "Renommer une Variable", style = "color: #1565c0; margin-top: 0;"),
-                        shiny::tags$p(style = "font-size: 12px; color: #7f8c8d;",
+                        shiny::tags$p(style = "font-size: 12px; color: #5f6b7a;",
                                "Modifiez le nom d'une colonne. Le nouveau nom doit être unique et non vide."),
                         shiny::uiOutput(ns("renameVarUI")),
                         shiny::textInput(ns("renameVarNew"), "Nouveau nom :", placeholder = "ex : Age_années"),
@@ -150,7 +150,7 @@ mod_clean_ui <- function(id) {
                             # Le contenu d'un <code> n'est jamais traduit par le
                             # navigateur : les exemples de syntaxe resteraient en
                             # francais. Le bloc entier passe donc par tr().
-                            shiny::tags$p(style = "font-size: 11px; color: #7f8c8d; margin-bottom: 8px;",
+                            shiny::tags$p(style = "font-size: 11px; color: #5f6b7a; margin-bottom: 8px;",
                                    shiny::HTML(tr(paste0("Formats : <code>1,3,5</code> -- ",
                                                          "<code>10 à 20</code> -- ",
                                                          "<code>1,3,10 à 15</code>")))),
@@ -191,8 +191,8 @@ mod_clean_ui <- function(id) {
                       shiny::br(),
                       shiny::div(
                         style = "background-color: #e8f5e9; padding: 15px; border-radius: 5px;",
-                        shiny::h5(shiny::icon("plus-circle"), "Ajouter une Variable Constante", style = "color: #27ae60; margin-top: 0;"),
-                        shiny::tags$p(style = "font-size: 12px; color: #7f8c8d;",
+                        shiny::h5(shiny::icon("plus-circle"), "Ajouter une Variable Constante", style = "color: #1e8449; margin-top: 0;"),
+                        shiny::tags$p(style = "font-size: 12px; color: #5f6b7a;",
                                "Crée une nouvelle colonne avec une valeur identique pour toutes les lignes"),
                         shiny::textInput(ns("newVarName"), "Nom :", placeholder = "ex: Catégorie"),
                         shiny::numericInput(ns("newVarValue"), "Valeur par défaut :", 0),
@@ -224,7 +224,7 @@ mod_clean_ui <- function(id) {
                     style = "background-color: #f8f9fa; padding: 15px; border-radius: 5px;",
                     
                     shiny::h5(shiny::icon("info-circle"), "Assistant de Formule", style = "color: #3498db; margin-top: 0;"),
-                    shiny::p(style = "font-size: 12px; color: #7f8c8d;", 
+                    shiny::p(style = "font-size: 12px; color: #5f6b7a;", 
                       "Créez des variables basées sur des calculs. Exemple : (Var1 + Var2) / 2"),
                     
                     shiny::textInput(ns("calcVarName"), 
@@ -385,7 +385,7 @@ mod_clean_ui <- function(id) {
                   ),
                   
                   footer = shiny::div(
-                    style = "font-size: 12px; color: #7f8c8d;",
+                    style = "font-size: 12px; color: #5f6b7a;",
                     shiny::icon("lightbulb"), 
                     " Astuce : Cliquez sur une colonne pour l'insérer dans la formule"
                   )
@@ -421,7 +421,7 @@ mod_clean_ui <- function(id) {
                                "Afficher les numéros de lignes des valeurs manquantes", value = FALSE),
                              shiny::conditionalPanel(ns = ns,
                                condition = "input.naShowLignes",
-                               shiny::tags$small(style = "color:#7f8c8d;", shiny::icon("info-circle"),
+                               shiny::tags$small(style = "color:#5f6b7a;", shiny::icon("info-circle"),
                                  " Numéros tels qu'affichés dans l'aperçu des données nettoyées : ils restent ceux du fichier d'origine après une suppression de lignes."),
                                DT::DTOutput(ns("naLignesTable"))),
                              shiny::div(style = "margin: 10px 0; padding: 10px; background-color: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px;",
@@ -479,10 +479,10 @@ mod_clean_ui <- function(id) {
                                  shiny::tags$tr(
                                    shiny::tags$td(shiny::tags$b(HSTAT_NA_METHODES$nom[i]),
                                                   shiny::tags$br(),
-                                                  shiny::tags$small(style = "color:#7f8c8d;", HSTAT_NA_METHODES$usage[i])),
+                                                  shiny::tags$small(style = "color:#5f6b7a;", HSTAT_NA_METHODES$usage[i])),
                                    shiny::tags$td(style = "white-space: nowrap; font-weight: 600;",
                                                   HSTAT_NA_METHODES$seuil[i]))))),
-                             shiny::tags$p(style = "font-size: 11px; color: #7f8c8d; margin: 0;",
+                             shiny::tags$p(style = "font-size: 11px; color: #5f6b7a; margin: 0;",
                                "Seuil = part de valeurs manquantes de la variable la plus incomplète. Au-delà de 30 %, aucune méthode n'est sûre : envisagez de retirer la variable."),
                              shiny::hr(),
                              shiny::actionButton(ns("applyNA"), 
@@ -511,7 +511,7 @@ mod_clean_ui <- function(id) {
                     shiny::column(6,
                       shiny::div(style = "background-color:#e8f6f3;padding:15px;border-radius:5px;",
                         shiny::uiOutput(ns("outlierVarSelect")),
-                        shiny::h5(shiny::icon("search"), " Méthode de détection", style = "color:#16a085;margin-top:15px;"),
+                        shiny::h5(shiny::icon("search"), " Méthode de détection", style = "color:#117864;margin-top:15px;"),
                         shiny::radioButtons(ns("outlierMethod"), NULL,
                           choices = c(
                             "Écart interquartile (IQR, k x 1,5)" = "iqr",
@@ -525,7 +525,7 @@ mod_clean_ui <- function(id) {
                           condition = "input.outlierMethod == 'zscore' || input.outlierMethod == 'mad'",
                           shiny::numericInput(ns("outlierZThresh"), "Seuil (|z|) :", value = 3, min = 1, max = 6, step = 0.5)),
                         shiny::hr(),
-                        shiny::h5(shiny::icon("compress-arrows-alt"), " Traitement", style = "color:#16a085;"),
+                        shiny::h5(shiny::icon("compress-arrows-alt"), " Traitement", style = "color:#117864;"),
                         shiny::radioButtons(ns("outlierAction"), NULL,
                           choices = c(
                             "Seulement détecter (aucune modification)" = "detect",
@@ -546,7 +546,7 @@ mod_clean_ui <- function(id) {
                     ),
                     shiny::column(6,
                       shiny::div(style = "background-color:#fff;padding:15px;border-radius:5px;border:2px solid #16a085;",
-                        shiny::h5(shiny::icon("info-circle"), " Résumé de détection", style="color:#16a085;margin-top:0;"),
+                        shiny::h5(shiny::icon("info-circle"), " Résumé de détection", style="color:#117864;margin-top:0;"),
                         shiny::uiOutput(ns("outlierSummary")),
                         # Sortie DEDIEE : `renderTable()` appele depuis un
                         # renderUI ne produit qu'un conteneur vide, jamais
@@ -561,7 +561,7 @@ mod_clean_ui <- function(id) {
                           shiny::uiOutput(ns("outlierLignesNote")),
                           DT::DTOutput(ns("outlierLignesTable"))),
                         shiny::hr(),
-                        shiny::tags$ul(style="font-size:12px;color:#7f8c8d;",
+                        shiny::tags$ul(style="font-size:12px;color:#5f6b7a;",
                           shiny::tags$li(shiny::tags$b("IQR"), " : robuste, standard pour distributions asymétriques."),
                           shiny::tags$li(shiny::tags$b("Z"), " : suppose une distribution ~normale."),
                           shiny::tags$li(shiny::tags$b("MAD"), " : version robuste du Z, résiste aux extrêmes."),
@@ -589,9 +589,9 @@ mod_clean_ui <- function(id) {
                         shiny::uiOutput(ns("cutVarSelect")),
                         shiny::radioButtons(ns("cutMethod"), shiny::tagList(shiny::icon("ruler"), " Méthode de découpage"),
                           choiceNames = list(
-                            shiny::HTML("<b>Largeur égale</b> <small style='color:#7f8c8d;'>(intervalles de même amplitude)</small>"),
-                            shiny::HTML("<b>Effectifs égaux</b> <small style='color:#7f8c8d;'>(quantiles)</small>"),
-                            shiny::HTML("<b>Bornes personnalisées</b> <small style='color:#7f8c8d;'>(ex. classes d'âge)</small>")),
+                            shiny::HTML("<b>Largeur égale</b> <small style='color:#5f6b7a;'>(intervalles de même amplitude)</small>"),
+                            shiny::HTML("<b>Effectifs égaux</b> <small style='color:#5f6b7a;'>(quantiles)</small>"),
+                            shiny::HTML("<b>Bornes personnalisées</b> <small style='color:#5f6b7a;'>(ex. classes d'âge)</small>")),
                           choiceValues = list("width", "quantile", "manual"),
                           selected = "manual"),
                         shiny::conditionalPanel(
@@ -602,15 +602,15 @@ mod_clean_ui <- function(id) {
                           shiny::textInput(ns("cutBreaks"), "Bornes (séparées par virgules)",
                                     value = "0, 3, 15, 100",
                                     placeholder = "ex. 0, 3, 15, 100"),
-                          shiny::tags$small(style = "color:#7f8c8d;", shiny::icon("info-circle"),
+                          shiny::tags$small(style = "color:#5f6b7a;", shiny::icon("info-circle"),
                             " n bornes = n-1 classes. Les valeurs hors bornes deviendront NA.")),
                         shiny::radioButtons(ns("cutStyle"), shiny::tagList(shiny::icon("grip-lines-vertical"), " Convention des bornes (étiquettes automatiques)"),
                           choiceNames = list(
-                            shiny::HTML("<b>Standard</b> — <code>[a ; b[</code>, <code>[b ; c[</code>, …, <code>[y ; z]</code> <small style='color:#7f8c8d;'>(dernière fermée des deux côtés)</small>"),
+                            shiny::HTML("<b>Standard</b> — <code>[a ; b[</code>, <code>[b ; c[</code>, …, <code>[y ; z]</code> <small style='color:#5f6b7a;'>(dernière fermée des deux côtés)</small>"),
                             shiny::HTML("<b>Toutes ouvertes à droite</b> — <code>[a ; b[</code>, <code>[b ; c[</code>, …, <code>[y ; z[</code>"),
                             shiny::HTML("<b>Milieu ouvert</b> — <code>[a ; b[</code>, <code>]b ; c[</code>, …, <code>]y ; z]</code>"),
-                            shiny::HTML("<b>Fermées à droite</b> — <code>[a ; b]</code>, <code>]b ; c]</code>, …, <code>]y ; z]</code> <small style='color:#7f8c8d;'>(la borne haute inclut la valeur)</small>"),
-                            shiny::HTML("<b>Toutes fermées</b> — <code>[a ; b]</code>, <code>[b ; c]</code>, …, <code>[y ; z]</code> <small style='color:#7f8c8d;'>(fermées des deux côtés)</small>")),
+                            shiny::HTML("<b>Fermées à droite</b> — <code>[a ; b]</code>, <code>]b ; c]</code>, …, <code>]y ; z]</code> <small style='color:#5f6b7a;'>(la borne haute inclut la valeur)</small>"),
+                            shiny::HTML("<b>Toutes fermées</b> — <code>[a ; b]</code>, <code>[b ; c]</code>, …, <code>[y ; z]</code> <small style='color:#5f6b7a;'>(fermées des deux côtés)</small>")),
                           choiceValues = list("std_last_closed", "all_left_closed", "mixed_open",
                                               "all_right_closed", "all_closed"),
                           selected = "std_last_closed"),
@@ -634,7 +634,7 @@ mod_clean_ui <- function(id) {
                         shiny::uiOutput(ns("cutPreviewMsg")),
                         shiny::tableOutput(ns("cutPreviewTable")),
                         shiny::plotOutput(ns("cutPreviewPlot"), height = "230px"),
-                        shiny::p(style = "font-size:11px;color:#7f8c8d;font-style:italic;margin-top:6px;",
+                        shiny::p(style = "font-size:11px;color:#5f6b7a;font-style:italic;margin-top:6px;",
                           shiny::icon("info-circle"),
                           " La variable créée est un facteur ORDONNÉ : les classes sont directement utilisables dans les analyses ordinales, tris et comparaisons.")
                       )
@@ -659,14 +659,14 @@ mod_clean_ui <- function(id) {
                       shiny::div(style = "background-color:#fdedec;padding:15px;border-radius:5px;",
                         shiny::radioButtons(ns("zeroSeuil"), shiny::tagList(shiny::icon("filter"), " Variables à lister"),
                           choiceNames = list(
-                            shiny::HTML("<b>Entièrement nulles</b> <small style='color:#7f8c8d;'>(toutes les valeurs observées valent 0)</small>"),
-                            shiny::HTML("<b>Quasi nulles</b> <small style='color:#7f8c8d;'>(au moins 90 % de zéros)</small>")),
+                            shiny::HTML("<b>Entièrement nulles</b> <small style='color:#5f6b7a;'>(toutes les valeurs observées valent 0)</small>"),
+                            shiny::HTML("<b>Quasi nulles</b> <small style='color:#5f6b7a;'>(au moins 90 % de zéros)</small>")),
                           choiceValues = list("1", "0.9"), selected = "1"),
                         shiny::uiOutput(ns("zeroVarsResume")),
                         shiny::div(style = "overflow-x:auto;max-width:100%;",
                             shiny::tableOutput(ns("zeroVarsTable"))),
                         shiny::uiOutput(ns("zeroVarsVides")),
-                        shiny::p(style = "font-size:11px;color:#7f8c8d;font-style:italic;margin-top:6px;",
+                        shiny::p(style = "font-size:11px;color:#5f6b7a;font-style:italic;margin-top:6px;",
                           shiny::icon("info-circle"),
                           " Une variable dont toutes les valeurs valent 0 à une variance nulle : ",
                           "aucune corrélation ni test statistique n'est calculable sur elle. ",
@@ -679,10 +679,10 @@ mod_clean_ui <- function(id) {
                         shiny::uiOutput(ns("zeroVarsSelect")),
                         shiny::radioButtons(ns("zeroAction"), shiny::tagList(shiny::icon("sliders-h"), " Que faire ?"),
                           choiceNames = list(
-                            shiny::HTML("<b>Déclarer les 0 manquants</b> <small style='color:#7f8c8d;'>(remplacer par NA)</small>"),
+                            shiny::HTML("<b>Déclarer les 0 manquants</b> <small style='color:#5f6b7a;'>(remplacer par NA)</small>"),
                             shiny::HTML("<b>Remplacer les 0 par une valeur</b>"),
-                            shiny::HTML("<b>Saisir les valeurs une à une</b> <small style='color:#7f8c8d;'>(une seule variable)</small>"),
-                            shiny::HTML("<b>Supprimer les variables</b> <small style='color:#7f8c8d;'>(définitif sur les données de travail)</small>")),
+                            shiny::HTML("<b>Saisir les valeurs une à une</b> <small style='color:#5f6b7a;'>(une seule variable)</small>"),
+                            shiny::HTML("<b>Supprimer les variables</b> <small style='color:#5f6b7a;'>(définitif sur les données de travail)</small>")),
                           choiceValues = list("na", "valeur", "saisie", "supprimer"),
                           selected = "na"),
                         shiny::conditionalPanel(
@@ -740,7 +740,7 @@ mod_clean_ui <- function(id) {
                     ),
                     shiny::column(8,
                       DT::DTOutput(ns("dupTable")),
-                      shiny::p(style = "font-size:11px;color:#7f8c8d;font-style:italic;margin-top:6px;",
+                      shiny::p(style = "font-size:11px;color:#5f6b7a;font-style:italic;margin-top:6px;",
                         shiny::icon("info-circle"),
                         " Double-cliquez une cellule pour la corriger : la modification s'applique aux données de travail. Cliquez des lignes pour les sélectionner avant « Supprimer les lignes sélectionnées ».")
                     )
@@ -766,7 +766,7 @@ mod_clean_ui <- function(id) {
                   ),
                   
                   footer = shiny::div(
-                    style = "font-size: 12px; color: #7f8c8d;",
+                    style = "font-size: 12px; color: #5f6b7a;",
                     shiny::icon("info-circle"),
                     " Vérifiez vos données avant de passer à l'analyse ou à la modélisation"
                   )
@@ -1478,7 +1478,7 @@ mod_clean_server <- function(id, values) {
                       df$Variable[i], pct, seuil_txt),
       "sans_seuil" = trf("Variable la plus incomplète : « %s », %s %% de NA. Cette méthode n'a pas de seuil : elle se justifie par le sens du manquant.",
                          df$Variable[i], pct))
-    couleur <- if (identical(etat, "au-dela")) "#c0392b" else if (identical(etat, "adaptee")) "#1d8a5d" else "#7f8c8d"
+    couleur <- if (identical(etat, "au-dela")) "#c0392b" else if (identical(etat, "adaptee")) "#1d8a5d" else "#5f6b7a"
     shiny::div(style = sprintf("margin-top:6px;font-size:12px;color:%s;", couleur),
                shiny::icon(if (identical(etat, "au-dela")) "exclamation-triangle" else "info-circle"),
                " ", txt)
@@ -1733,7 +1733,7 @@ mod_clean_server <- function(id, values) {
   # colonnes que l'utilisateur ne voit pas.
   output$outlierNote <- shiny::renderUI({
     if (is.null(outlier_report())) return(NULL)
-    shiny::p(style = "font-size:11px;color:#7f8c8d;font-style:italic;margin-top:6px;",
+    shiny::p(style = "font-size:11px;color:#5f6b7a;font-style:italic;margin-top:6px;",
       shiny::icon("info-circle"),
       " Bornes basse/haute = valeurs réelles extrêmes non aberrantes observées dans les données (convention des moustaches du boxplot).")
   })
@@ -1901,7 +1901,7 @@ mod_clean_server <- function(id, values) {
           hstat_btn_aucun(ns("zeroSelectNone"),
                        icon = shiny::icon("eraser"), class = "btn-xs",
                        style = "margin-left:6px;"),
-          shiny::tags$small(style = "color:#7f8c8d;display:block;margin-top:4px;",
+          shiny::tags$small(style = "color:#5f6b7a;display:block;margin-top:4px;",
                      trf("%s variable(s) listée(s).", nrow(z)))))
   })
 
@@ -1945,7 +1945,7 @@ mod_clean_server <- function(id, values) {
       shiny::textAreaInput(ns("zeroSaisie"),
                     trf("Valeurs (%s lignes attendues, une par ligne) :", NROW(d)),
                     value = txt, rows = 10, width = "100%"),
-      shiny::tags$small(style = "color:#7f8c8d;",
+      shiny::tags$small(style = "color:#5f6b7a;",
                  "Une valeur par ligne (ou séparées par des points-virgules). Écrivez NA pour une valeur manquante ; la virgule décimale est acceptée."))
   })
 
