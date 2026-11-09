@@ -1,59 +1,13 @@
-/* ===========================================================================
-   HStat - bascule francais / anglais
-   ---------------------------------------------------------------------------
-   L'application compte ~9 700 chaines destinees a l'utilisateur, reparties sur
-   24 fichiers R. Les envelopper une a une dans un appel de traduction serait un
-   chantier de plusieurs semaines qui toucherait chaque ligne de code.
-   La traduction est donc appliquee AU TEXTE AFFICHE : l'interface construite
-   par UX.R, celle des modules, les notifications et les tableaux rendus passent
-   tous par le meme filtre, sans qu'aucun appel de code soit modifie.
-
-   TROIS PROPRIETES QUI COMPTENT
-
-   1. HORS LIGNE. Le dictionnaire est incorpore dans la page (window.HSTAT_I18N)
-      au moment ou l'interface est construite. Aucune requete, jamais.
-
-   2. DEGRADATION DOUCE. La cle est la chaine FRANCAISE elle-meme : une chaine
-      absente du dictionnaire reste en francais, au lieu d'afficher un
-      identifiant technique. Une traduction incomplete n'abime rien.
-
-   3. REVERSIBLE EXACTEMENT. Le texte francais d'origine est conserve sur le
-      noeud (__hstatFr). Repasser en francais restitue la chaine exacte plutot
-      que de retraduire en sens inverse — une traduction inverse par
-      dictionnaire perdrait les accents et les doublons de sens.
-
-   PRUDENCE SUR LES DONNEES DE L'UTILISATEUR
-   Seules les correspondances EXACTES et completes avec une entree du
-   dictionnaire sont remplacees : un texte libre, un nom de variable ou une
-   valeur de cellule n'est jamais traduit par morceaux. Un element portant
-   l'attribut `data-hstat-notranslate` est ignore, lui et sa descendance.
-   =========================================================================== */
+// HStat - bascule francais / anglais
+// L'application compte ~9 700 chaines destinees a l'utilisateur, reparties sur
+// 24 fichiers R.
 
 (function () {
   "use strict";
 
   var DICT = window.HSTAT_I18N || {};          // francais -> anglais
 
-  /* LA RECHERCHE NE TRAVERSE PAS LA CHAINE DE PROTOTYPES.
-
-     `DICT` sort de JSON.parse : c'est un objet ORDINAIRE, donc porteur
-     d'Object.prototype. `DICT["constructor"]` y rend la fonction Object, qui
-     n'est pas `undefined` -- et le texte de la page etait alors remplace par
-     « function Object() { [native code] } ». Mesure, dictionnaire reduit a
-     {"Rendement": "Yield"} : une colonne nommee `constructor`, `toString`,
-     `valueOf`, `hasOwnProperty` ou `isPrototypeOf` ressortait en code
-     JavaScript, dans un en-tete de tableau comme dans un `placeholder`.
-
-     C'est le defaut que ce depot tient pour le pire : l'application
-     reecrivait les donnees que l'utilisateur etait venu lire. Les deux
-     protections en place ne le couvrent pas -- la liste des termes de donnees
-     est bornee (max_termes 3000, max_modalites 200), et la regle de longueur
-     en cellule ne protege qu'un <td>, jamais un <th> ni un attribut.
-
-     `DICT_HTML` et `TERMES` sont deja des Object.create(null) : eux n'ont
-     jamais eu le defaut. On ne peut pas en faire autant de `DICT`, qui vient
-     du dictionnaire tel que la page ou le fichier le pose -- d'ou la lecture
-     gardee, qui vaut quelle que soit sa provenance. */
+  // LA RECHERCHE NE TRAVERSE PAS LA CHAINE DE PROTOTYPES.
   var aCle = Object.prototype.hasOwnProperty;
   function lire(d, k) { return aCle.call(d, k) ? d[k] : undefined; }
   var dictPret = !!window.HSTAT_I18N;          // deja incorpore ? (repli)
@@ -66,31 +20,9 @@
   var ATTRS = ["placeholder", "title", "aria-label", "alt"];
 
   // LES DONNEES DE L'UTILISATEUR NE SE TRADUISENT PAS.
-  // Une cellule de tableau peut contenir « Oui », « Non », « Total »,
-  // « Normal » — des valeurs de SES donnees qui coincident mot pour mot avec
-  // des libelles d'interface. Traduites, elles alteraient ce que l'utilisateur
-  // lit de son propre fichier : le pire defaut possible pour un outil
-  // statistique. Constate a l'ecran : « Oui » devenait « Yes » dans l'apercu.
-  //
-  // Regle : dans une cellule <td>, on ne traduit qu'au-dela de LONGUEUR_CELLULE
-  // caracteres. Une valeur de donnees n'est presque jamais identique a une
-  // phrase longue, alors qu'une interpretation l'est toujours. Les en-tetes
-  // <th>, eux, restent traduits — ce sont des libelles, pas des donnees.
   var LONGUEUR_CELLULE = 25;
 
   // LES TERMES DU FICHIER DE L'UTILISATEUR NE SE TRADUISENT JAMAIS.
-  // La regle de longueur ci-dessus est une heuristique : elle protege « Oui »
-  // dans une cellule, mais pas un EN-TETE de colonne (un <th> est un libelle,
-  // sauf quand c'est le nom d'une variable du fichier), et un tableau ajoute
-  // demain echapperait a toute annotation posee a la main.
-  //
-  // Le serveur envoie donc la liste des termes qui viennent du fichier -- noms
-  // de colonnes et modalites qualitatives. Rien de ce qui figure dans cette
-  // liste n'est traduit, ou que ce soit dans la page.
-  //
-  // Prix assume : si une colonne s'appelle « Total », le libelle d'interface
-  // « Total » cesse d'etre traduit lui aussi. C'est la degradation douce de la
-  // conception ; alterer une donnee n'en est pas une.
   var TERMES = Object.create(null);
 
   function estDonnee(net) { return TERMES[net] === true; }
@@ -118,9 +50,7 @@
   // UN ATTRIBUT N'EST PAS DU CONTENU. La liste IGNORE protege ce qu'une balise
   // CONTIENT -- le texte tape dans une zone de saisie, un extrait de code --
   // mais le `placeholder` d'un <textarea> est un LIBELLE, pose par
-  // l'application. L'ecarter avec le contenu laissait en francais tous les
-  // exemples de saisie, precisement les zones ou l'exemple est l'aide.
-  // Seule l'exclusion explicite vaut ici.
+  // l'application.
   function ignorableAttr(el) {
     while (el) {
       if (el.nodeType === 1 && el.hasAttribute &&
@@ -130,34 +60,13 @@
     return false;
   }
 
-  // ------------------------------------------- phrases coupees par une balise
-  // LE TRADUCTEUR REMPLACE DES NOEUDS DE TEXTE. Une phrase mise en forme --
-  // « <b>Toutes fermees</b> — <code>[a, b]</code>, … » -- n'existe donc nulle
-  // part comme noeud entier : le DOM la coupe en autant de morceaux qu'il y a
-  // de balises. Les 73 entrees du dictionnaire de cette forme -- les encadres
-  // d'aide, ceux qui portent le plus d'explications -- ne pouvaient JAMAIS
-  // s'appliquer, et restaient en francais quoi qu'on fasse.
-  //
-  // Elles sont donc traitees a part, au niveau de l'ELEMENT qui les porte.
-  //
-  // Traduire plutot chaque morceau serait pire : les morceaux courts (« La »,
-  // « ou », « Lancez ») sont ceux qui ressemblent le plus a une valeur de
-  // donnees, et les ecarter par prudence rendrait une phrase a moitie anglaise.
-  //
-  // LA CLE EST PASSEE PAR L'ANALYSEUR DU NAVIGATEUR avant d'etre comparee :
-  // `innerHTML` est RENORMALISE a la lecture -- guillemets simples devenus
-  // doubles, entites resolues, attributs reordonnes. Comparer la chaine du CSV
-  // telle qu'elle y est ecrite n'aurait presque jamais colle.
+  // phrases coupees par une balise
+  // LE TRADUCTEUR REMPLACE DES NOEUDS DE TEXTE.
   var DICT_HTML = null;                 // innerHTML normalise -> traduction
   var HTML_MAX  = 0;
 
   // Meme normalisation des blancs que pour les noeuds de texte, et pour la
   // meme raison : Shiny ecrit chaque enfant d'une balise sur sa propre ligne.
-  // `div("Un texte ", strong("en gras"), " la suite.")` donne un innerHTML
-  // truffe de retours a la ligne, alors que la cle du CSV est ecrite d'un
-  // trait. Sans cette normalisation, la passe en bloc ne reconnaissait que les
-  // chaines `shiny::HTML("...")` -- inserees verbatim, donc sans blancs
-  // ajoutes -- et laissait tout le contenu MIXTE en francais.
   function blancs(x) { return String(x).replace(/\s+/g, " ").trim(); }
 
   function indexerHtml() {
@@ -186,8 +95,7 @@
         if (el.__hstatFrHtml !== undefined) continue;   // deja remplace
         if (ignorable(el)) continue;
         // Un element sans enfant ELEMENT ne porte qu'un noeud de texte : la
-        // passe suivante s'en charge. Ne pas lire son innerHTML evite de
-        // serialiser chaque cellule d'un grand tableau pour rien.
+        // passe suivante s'en charge.
         if (!el.children || !el.children.length) continue;
         var brut = el.innerHTML;
         if (!brut || brut.length > HTML_MAX * 2 + 64) continue;
@@ -196,16 +104,16 @@
         el.__hstatFrHtml = brut;
         el.innerHTML = cible;
       } else if (el.__hstatFrHtml !== undefined) {
-        // Le retour au francais restitue le balisage d'origine EXACTEMENT :
-        // les noeuds de texte anglais sont remplaces d'un bloc, ils ne portent
-        // donc aucun __hstatFr a defaire.
+        // Le retour au francais restitue le balisage d'origine EXACTEMENT : les
+        // noeuds de texte anglais sont remplaces d'un bloc, ils ne portent donc
+        // aucun __hstatFr a defaire.
         el.innerHTML = el.__hstatFrHtml;
         delete el.__hstatFrHtml;
       }
     }
   }
 
-  // --------------------------------------------------------- noeuds de texte
+  // noeuds de texte
   function traduireTexte(racine) {
     var w = document.createTreeWalker(racine, NodeFilter.SHOW_TEXT, null, false);
     var n, lot = [];
@@ -215,17 +123,6 @@
       if (ignorable(t.parentNode)) continue;
       var brut = t.nodeValue;
       // LES BLANCS INTERNES SONT NORMALISES AVANT LA RECHERCHE.
-      //
-      // Shiny serialise CHAQUE argument d'une balise sur sa propre ligne :
-      // `helpText("...ce qui", " permet de...", " tout dire.")` produit un
-      // seul noeud de texte, mais dont la valeur porte les retours a la ligne
-      // et l'indentation du serialiseur. Aucune cle propre ne pouvait donc
-      // correspondre, et les QUARANTE-NEUF indications sous les controles
-      // restaient en francais quoi qu'on mette au dictionnaire.
-      //
-      // Le navigateur, lui, replie ces blancs a l'affichage : la phrase LUE
-      // est bien « ...ce qui permet de tout dire. ». On cherche donc ce que
-      // l'utilisateur voit, pas ce que le serialiseur a ecrit.
       var net = brut.replace(/\s+/g, " ").trim();
       if (!net) continue;
 
@@ -234,19 +131,13 @@
         var cible = lire(DICT, net);
         if (cible === undefined) continue;
         // Protection des donnees de l'utilisateur, deux barrieres : le terme
-        // vient-il du fichier charge (exact), et la regle de longueur en
-        // cellule (heuristique, pour ce que le serveur n'a pas pu annoncer).
+        // vient-il du fichier charge (exact), et la regle de longueur en cellule
+        // (heuristique, pour ce que le serveur n'a pas pu annoncer).
         if (estDonnee(net)) continue;
         if (net.length <= LONGUEUR_CELLULE && dansCellule(t.parentNode)) continue;
         t.__hstatFr = brut;
         // Les espaces qui ENTOURENT le texte sont conserves : les retirer
         // collerait un libelle a l'icone qui le precede.
-        //
-        // La valeur est RECOMPOSEE, plus remplacee : la chaine cherchee
-        // (blancs normalises) ne figure plus telle quelle dans le noeud, un
-        // `replace` ne trouverait rien. C'est aussi ce qui rend « $& » et
-        // « $\u0060 » litteraux -- une concatenation n'interprete rien, la
-        // ou `String.replace` y voit des references au texte trouve.
         t.nodeValue = brut.match(/^\s*/)[0] + cible + brut.match(/\s*$/)[0];
       } else if (t.__hstatFr !== undefined) {
         t.nodeValue = t.__hstatFr;
@@ -255,7 +146,7 @@
     }
   }
 
-  // ----------------------------------------------------------- attributs
+  // attributs
   function traduireAttributs(racine) {
     var els = racine.querySelectorAll ? racine.querySelectorAll("*") : [];
     for (var i = 0; i < els.length; i++) {
@@ -288,8 +179,8 @@
     enCours = true;
     try {
       // L'ORDRE COMPTE : le remplacement en bloc d'abord. Les noeuds de texte
-      // qu'il installe sont deja anglais, donc invisibles pour la passe
-      // suivante (les cles du dictionnaire sont francaises).
+      // qu'il installe sont deja anglais, donc invisibles pour la passe suivante
+      // (les cles du dictionnaire sont francaises).
       traduireHtml(racine);
       traduireTexte(racine);
       traduireAttributs(racine);
@@ -297,9 +188,8 @@
     enCours = false;
   }
 
-  // ------------------------------------------------- contenu rendu plus tard
+  // contenu rendu plus tard
   // Notifications, tableaux, sorties Shiny : tout arrive apres le chargement.
-  // Sans observateur, seule l'interface initiale serait traduite.
   var enAttente = null;
   function planifier(cible) {
     if (langue !== "en") return;
@@ -315,16 +205,8 @@
     }).observe(document.documentElement, { childList: true, subtree: true });
   }
 
-  // --------------------------------------------------------------- bascule
-  /* LE DICTIONNAIRE SE CHARGE A LA DEMANDE, au premier passage en anglais.
-     Pose en <script src> dans l'en-tete, il partait a CHAQUE premiere visite --
-     166 Ko transferes, 515 Ko decodes, mesures au navigateur -- y compris chez
-     un utilisateur francophone qui ne bascule jamais. Le francais est le
-     defaut : il ne doit rien payer pour une traduction qu'il n'utilisera pas.
-
-     LE REPLI D'INCORPORATION PASSE PAR LE MEME CHEMIN : si la page a deja pose
-     `window.HSTAT_I18N` (ecriture du fichier impossible, banc d'essai), il n'y
-     a rien a aller chercher et la bascule reste synchrone. */
+  // bascule
+  // LE DICTIONNAIRE SE CHARGE A LA DEMANDE, au premier passage en anglais.
   var enAttenteDict = null;
   function chargerDictionnaire(suite) {
     if (dictPret) return suite(true);
@@ -346,9 +228,9 @@
     var s = document.createElement("script");
     s.src = src;
     s.onload  = function () { fin(true); };
-    /* UNE TRADUCTION QUI N'ARRIVE PAS NE DOIT PAS FIGER L'INTERFACE : on reste
-       sur le francais, qui marche, plutot que de laisser la bascule sans effet
-       et sans un mot. */
+    // UNE TRADUCTION QUI N'ARRIVE PAS NE DOIT PAS FIGER L'INTERFACE : on reste
+    // sur le francais, qui marche, plutot que de laisser la bascule sans effet
+    // et sans un mot.
     s.onerror = function () { fin(false); };
     document.head.appendChild(s);
   }
@@ -356,9 +238,8 @@
   function definirLangue(l) {
     l = (l === "en") ? "en" : "fr";
     if (l === langue) return;
-    /* Revenir au francais ne demande AUCUN dictionnaire : le texte d'origine
-       est conserve sur les noeuds (`__hstatFr`). Seul le passage a l'anglais
-       en a besoin, et c'est donc le seul qui attend. */
+    // Revenir au francais ne demande AUCUN dictionnaire : le texte d'origine
+    // est conserve sur les noeuds (`__hstatFr`).
     if (l === "en") { chargerDictionnaire(function () { poserLangue(l); }); return; }
     poserLangue(l);
   }
@@ -369,8 +250,8 @@
     document.documentElement.setAttribute("lang", l);
     marquerSegment(l);
     // Le SERVEUR doit connaitre la langue : les messages d'erreur et les
-    // interpretations sont composes en R, phrase par phrase, et n'existent
-    // donc pas comme chaine entiere dans le dictionnaire du navigateur.
+    // interpretations sont composes en R, phrase par phrase, et n'existent donc
+    // pas comme chaine entiere dans le dictionnaire du navigateur.
     signalerAuServeur(l);
     // Repasser en francais doit restituer le texte d'origine : on parcourt
     // donc la page dans les deux sens de bascule.
@@ -400,8 +281,8 @@
   window.hstatSetLangue = definirLangue;
 
   // Reception de la liste des termes du fichier. Shiny n'est pas forcement
-  // pret quand ce fichier s'execute : on reessaie, sinon le gestionnaire
-  // serait perdu en silence et les donnees ne seraient plus protegees.
+  // pret quand ce fichier s'execute : on reessaie, sinon le gestionnaire serait
+  // perdu en silence et les donnees ne seraient plus protegees.
   function recevoirTermes() {
     if (!(window.Shiny && Shiny.addCustomMessageHandler)) {
       setTimeout(recevoirTermes, 200);
@@ -421,14 +302,9 @@
         TERMES = t;
       }
       // Un fichier charge ALORS QUE la page est deja en anglais aurait pu voir
-      // ses valeurs traduites avant l'arrivee de cette liste : on defait puis
-      // on refait la passe, sinon la protection n'agirait qu'a partir du
-      // prochain rendu.
-      //
-      // Seules les passes qui CONSULTENT la liste sont rejouees : un element
-      // dont le balisage entier coincide avec une entree du dictionnaire est
-      // un libelle par construction, une donnee ne peut pas le reproduire.
-      // Le defaire et le refaire serait 73 remplacements pour rien.
+      // ses valeurs traduites avant l'arrivee de cette liste : on defait puis on
+      // refait la passe, sinon la protection n'agirait qu'a partir du prochain
+      // rendu.
       if (langue === "en") {
         enCours = true;
         try {
@@ -440,9 +316,7 @@
   }
   recevoirTermes();
 
-  // Le temoin visuel doit suivre la langue reellement appliquee. Sans cela,
-  // apres un rechargement, la page s'affichait en anglais avec le segment
-  // « FR » marque actif : le temoin mentait.
+  // Le temoin visuel doit suivre la langue reellement appliquee.
   function marquerSegment(l) {
     var fr = document.getElementById("hstatLangFr");
     var en = document.getElementById("hstatLangEn");

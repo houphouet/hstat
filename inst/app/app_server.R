@@ -1,6 +1,5 @@
 server <- function(input, output, session) {
 
-  # ---------------------------------------------------------------------------
   # PERSISTANCE DE LA SESSION Un verrouillage d'ecran, une mise en veille ou
   # une coupure reseau passagere font tomber le websocket de Shiny.
   try(session$allowReconnect("force"), silent = TRUE)
@@ -48,9 +47,7 @@ server <- function(input, output, session) {
   # partagent la MEME liste.
   values <- do.call(shiny::reactiveValues, hstat_valeurs_initiales())
 
-  # Indicateurs de lancement des analyses multivariees : chaque analyse ne
-  # s'execute QUE lorsque l'utilisateur clique sur son bouton dedie (evite le
-  # lancement automatique simultane d'ACP/HCPC/AFD au chargement des donnees).
+  # Indicateurs de lancement des analyses multivariees.
   mv_launch <- shiny::reactiveValues(pca = FALSE, hcpc = FALSE, afd = FALSE)
   shiny::observeEvent(input$pcaRun,  {
     mv_launch$pca  <- TRUE
@@ -66,7 +63,6 @@ server <- function(input, output, session) {
   shiny::observeEvent(input$afdFactor,  { mv_launch$afd  <- FALSE }, ignoreInit = TRUE)
   
   values$customXLevels <- shiny::reactiveVal(NULL)
-  
   
   # ---- Aide et réinitialisation ----
   # `shinyalert` est un paquet OPTIONNEL (il figure parmi ceux dont l'absence
@@ -103,8 +99,7 @@ server <- function(input, output, session) {
           .hstat_purger_session()
 
           # `shinyjs::reset("file")` remet le widget a blanc mais `input$file`
-          # garde sa valeur : la feuille Excel choisie et le bloc de
-          # combinaison de feuilles survivaient donc a la reinitialisation.
+          # garde sa valeur.
           values$fichierNeutralise <- shiny::isolate(input$file$datapath)
           tryCatch(shinyjs::reset("file"), error = function(e) NULL)
 
@@ -175,9 +170,7 @@ server <- function(input, output, session) {
             " et devient le jeu sur lequel portent toutes les analyses."),
           shiny::checkboxGroupInput("sheetPick", "Feuilles à combiner",
                              choices = sheets, selected = sheets),
-          # Le conseil est calcule sur les feuilles reellement choisies : c'est
-          # la structure des donnees qui dit si elles s'empilent ou se joignent,
-          # pas l'utilisateur qui doit le deviner.
+          # Le conseil est calcule sur les feuilles reellement choisies.
           shiny::uiOutput("sheetAdvice"),
           shiny::selectInput("sheetMergeType", "Comment les combiner",
             choices = list(
@@ -252,8 +245,6 @@ server <- function(input, output, session) {
         source_mode = input$sheetSourceMode %||% "name")
       if (!isTRUE(res$ok)) { sheet_merge_msg(list(ok = FALSE, msg = res$msg)); return() }
       d <- as.data.frame(res$data)
-      # Meme raison qu'au chargement d'un fichier : les colonnes changent, donc
-      # tout ce que la session portait se rapporte a autre chose.
       .hstat_purger_session()
       values$data <- d; values$cleanData <- d; values$filteredData <- d
       values$dataMode <- "memory"
@@ -305,8 +296,6 @@ server <- function(input, output, session) {
           values$dbCon <- NULL
         }
         hstat_cache_clear()   # vide le cache d'agregations du fichier precedent
-        # DE NOUVELLES DONNEES, DE NOUVELLES VARIABLES : tout ce que la session
-        # portait se rapporte au fichier PRECEDENT.
         .hstat_purger_session()
 
         values$data        <- res$data
@@ -342,17 +331,13 @@ server <- function(input, output, session) {
     })
   })
 
-
   # ---- Jeux de donnees integres a R ----
   # QUATRIEME PORTE D'IMPORT, donc quatrieme appel a `.hstat_purger_session()`.
   r_data_msg <- shiny::reactiveVal(NULL)
 
   shiny::observeEvent(input$loadRData, {
     # LA PROGRESSION EST LA MOITIE DU GESTE, et c'est le parcours au navigateur
-    # qui l'a montre : un chargement reussi prend 2,5 a 3,6 s mesurees -- le
-    # temps de resoudre le nom, de purger la session et de reconstruire les
-    # selecteurs de vingt et un modules --, et le clic ne donnait AUCUN signe
-    # pendant ce temps.
+    # qui l'a montre : un chargement reussi prend 2,5 a 3,6 s mesurees.
     barre <- shiny::Progress$new(); on.exit(barre$close(), add = TRUE)
     barre$set(value = 0.1, message = "Chargement du jeu de données",
               detail = "Recherche du nom")
@@ -419,9 +404,7 @@ server <- function(input, output, session) {
           shiny::tagList(shiny::tags$br(), shiny::em(m$titre)))
   })
 
-  # Le catalogue n'est construit que SUR DEMANDE : parcourir les index de
-  # donnees de tous les paquets installes coute 0,3 s et ne sert a rien a qui
-  # connait le nom qu'il veut.
+  # Le catalogue n'est construit que SUR DEMANDE.
   output$rDataCatalog <- DT::renderDT({
     shiny::req(isTRUE(input$rDataShowCat))
     cat_df <- tryCatch(hstat_donnees_r_catalogue(), error = function(e) NULL)
@@ -434,10 +417,7 @@ server <- function(input, output, session) {
                                  lengthMenu = c(10, 25, 50, 100)))
   })
 
-  # ---- Fusion de plusieurs fichiers ----
-  # Pour peupler les menus de cles, on ne lit que les EN-TETES (noms de
-  # colonnes), pas les donnees completes : lire 5 fichiers entiers en memoire
-  # des la selection pouvait saturer la memoire et fermer l'application.
+  # ---- Fusion de plusieurs fichiers.
   merge_headers_read <- shiny::reactive({
     mf <- tryCatch(merge_frames_read(), error = function(e) NULL)
     if (is.null(mf)) return(NULL)
@@ -452,9 +432,7 @@ server <- function(input, output, session) {
     frames <- list(); noms <- character(0)
     for (i in seq_len(nrow(fp))) {
       base <- tools::file_path_sans_ext(fp$name[i])
-      # Un classeur est DEPLIE en ses feuilles : deposer deux classeurs de
-      # trois feuilles ici donnait deux tableaux au lieu de six, les autres
-      # feuilles etant ignorees en silence.
+      # Un classeur est DEPLIE en ses feuilles.
       feuilles <- hstat_excel_sheets(fp$datapath[i])
       if (length(feuilles) > 1) {
         r <- tryCatch(hstat_excel_read_sheets(fp$datapath[i], feuilles),
@@ -473,8 +451,6 @@ server <- function(input, output, session) {
         error = function(e) NULL)))
       noms <- c(noms, base)
     }
-    # Deux tableaux restent le minimum — mais ils peuvent venir d'un seul
-    # classeur, ce qui n'etait pas possible auparavant.
     if (length(frames) < 2) return(NULL)
     list(frames = frames, names = noms)
   })
@@ -547,9 +523,7 @@ server <- function(input, output, session) {
     .hstat_cle_session <<- cle
     etat <- hstat_session_reprendre(cle)
     if (is.null(etat)) return(invisible(NULL))
-    # `resetSignal` n'est PAS repris : les modules l'observent pour vider leurs
-    # controles, et le faire passer de 0 a sa valeur d'avant effacerait les
-    # reglages que la reconnexion vient de renvoyer.
+    # `resetSignal` n'est PAS repris.
     hstat_session_restaurer(values, etat$values, sauf = "resetSignal")
     hstat_session_restaurer(mv_res, etat$mv_res)
     hstat_session_restaurer(mv_launch, etat$mv_launch)
@@ -561,8 +535,7 @@ server <- function(input, output, session) {
   session$onSessionEnded(function() {
     shiny::isolate({
       # Une session qui porte des donnees (ou des essais de DL50) est DEPOSEE,
-      # et sa connexion DuckDB avec elle : la fermer ici rendrait l'etat repris
-      # inutilisable. C'est le depot qui la fermera s'il expire sans reprise.
+      # et sa connexion DuckDB avec elle.
       garde <- !is.null(.hstat_cle_session) && hstat_session_a_garder(values)
       if (garde) {
         con <- values$dbCon
@@ -752,14 +725,10 @@ server <- function(input, output, session) {
   }
 
   # LA TAILLE PHYSIQUE EST L'ETAT, LES PIXELS N'EN SONT QUE L'AFFICHAGE
-  # ---------------------------------------------------------------------------
-  # Un bloc d'export porte trois champs : resolution, largeur et hauteur en
-  # pixels.
   .mv_pouces <- new.env(parent = emptyenv())   # prefixe -> c(largeur, hauteur), en pouces
   .mv_ecrit  <- new.env(parent = emptyenv())   # prefixe -> c(l, h) que NOUS venons d'ecrire
 
-  # Taille physique retenue pour un bloc d'export. Tant qu'elle n'a pas ete
-  # relevee (panneau jamais affiche), on la deduit des champs declares.
+  # Taille physique retenue pour un bloc d'export.
   mv_pouces_export <- function(prefix, defaut_w_in = 10, defaut_h_in = 7.5) {
     po <- .mv_pouces[[prefix]]
     if (!is.null(po) && length(po) == 2L && all(is.finite(po)) && all(po > 0)) return(po)
@@ -775,10 +744,6 @@ server <- function(input, output, session) {
          width  = po[1],
          height = po[2])
   }
-  
-  # NOTE : `createPlotDownloadHandler()` vivait ici.
-
-  
   
   output$pcaMeansGroupSelect <- shiny::renderUI({
     shiny::req(values$filteredData)
@@ -1011,9 +976,7 @@ server <- function(input, output, session) {
     )
   })
   
-  # ===========================================================================
-  #  LES VARIABLES QUI N'APPRENNENT RIEN, NOMMEES ET CHOISIES UNE PAR UNE
-  # ===========================================================================
+  # LES VARIABLES QUI N'APPRENNENT RIEN, NOMMEES ET CHOISIES UNE PAR UNE
   # Le panneau de colinearite repond a « ces deux variables disent la meme
   # chose ».
   pcaQualiteVar <- shiny::reactive({
@@ -1084,9 +1047,8 @@ server <- function(input, output, session) {
       length(ax) >= NROW(qual) &&
       all(is.na(qual$Qualite) | abs(qual$Qualite - 1) < 1e-8)
 
-    # La selection survit au recalcul, mais seulement pour ce qui existe encore
-    # : sans l'intersection, une variable retiree resterait cochee sans figurer
-    # nulle part.
+    # La selection survit au recalcul, mais seulement pour ce qui existe
+    # encore.
     deja <- intersect(shiny::isolate(input$pcaLowInfoVars) %||% character(0),
                       qual$Variable)
 
@@ -1565,8 +1527,7 @@ server <- function(input, output, session) {
       if (!is.null(cible_txt))
         shiny::div(style = "margin-top:4px; padding:6px 10px; background:#fafafa; border-radius:4px; font-size:11px; color:#444;",
             shiny::icon("crosshairs"), " ", shiny::tags$b(cible_txt)),
-      # Un reglage sans effet se dit. L'habillage par groupe prend l'esthetique
-      # « couleur » des individus : le degrade ne peut pas s'y superposer.
+      # Un reglage sans effet se dit.
       if (isTRUE(habille) && !identical(cible, "var"))
         shiny::div(style = "margin-top:4px; padding:6px 10px; background:#fff8e1; border-radius:4px; font-size:11px; color:#6c5200;",
             shiny::icon("exclamation-triangle"), " ",
@@ -1763,8 +1724,8 @@ server <- function(input, output, session) {
   })
   
   # Force les calques de texte (labels de variables/individus) en noir et gras,
-  # pour qu'ils restent lisibles meme quand la couleur d'origine vient d'un degrade
-  # clair (contrib/cos2). Les fleches/points gardent leur couleur.
+  # pour qu'ils restent lisibles meme quand la couleur d'origine vient d'un
+  # degrade clair (contrib/cos2).
   createPcaPlot <- function(res.pca) {
     
     axis_x <- if (!is.null(input$pcaAxisX)) as.numeric(input$pcaAxisX) else 1
@@ -1799,7 +1760,6 @@ server <- function(input, output, session) {
       if (ax_x_s == ax_y_s) return(abs(cor_mat[, ax_x_s]))
       rowMeans(abs(cor_mat[, c(ax_x_s, ax_y_s), drop = FALSE]))
     }
-    # LE CHIFFRE ETAIT BON, LE NOM ETAIT FAUX.
     compute_sat_ind <- function(res, ax_x, ax_y) {
       cos2_mat <- res$ind$cos2
       n_dim    <- ncol(cos2_mat)
@@ -1823,16 +1783,13 @@ server <- function(input, output, session) {
     )
     
     # SUR UN BIPLOT, UNE SEULE FAMILLE PORTE LE DEGRADE, et laquelle depend de
-    # la metrique : la contribution repond a « quels points construisent l'axe
-    # » (les individus), le cos2 et la saturation a « ce plan represente-t-il
-    # bien cette mesure » (les variables).
+    # la metrique.
     cible_couleur <- hstat_pca_cible_couleur(color_choice)
     var_coloree   <- identical(cible_couleur, "var")
 
     gradient_cols <- c("#00AFBB", "#E7B800", "#FC4E07")
     # Tailles de labels reglees en POINTS par l'utilisateur (12 a 24 pt),
-    # converties vers l'unite de ggplot2 (mm) : une taille pour les individus,
-    # une autre pour les variables.
+    # converties vers l'unite de ggplot2 (mm).
     lbl_ind <- hstat_lbl_pt2gg(input$pcaLabelSize)
     lbl_var <- hstat_lbl_pt2gg(input$pcaVarLabelSize)
     n_ind_p <- nrow(res.pca$ind$coord)
@@ -1873,12 +1830,9 @@ server <- function(input, output, session) {
                            ggtheme = mv_ggtheme("pcaPlot"),
                            title = plot_title)
       # Quand les fleches portent le degrade, leurs NOMS le portent aussi et
-      # les teintes claires deviennent illisibles -- le defaut deja corrige sur
-      # le cercle des correlations.
+      # les teintes claires deviennent illisibles.
       if (var_coloree) p <- hstat_noircir_etiquettes(p, n_cible = n_var_p, n_autre = n_ind_p)
-      # Le biplot melange les deux familles de labels : on retaille apres coup
-      # les calques de texte des variables, factoextra n'exposant qu'un seul
-      # argument `labelsize`.
+      # Le biplot melange les deux familles de labels.
       p <- hstat_apply_label_sizes(p, lbl_ind, lbl_var, n_var_p, n_ind_p)
     }
     # Epaissir les fleches/segments (largeur des traces)
@@ -1908,10 +1862,6 @@ server <- function(input, output, session) {
     p <- p + labs(x = x_label, y = y_label)
 
     # Ellipses autour des groupes d'individus (si demande et variable choisie).
-    # Un groupe trop petit (moins de 3 individus) ou aligne n'en porte pas,
-    # mais il ne doit pas faire perdre le groupement a tous les autres : les
-    # individus restent colores par groupe, et chaque groupe exploitable recoit
-    # son ellipse de confiance.
     if (isTRUE(input$pcaShowEllipses) && !is.null(input$pcaEllipseGroup) &&
         input$pcaPlotType %in% c("ind", "biplot")) {
       grp <- tryCatch(as.factor(values$filteredData[[input$pcaEllipseGroup]]), error = function(e) NULL)
@@ -2056,8 +2006,7 @@ server <- function(input, output, session) {
     print_fixed(res.pca$var$cos2, dec)
   })
   
-  
-  # -- 1. Bartlett + KMO (Adéquation des données à l'ACP) --
+  # -- 1.
   output$pcaBartlettKMO <- shiny::renderUI({
     shiny::req(pcaResultReactive(), values$filteredData, input$pcaVars)
     tryCatch({
@@ -2163,10 +2112,9 @@ server <- function(input, output, session) {
     })
   })
   
-  # -- 2. Scree Plot (Graphique des éboulis) --
-  # Fonction interne réutilisable pour créer le scree plot ggplot
+  # -- 2.
   createScreePlot <- function(res.pca) {
-    eig_mat <- res.pca$eig  # matrice FactoMineR : colonnes "eigenvalue", "percentage of variance", "cumulative percentage of variance"
+    eig_mat <- res.pca$eig
     df_eig <- data.frame(
       PC            = factor(rownames(eig_mat), levels = rownames(eig_mat)),
       Valeur_propre = as.numeric(eig_mat[, 1]),
@@ -2219,7 +2167,7 @@ server <- function(input, output, session) {
     }
   )
   
-  # -- 3. Analyse parallèle --
+  # -- 3.
   createParallelPlot <- function(pca_data_raw, res.pca) {
     n <- nrow(pca_data_raw)
     p <- ncol(pca_data_raw)
@@ -2320,14 +2268,13 @@ server <- function(input, output, session) {
     }
   )
   
-  # -- 4. Rotation orthogonale --
+  # -- 4.
   output$pcaRotationResult <- shiny::renderPrint({
     shiny::req(pcaResultReactive(), values$filteredData, input$pcaVars, input$pcaRotationMethod, input$pcaRotationNFactors)
     tryCatch({
       pca_data_raw <- values$filteredData[, input$pcaVars, drop = FALSE]
       pca_data_raw <- pca_data_raw[, vapply(pca_data_raw, is.numeric, logical(1)), drop = FALSE]
       pca_data_raw <- stats::na.omit(pca_data_raw)
-      
       
       n_vars    <- ncol(pca_data_raw)
       n_obs     <- nrow(pca_data_raw)
@@ -2437,7 +2384,7 @@ server <- function(input, output, session) {
     })
   })
   
-  # -- 5. Contributions absolues (CTR) --
+  # -- 5.
   createCTRPlot <- function(res.pca, axis_num) {
     ctr_vars <- res.pca$var$contrib[, axis_num, drop = FALSE]
     df_ctr <- data.frame(
@@ -2491,14 +2438,10 @@ server <- function(input, output, session) {
     }
   )
   
-  
   # ---- Helpers internes 
   
-  
-  
   # Les deux telechargements (classeur et archive CSV) d'un meme resultat sont
-  # declares d'un seul appel : ce qui appartient a l'analyse, c'est la LISTE
-  # NOMMEE de tableaux, pas la boucle sur les feuilles ni l'archive.
+  # declares d'un seul appel.
   hstat_export_tables_handlers(output, "downloadPcaMetrics", function() {
     if (is.null(pcaResultReactive()) || is.null(values$filteredData) ||
         is.null(input$pcaVars)) return(NULL)
@@ -2512,7 +2455,6 @@ server <- function(input, output, session) {
          "Cos2_variables"  = dfs$cos2_variables)
   }, "acp_metriques", "ACP")
   
-  
   hstat_export_tables_handlers(output, "downloadHcpcMetrics", function() {
     vd <- hcpcValidationData()
     if (is.null(vd)) return(NULL)
@@ -2521,7 +2463,6 @@ server <- function(input, output, session) {
     list("Indices_validation"   = dfs$indices_validation,
          "Affectation_clusters" = dfs$affectation_clusters)
   }, "hcpc_metriques", "HCPC")
-  
   
   hstat_export_tables_handlers(output, "downloadAfdMetrics", function() {
     dfs <- build_afd_metrics_df(afdResultReactive())
@@ -2745,7 +2686,6 @@ server <- function(input, output, session) {
          "Correlations_variables"  = dfs$var_cor)
   }, "acp_resultats", "ACP")
   
-  
   # Selecteurs HCPC : source des labels des individus (carte + dendrogramme) et
   # groupe pour la classification sur MOYENNES.
   output$hcpcLabelSourceSelect <- shiny::renderUI({
@@ -2772,9 +2712,7 @@ server <- function(input, output, session) {
     tryCatch({
       hstat_set_seed(input$globalSeed)
       if (use_means) {
-        # Classification sur les MOYENNES par groupe : une ACP est recalculee sur
-        # le tableau des moyennes (variables actives de l'ACP), puis le HCPC est
-        # applique. Les "individus" deviennent les groupes -> labels = groupes.
+        # Classification sur les MOYENNES par groupe.
         shiny::req(values$filteredData, input$pcaVars)
         num_vars <- input$pcaVars[vapply(values$filteredData[, input$pcaVars, drop = FALSE],
                                          is.numeric, logical(1))]
@@ -2795,10 +2733,8 @@ server <- function(input, output, session) {
         res.pca <- pcaResultReactive()
         shiny::req(res.pca)
       }
-      # nb.clust = -1 -> HCPC choisit automatiquement le nombre de classes
-      # Gros volumes : HCPC fait une CAH (O(n^2)) sur tous les individus ;
-      # au-dela du seuil, pre-partition k-means (argument kk) prevue par
-      # FactoMineR pour les grands jeux de donnees.
+      # nb.clust = -1 -> HCPC choisit automatiquement le nombre de classes Gros
+      # volumes : HCPC fait une CAH (O(n^2)) sur tous les individus.
       n_ind <- nrow(res.pca$ind$coord)
       res.hcpc <- if (n_ind > HSTAT_DIST_MAX_N) {
         hstat_bigdata_note("Classification (HCPC, pré-partition k-means)",
@@ -2814,7 +2750,6 @@ server <- function(input, output, session) {
       return(NULL)
     })
   })
-  
   
   hcpcDataframes <- shiny::reactive({
     shiny::req(hcpcResultReactive())
@@ -3026,8 +2961,7 @@ server <- function(input, output, session) {
     # ils sont montres automatiquement jusqu'a 60 individus.
     show_labels <- if (!is.null(input$hcpcShowLabels)) isTRUE(input$hcpcShowLabels)
                    else n_individus <= 60
-    # Espace reserve aux labels sous l'arbre : proportionnel a leur taille quand
-    # ils sont affiches, quasi nul sinon (evite la grande zone vide sous l'arbre).
+    # Espace reserve aux labels sous l'arbre.
     track_h <- if (show_labels) min(1.6, 0.8 * max(1, cex_labels / 0.7)) else 0.05
 
     p_dend <- factoextra::fviz_dend(res.hcpc,
@@ -3057,8 +2991,7 @@ server <- function(input, output, session) {
       }, logical(1))
       p_dend$layers <- p_dend$layers[keep]
     }
-    # Taille exacte des etiquettes de feuilles, en points : fviz_dend ne fait
-    # que moduler cex, on fixe donc la taille finale sur les calques de texte.
+    # Taille exacte des etiquettes de feuilles, en points.
     if (show_labels)
       p_dend <- hstat_apply_label_sizes(p_dend, hstat_lbl_pt2gg(dend_lbl_pt))
 
@@ -3071,18 +3004,13 @@ server <- function(input, output, session) {
         axis.title.x = ggplot2::element_blank()
       )
     
-    # Note explicative UNIQUEMENT quand les labels sont reellement masques
-    # (auparavant, la note s'affichait meme quand des labels minuscules etaient
-    # dessines, ce qui etait contradictoire).
     if (!show_labels) {
       p_dend <- p_dend + 
         labs(caption = trf("Nombre de clusters : %s  --  Labels masqués (%s individus) : cochez « Afficher les labels » ou consultez les résultats détaillés.", n_clusters, n_individus))
     }
     
     # Echantillonnage automatique des labels quand ils sont trop denses pour
-    # etre lisibles : au-dela de ~150 feuilles, chaque etiquette dispose de
-    # quelques pixels seulement et les textes se superposent quelle que soit
-    # leur taille.
+    # etre lisibles.
     if (show_labels && n_individus > 150) {
       k <- ceiling(n_individus / 120)
       for (i in seq_along(p_dend$layers)) {
@@ -3124,8 +3052,8 @@ server <- function(input, output, session) {
   
   createHcpcClusterPlot <- function(res.hcpc, res.pca) {
 
-    # Garde-fou : sans ACP/HCPC valides, get_eigenvalue() leve une erreur fatale
-    # ("NULL can't be handled by get_eigenvalue()"). On affiche un message clair.
+    # Garde-fou : sans ACP/HCPC valides, get_eigenvalue() leve une erreur
+    # fatale ("NULL can't be handled by get_eigenvalue()").
     if (is.null(res.pca) || is.null(res.hcpc) ||
         is.null(tryCatch(res.pca$eig, error = function(e) NULL))) {
       return(
@@ -3277,7 +3205,6 @@ server <- function(input, output, session) {
     }
   })
   
-  
   # Helper: extraire les données numériques des clusters HCPC
   hcpcValidationData <- shiny::reactive({
     shiny::req(hcpcResultReactive(), pcaResultReactive())
@@ -3292,7 +3219,7 @@ server <- function(input, output, session) {
     }, error = function(e) NULL)
   })
   
-  # -- 1. Graphique des hauteurs de fusion (indices d'agrégation) --
+  # -- 1.
   createHcpcHeightsPlot <- function(res.hcpc) {
     tree        <- res.hcpc$call$t$tree
     heights     <- rev(tree$height)
@@ -3357,7 +3284,7 @@ server <- function(input, output, session) {
     }
   )
   
-  # -- 2. Métriques de validation des clusters (CH, DB, Silhouette, Cophénétique) --
+  # -- 2.
   output$hcpcMetricsUI <- shiny::renderUI({
     vd <- hcpcValidationData()
     shiny::req(vd)
@@ -3400,9 +3327,7 @@ server <- function(input, output, session) {
       })
       DB <- round(mean(DB_vals), 3)
       
-      # ---- Silhouette ----
-      # Gros volumes : silhouette vectorisee (cluster::silhouette), calculee
-      # sur un echantillon au-dela de HSTAT_DIST_MAX_N (l'exact est en O(n^2)).
+      # ---- Silhouette ---- Gros volumes.
       sil_mean <- round(hstat_silhouette_mean(coords, clusters), 3)
       
       # ---- Corrélation cophénétique ----
@@ -3488,7 +3413,7 @@ server <- function(input, output, session) {
     })
   })
   
-  # -- 3. Stabilité par sous-échantillonnage --
+  # -- 3.
   output$hcpcStabilityUI <- shiny::renderUI({
     shiny::req(hcpcValidationData())
     vd <- hcpcValidationData()
@@ -4071,10 +3996,6 @@ server <- function(input, output, session) {
       if (!is.null(input$afdCrossValidation) && input$afdCrossValidation && !use_means) {
         factor_levels <- levels(afd_data[[input$afdFactor]])
         
-        # MASS::lda(CV = TRUE) rend la validation croisee « un contre tous »
-        # d'un seul ajustement, la ou la boucle refaisait n ajustements et n
-        # copies du tableau -- des minutes sur quelques milliers de lignes,
-        # dans le processus que partagent toutes les sessions.
         cv_groupe <- tryCatch(withCallingHandlers(
           as.character(MASS::lda(afd_formula, data = afd_data, CV = TRUE)$class),
           warning = function(w) invokeRestart("muffleWarning")),
@@ -4128,7 +4049,6 @@ server <- function(input, output, session) {
       return(NULL)
     })
   })
-  
   
   # Renommage de 'loadings' en 'coefficients' pour inclure les coefficients discriminants
   afdDataframes <- shiny::reactive({
@@ -4283,7 +4203,6 @@ server <- function(input, output, session) {
     })
   })
   
-  
   generate_distinct_colors <- function(n) {
     if (n <= 0) return(character(0))
     
@@ -4368,8 +4287,7 @@ server <- function(input, output, session) {
     afd_df <- as.data.frame(afd_predict$x)
     grp <- afd_data[[factor_name]]
     # Une projection peut compter moins de lignes que les donnees (individus
-    # ecartes) : recoller un vecteur plus long leverait « replacement has n
-    # rows ».
+    # ecartes).
     if (is.null(grp) || length(grp) != NROW(afd_df))
       stop("AFD : les groupes ne correspondent plus aux individus projetés. Relancez l'analyse.")
     afd_df$Groupe     <- grp
@@ -4458,7 +4376,7 @@ server <- function(input, output, session) {
       vars_used <- names(afd_data)[vapply(afd_data, is.numeric, logical(1))]
     }
     # Les variables retenues peuvent avoir disparu du jeu de travail : le nom
-    # est stocke, la colonne non. On ne garde que celles qui sont la.
+    # est stocke, la colonne non.
     vars_used <- intersect(as.character(vars_used), names(afd_data))
     vars_used <- vars_used[vapply(afd_data[vars_used], is.numeric, logical(1))]
     if (length(vars_used) == 0)
@@ -5095,9 +5013,7 @@ server <- function(input, output, session) {
     gc <- c("#00AFBB", "#E7B800", "#FC4E07")
     th <- tryCatch(mv_gg_theme(), error = function(e) ggplot2::theme_minimal())
     ind_lab <- if (isTRUE(show_lab)) "all" else "none"
-    # Coloration par groupe (variable qualitative) facon 'explor' : si un vecteur
-    # de groupes valide est fourni (1 valeur par individu actif), on colore les
-    # individus par ce groupe (habillage) au lieu de la metrique contrib/cos2.
+    # Coloration par groupe (variable qualitative) facon 'explor'.
     grp <- NULL
     if (!is.null(group_values)) {
       n_ind <- tryCatch(nrow(model$ind$coord), error = function(e) NA)
@@ -5107,9 +5023,9 @@ server <- function(input, output, session) {
         grp <- factor(gv)
       }
     }
-    # Quand on colore par groupe, on remplace la valeur de coloration des individus
-    # par le facteur de groupe (factoextra colore par modalite) et on active des
-    # ellipses de concentration. Les graphiques de variables gardent la metrique.
+    # Quand on colore par groupe, on remplace la valeur de coloration des
+    # individus par le facteur de groupe (factoextra colore par modalite) et on
+    # active des ellipses de concentration.
     cv_ind <- if (!is.null(grp)) grp else cv
     # Ellipses automatiques par groupe uniquement sur le trace des individus
     # (le biplot melange individus et variables : addEllipses y est moins
@@ -5146,8 +5062,7 @@ server <- function(input, output, session) {
           "ind"    = factoextra::fviz_famd_ind(model, axes = axes, col.ind = cv_ind, gradient.cols = gc, addEllipses = use_ellipse, ellipse.type = "confidence",
                        repel = TRUE, max.overlaps = Inf, pointsize = ptsz, labelsize = lblsz,
                        label = ind_lab, ggtheme = th),
-          # Biplot AFDM : factoextra n'a pas de fviz_famd_biplot. On superpose les
-          # individus colores et les variables quantitatives (fleches noires).
+          # Biplot AFDM : factoextra n'a pas de fviz_famd_biplot.
           {
             pind <- factoextra::fviz_famd_ind(model, axes = axes, col.ind = cv_ind, gradient.cols = gc, addEllipses = use_ellipse, ellipse.type = "confidence",
                        repel = TRUE, max.overlaps = Inf, pointsize = ptsz, labelsize = lblsz,
@@ -5236,9 +5151,7 @@ server <- function(input, output, session) {
     p <- p + ggplot2::labs(title = title, subtitle = subtitle)
     # Labels lisibles (noir/gras) plutot que la couleur claire du degrade.
     p <- hstat_noircir_etiquettes(p)
-    # factoextra n'expose qu'un seul `labelsize` : sur un graphique melangeant
-    # individus et variables (biplot), on retaille apres coup les calques de
-    # texte des variables pour honorer les deux reglages en points.
+    # factoextra n'expose qu'un seul `labelsize`.
     p <- if (identical(plottype, "var"))
       hstat_apply_label_sizes(p, lblszvar)
     else
@@ -5679,7 +5592,6 @@ server <- function(input, output, session) {
       ggplot2::theme_void()
   }
 
-
   mv_register <- function(key, accent = "#3a6186") {
     output[[paste0("mv_", key, "_status")]] <- shiny::renderUI({
       r <- mv_res[[key]]
@@ -5716,10 +5628,7 @@ server <- function(input, output, session) {
         r <- mv_res[[key]]
         exps <- if (!is.null(r) && !is.null(r$exports)) r$exports else
           list(Info = data.frame(Message = "Aucun résultat disponible"))
-        # L'ecrivain commun nettoie ET distingue les noms de feuille : le
-        # nettoyage local changeait « Données » en « Donn_es », et deux noms
-        # identiques apres coup faisaient lever addWorksheet -- Shiny renvoyait
-        # alors sa page HTML sous le nom .xlsx.
+        # L'ecrivain commun nettoie ET distingue les noms de feuille.
         hstat_ecrire_classeur(file, exps)
       })
     output[[paste0("mv_", key, "_dl_csv")]] <- shiny::downloadHandler(
@@ -5742,9 +5651,6 @@ server <- function(input, output, session) {
           fmt <- hstat_img_fmt(input[[paste0("mv_", kk, "_fmt")]])
           dpi <- .hstat_num1(input[[paste0("mv_", kk, "_dpi")]], 300)
           r <- mv_res[[kk]]
-          # Un `return()` sans avoir ecrit le fichier faisait renvoyer a Shiny
-          # sa page d'erreur HTML, que le navigateur enregistrait sous le nom
-          # demande : on croyait tenir un PNG, on ouvrait du HTML.
           if (is.null(r) || isFALSE(r$ok) || is.null(r$plotfn)) {
             shiny::showNotification("Lancez d'abord l'analyse avant de télécharger le graphique.",
                              type = "warning")
@@ -5752,8 +5658,6 @@ server <- function(input, output, session) {
               "Aucun graphique : lancez d'abord l'analyse, puis retelechargez.")
             return()
           }
-          # La largeur et la hauteur demandees etaient IGNOREES : le fichier
-          # sortait toujours carre, 9 pouces de cote.
           po   <- mv_pouces_export(paste0("mv_", kk), 10, 7.5)
           w_in <- po[1]
           h_in <- po[2]
@@ -5768,12 +5672,8 @@ server <- function(input, output, session) {
         })
     })
   }
-  # =========================================================================
-  #  RESOLUTION : LA TAILLE SUIT, PARTOUT ET SANS EXCEPTION
-  # -------------------------------------------------------------------------
-  # Choisir 600 DPI sans toucher aux pixels ne changeait rien a la finesse : la
-  # figure gardait la meme taille physique divisee par une resolution plus
-  # grande, donc une image plus petite sur le papier.
+  # RESOLUTION : LA TAILLE SUIT, PARTOUT ET SANS EXCEPTION
+  # Choisir 600 DPI sans toucher aux pixels ne changeait rien a la finesse.
 
   mv_lier_dpi <- function(prefix) {
     local({
@@ -6016,9 +5916,7 @@ server <- function(input, output, session) {
   output$mv_afc_controls <- shiny::renderUI({
     shiny::req(mv_data())
     cc <- mv_cat_cols(); nc <- mv_num_cols()
-    # Deux formes d'entree, et aucune ne se devine a coup sur : on propose la
-    # table deja construite quand le fichier n'a pas deux variables
-    # qualitatives a croiser mais porte des colonnes d'effectifs.
+    # Deux formes d'entree, et aucune ne se devine a coup sur.
     forme0 <- if (length(cc) < 2 && length(nc) >= 2) "table" else "long"
     shiny::tagList(
       mv_opt_box(shiny::h5(shiny::icon("table"), " Forme des données"),
@@ -6044,7 +5942,7 @@ server <- function(input, output, session) {
           shiny::column(6, shiny::selectInput("mv_afc_col", shiny::tagList(shiny::icon("grip-lines-vertical"), " Variable-colonne :"),
                                 choices = cc, selected = if (length(cc) > 1) cc[2] else cc[1]))),
         # Un tableau deja agrege porte ses effectifs dans une colonne : compter
-        # ses lignes rendrait une independance parfaite. Proposee d'apres son nom.
+        # ses lignes rendrait une independance parfaite.
         shiny::selectInput("mv_afc_poids", shiny::tagList(shiny::icon("weight-hanging"), " Colonne d'effectifs (facultatif) :"),
                            choices = c(stats::setNames("__aucun__", tr("(aucune : une ligne = une observation)")),
                                        stats::setNames(mv_num_cols(), mv_num_cols())),
@@ -6400,7 +6298,6 @@ server <- function(input, output, session) {
               .mv_badge(if (mv_has("clustMixType")) "ok" else "err", "clustMixType")), msgs, lvl)
   })
 
-
   # ====================== MOTEURS D'ANALYSE (QUANTI) ==========================
 
   # ---- k-means -------------------------------------------------------------
@@ -6434,8 +6331,7 @@ server <- function(input, output, session) {
         hstat_set_seed(input$globalSeed)
         Xc <- mv_subsample(as.data.frame(Xs), 8000)
         # Le cout de kmeans est LINEAIRE en nstart (mesure : 1,2 s pour 100,
-        # 10,5 s pour 1 000 sur 5 000 x 5) : le plafond du champ doit tenir cote
-        # serveur, sinon un nombre forge fige le processus partage des heures.
+        # 10,5 s pour 1 000 sur 5 000 x 5).
         nstart <- hstat_borne_client(input$mv_kmeans_nstart, 25, 1, 100)
         km <- stats::kmeans(Xc, centers = k, nstart = nstart, iter.max = 50)
         bss <- km$betweenss / km$totss
@@ -6609,10 +6505,7 @@ server <- function(input, output, session) {
             "", "Communautés :", paste(utils::capture.output(round(comm,3)), collapse="\n")),
           plotfn = function() {
             if (identical(input$mv_efa_plot %||% "heat", "path")) {
-              # ---- Diagramme des variables latentes (path diagram) ----
-              # Facteurs latents (ellipses, a droite) relies aux variables
-              # observees (rectangles, a gauche) par des fleches dont
-              # l'epaisseur est proportionnelle a |saturation|.
+              # ---- Diagramme des variables latentes (path diagram).
               thr <- 0.30
               vars_n <- rownames(load); facs_n <- colnames(load)
               vdf <- data.frame(name = vars_n, x = 0,
@@ -6709,12 +6602,7 @@ server <- function(input, output, session) {
         }
         fit <- lavaan::cfa(mdl_safe, data = d_safe, estimator = input$mv_cfa_est %||% "MLR",
                            missing = "fiml")
-        # ---- Garde de convergence -------------------------------------------
-        # fitMeasures() echoue avec "fit measures not available if model did not
-        # converge" : on verifie donc la convergence AVANT, on retente une fois
-        # avec une identification par la variance des facteurs (std.lv = TRUE,
-        # souvent suffisante pour les modeles a 2 indicateurs), et sinon on
-        # renvoie un diagnostic actionnable plutot que l'erreur brute.
+        # ---- Garde de convergence.
         cfa_note <- ""
         if (!isTRUE(lavaan::lavInspect(fit, "converged"))) {
           fit2 <- tryCatch(lavaan::cfa(mdl_safe, data = d_safe,
@@ -6813,7 +6701,6 @@ server <- function(input, output, session) {
     })
   })
 
-
   # ---- MTMM (Multi-Trait Multi-Method, Campbell & Fiske 1959) ---------------
   shiny::observeEvent(input$mv_mtmm_run, {
     mv_res[["mtmm"]] <- local({
@@ -6886,13 +6773,13 @@ server <- function(input, output, session) {
         # ---- Criteres de Campbell & Fiske ------------------------------------
         # C1 : validites significatives et suffisamment grandes.
         c1_sig <- mean(val$p < .05) * 100
-        # all() sur un vecteur contenant NA rend NA, et `if (NA && ...)` echoue :
-        # une seule variable constante suffisait a faire tomber la matrice MTMM.
+        # all() sur un vecteur contenant NA rend NA, et `if (NA && ...)`
+        # echoue.
         val_tous_sig <- isTRUE(all(is.finite(val$p)) && all(val$p < .05))
         st_c1 <- if (val_tous_sig && isTRUE(mean_val >= .50)) "ok"
                  else if (isTRUE(mean_val >= .30)) "warn" else "err"
-        # C2 : chaque validite > correlations HT-heteroM partageant une variable.
-        # C3 : chaque validite > correlations HT-monoM partageant une variable.
+        # C2 : chaque validite > correlations HT-heteroM partageant une
+        # variable.
         cmp_pct <- function(ref_df) {
           if (!nrow(ref_df)) return(NA_real_)
           tot <- 0; okc <- 0
@@ -7247,7 +7134,6 @@ server <- function(input, output, session) {
     })
   })
 
-
   # ====================== MOTEURS D'ANALYSE (QUALI) ==========================
 
   # ---- AFC (correspondances) ----------------------------------------------
@@ -7576,7 +7462,6 @@ server <- function(input, output, session) {
       }, error = function(e) list(ok = FALSE, error = hstat_err_fr(e)))
     })
   })
-
 
   # ---- LCA -----------------------------------------------------------------
   shiny::observeEvent(input$mv_lca_run, {

@@ -44,8 +44,6 @@ mod_timeseries_ui <- function(id) {
                      selected = 12)),
             shiny::column(6, shiny::numericInput(ns("tsFreqCustom"),
                      "…ou fréquence libre", value = NULL, min = 1, step = 1))),
-          # « Horizon futur (h) » vivait ici, et AUCUN serveur ne le lisait :
-          # les previsions futures suivent « Horizon a simuler », plus bas.
           shiny::fluidRow(
             shiny::column(6, shiny::numericInput(ns("tsTestN"), "Taille du jeu de test",
                                    value = 12, min = 2, step = 1))),
@@ -185,10 +183,6 @@ mod_timeseries_server <- function(id, values) {
       dts <- NULL
       if (nzchar(input$tsDate %||% "")) {
         raw <- df[[input$tsDate]]
-        # `as.Date(as.character(...))` ne lit que l'ISO, et l'echec etait
-        # MUET : `all(is.na(dts))` reposait l'axe sur le numero de ligne, si
-        # bien qu'une colonne datee a la francaise faisait perdre l'axe des
-        # dates sans un mot. `hstat_date_auto` lit les trois ecritures.
         dts <- if (inherits(raw, c("Date", "POSIXct"))) as.Date(raw)
                else hstat_date_auto(raw)$dates
         if (all(is.na(dts))) {
@@ -198,10 +192,7 @@ mod_timeseries_server <- function(id, values) {
                 input$tsDate),
             type = "warning", duration = 8)
         }
-        # UNE LIGNE SANS DATE N'A PAS DE PLACE DANS LA SERIE : `order()` range
-        # les NA a la fin, si bien qu'une ligne datee « inconnue » au milieu du
-        # fichier devenait la DERNIERE observation -- celle qui entre dans le
-        # jeu de test et fausse la precision publiee.
+        # UNE LIGNE SANS DATE N'A PAS DE PLACE DANS LA SERIE.
         if (!is.null(dts) && anyNA(dts)) {
           sans <- is.na(dts)
           shiny::showNotification(
@@ -270,9 +261,7 @@ mod_timeseries_server <- function(id, values) {
         arima  = { m <- forecast::auto.arima(train)
                    as_fc(forecast::forecast(m, h = h), stats::AIC(m)) },
         sarima = { m <- forecast::Arima(train,
-                     # Les ordres reprennent les bornes de leurs champs : un
-                     # ordre forge a plusieurs centaines fait optimiser autant
-                     # de parametres, et fige le processus partage.
+                     # Les ordres reprennent les bornes de leurs champs.
                      order    = c(hstat_borne_client(input$sar_p, 1, 0, 5),
                                   hstat_borne_client(input$sar_d, 1, 0, 2),
                                   hstat_borne_client(input$sar_q, 1, 0, 5)),
@@ -602,9 +591,8 @@ mod_timeseries_server <- function(id, values) {
       if (length(res) < 8) return(NULL)
       lb <- stats::Box.test(res, lag = min(24, max(4, length(res) %/% 5)),
                             type = "Ljung-Box")
-      # Des residus de variance nulle (modele qui reproduit exactement le train)
-      # donnent p = NaN : `if (p > 0.05)` levait alors « missing value where
-      # TRUE/FALSE needed » et faisait disparaitre tout le bloc de diagnostic.
+      # Des residus de variance nulle (modele qui reproduit exactement le
+      # train) donnent p = NaN.
       verdict <- hstat_p_verdict(lb$p.value)
       if (identical(verdict, "indeterminable"))
         return(shiny::div(class = "callout callout-warning", style = "margin-top:8px;",
@@ -622,9 +610,9 @@ mod_timeseries_server <- function(id, values) {
           else "Il reste de l'autocorrélation dans les résidus : de l'information temporelle n'est pas captée (essayer ARIMA/SARIMA, augmenter les ordres, ou vérifier la fréquence saisonnière).")
     })
 
-    # Décomposition STL -----------------------------------------------------------
-    # Le calcul ne depend que de l'ajustement ; la couleur du trait se lit a
-    # part, sans quoi chaque reglage de couleur refaisait la decomposition.
+    # Décomposition STL
+    # ----------------------------------------------------------- Le calcul ne
+    # depend que de l'ajustement.
     decomp_data <- shiny::reactive({
       f <- fits(); shiny::req(f)
       y <- f$y

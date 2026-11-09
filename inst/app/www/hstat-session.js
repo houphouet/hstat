@@ -1,34 +1,6 @@
-/* ===========================================================================
-   HStat - persistance de la session
-   ---------------------------------------------------------------------------
-   Le probleme : quand l'ordinateur se verrouille ou se met en veille, le
-   navigateur suspend ses connexions. Le websocket de Shiny tombe, et
-   l'application se recouvre du voile gris « Disconnected from the server ».
-   L'utilisateur a alors PERDU sa session : ses donnees chargees, ses filtres,
-   ses analyses. Rien ne l'a prevenu, et rien ne lui permet de revenir.
-
-   La regle voulue : SEUL L'UTILISATEUR FERME L'APPLICATION. Une veille, un
-   verrouillage, une coupure reseau passagere ne doivent pas y suffire.
-
-   Trois mecanismes, dans cet ordre d'importance :
-
-   1. RECONNEXION. Le serveur autorise la reprise (`session$allowReconnect`) ;
-      ici on la declenche, on la retente, et on DIT ce qui se passe. Le voile
-      gris de Shiny est masque au profit d'un bandeau francais qui annonce
-      l'etat et laisse la main.
-
-   2. MAINTIEN. Un signal periodique empeche les coupures pour inactivite —
-      celles des serveurs mandataires comme celles des hebergeurs. Il ne
-      declenche aucun calcul : c'est une simple valeur d'entree.
-
-   3. GARDE-FOU A LA FERMETURE. Fermer l'onglet par megarde perd le travail au
-      meme titre qu'une deconnexion. Le navigateur demande confirmation, mais
-      uniquement quand des donnees sont chargees : une confirmation qui
-      s'affiche toujours n'est plus lue.
-
-   Ecrit en JavaScript nu, sans dependance : ce fichier doit fonctionner meme
-   quand le reseau est coupe, c'est precisement son objet.
-   =========================================================================== */
+// HStat - persistance de la session
+// Le probleme : quand l'ordinateur se verrouille ou se met en veille, le
+// navigateur suspend ses connexions.
 
 (function () {
   "use strict";
@@ -42,7 +14,7 @@
   var deconnecte   = false;
   var travailEnCours = false;
 
-  // ---------------------------------------------------------------- bandeau
+  // bandeau
   function bandeau() {
     var d = document.getElementById(ID_BANDEAU);
     if (d) return d;
@@ -81,7 +53,7 @@
            "cursor:pointer;font-size:13px;\">" + libelle + "</button>";
   }
 
-  // ------------------------------------------------------------ reconnexion
+  // reconnexion
   function reconnecter() {
     if (!deconnecte) return;
     if (minuterie) { clearTimeout(minuterie); minuterie = null; }
@@ -107,11 +79,10 @@
     }, delai);
   }
 
-  // ------------------------------------------------------------- evenements
-  // Les evenements de Shiny (shiny:disconnected, shiny:connected) sont emis
-  // par jQuery, PAS par le DOM natif : `document.addEventListener` ne les voit
-  // jamais. Il faut passer par `$(document).on()`. Piege verifie a l'ecran —
-  // le bandeau ne s'affichait pas du tout avant cette correction.
+  // evenements
+  // Les evenements de Shiny (shiny:disconnected, shiny:connected) sont emis par
+  // jQuery, PAS par le DOM natif : `document.addEventListener` ne les voit
+  // jamais.
   function surEvenementShiny(nom, fn) {
     if (window.jQuery) window.jQuery(document).on(nom, fn);
     else document.addEventListener(nom, fn);
@@ -135,8 +106,7 @@
   });
 
   // Le cas qui motive tout ce fichier : au deverrouillage de l'ordinateur, la
-  // page redevient visible. On ne laisse pas courir le calendrier des essais,
-  // on retente immediatement — l'utilisateur est la, il regarde.
+  // page redevient visible.
   document.addEventListener("visibilitychange", function () {
     if (!document.hidden && deconnecte) { essai = 0; reconnecter(); }
   });
@@ -147,18 +117,9 @@
     if (deconnecte) { essai = 0; reconnecter(); }
   });
 
-  // ---------------------------------------------------------- cle de session
-  // La reprise de Shiny ouvre une session serveur NEUVE : sans rien d'autre,
-  // la page se reconnecte VIDE. L'onglet porte donc une cle tiree au hasard,
-  // rangee dans sessionStorage -- propre a l'onglet, et qui survit a un
-  // rechargement, y compris celui que le navigateur impose a un onglet gele
-  // pendant la veille. Le serveur depose l'etat sous cette cle a la coupure et
-  // le rend a la session qui la presente (hstat_session_deposer, R/utils.R).
-  //
-  // 128 bits de crypto.getRandomValues : la cle EST l'acces aux donnees, une
-  // cle devinable les livrerait a un autre visiteur. Sans sessionStorage
-  // (navigation privee stricte), la cle vit en memoire : la reconnexion marche
-  // encore, seule la reprise apres rechargement est perdue.
+  // cle de session
+  // La reprise de Shiny ouvre une session serveur NEUVE : sans rien d'autre, la
+  // page se reconnecte VIDE.
   var CLE_STOCKAGE = "hstat-session-cle";
   var cleMemoire = null;
 
@@ -186,9 +147,7 @@
   }
 
   // `shiny:sessioninitialized`, pas `shiny:connected` : au second, l'entree
-  // n'est pas encore acceptee. Une entree ordinaire (pas « event ») reste dans
-  // les valeurs que Shiny renvoie a la reconnexion : la session neuve connait
-  // donc la cle des son premier message.
+  // n'est pas encore acceptee.
   surEvenementShiny("shiny:sessioninitialized", function () {
     try {
       if (window.Shiny && Shiny.setInputValue && window.crypto) {
@@ -197,23 +156,22 @@
     } catch (e) { /* sans cle, la session reste simplement non gardee */ }
   });
 
-  // ---------------------------------------------------------------- maintien
+  // maintien
   setInterval(function () {
     try {
       if (window.Shiny && Shiny.shinyapp && Shiny.shinyapp.isConnected &&
           Shiny.shinyapp.isConnected() && Shiny.setInputValue) {
         // priority:"event" : la valeur n'est pas conservee et ne redeclenche
-        // aucun observateur en aval. Un signal, pas une entree.
+        // aucun observateur en aval.
         Shiny.setInputValue("hstat_keepalive", Date.now(), { priority: "event" });
       }
     } catch (e) { /* sans consequence */ }
   }, PING_MS);
 
-  // ------------------------------------------------- garde-fou a la fermeture
+  // garde-fou a la fermeture
   // Ce fichier est charge dans l'en-tete, donc parfois AVANT que Shiny ne soit
   // pret : `Shiny.addCustomMessageHandler` n'existe pas encore et le
   // gestionnaire serait perdu en silence — le garde-fou ne s'armait jamais.
-  // On reessaie jusqu'a ce que Shiny reponde.
   function brancherMessage() {
     if (!(window.Shiny && Shiny.addCustomMessageHandler)) return false;
     Shiny.addCustomMessageHandler("hstat_travail", function (m) {

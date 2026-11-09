@@ -1,9 +1,6 @@
-# =============================================================================
-#  Module Shiny : GAIN DE RENDEMENT
-# -----------------------------------------------------------------------------
+# Module Shiny : GAIN DE RENDEMENT
 # Rendement (kg/ha) = masse recoltee (kg) / surface (ha) Gain (%) = (rendement
 # du traitement - rendement du non traite) / rendement du non traite x 100
-# =============================================================================
 
 # Mesures representables, et ce qu'elles portent en ordonnee.
 HSTAT_RDT_MESURES <- c(
@@ -237,8 +234,7 @@ mod_yield_ui <- function(id) {
     # ------------------------------------------------------- options graphiques
     shiny::fluidRow(
       # Les options occupent une boite entiere sous la configuration, comme
-      # celles du post-hoc : quarante reglages dans une colonne etroite ne se
-      # parcourent pas, et le graphique doit rester visible pendant qu'on regle.
+      # celles du post-hoc.
       shinydashboard::box(
         title = shiny::tagList(shiny::icon("sliders-h"), " Options du graphique"),
         status = "primary", width = 12, solidHeader = TRUE,
@@ -277,7 +273,7 @@ mod_yield_ui <- function(id) {
               shiny::sliderInput(ns("yieldPointSize"), "Taille des points",
                           min = 1, max = 12, value = 4, step = 0.5, ticks = FALSE),
               # `colour = NA` n'est PAS l'absence d'argument : il EFFACE le
-              # contour. Il se demande donc explicitement.
+              # contour.
               shiny::checkboxInput(ns("yieldContour"), "Contour des barres", value = TRUE),
               shiny::conditionalPanel(
                 ns = ns, condition = "input.yieldContour == true",
@@ -348,9 +344,7 @@ mod_yield_ui <- function(id) {
                   shiny::column(6, colourInput(ns("yieldValeursCouleur"), "Couleur", value = "#2C3E50")),
                   shiny::column(6, shiny::selectInput(ns("yieldValeursStyle"), "Style",
                                               choices = HSTAT_FONT_STYLES, selected = "bold"))),
-                # L'ETIQUETTE D'UNE VALEUR DEPEND DU SIGNE : un gain negatif
-                # descend sous l'axe, et un `vjust` fige ecrirait son etiquette
-                # du mauvais cote de la barre.
+                # L'ETIQUETTE D'UNE VALEUR DEPEND DU SIGNE.
                 shiny::selectInput(ns("yieldValeursPos"), "Position",
                             choices = c("Au bout, à l'extérieur" = "dessus",
                                         "Au bout, à l'intérieur" = "dedans",
@@ -439,7 +433,6 @@ mod_yield_ui <- function(id) {
     )
   )
 }
-
 
 mod_yield_server <- function(id, values) {
   shiny::moduleServer(id, function(input, output, session) {
@@ -567,10 +560,8 @@ mod_yield_server <- function(id, values) {
       names(d)
     })
 
-    # ---------------------------------------------------------------- selecteurs
-    # LE TABLEAU DE SAISIE PORTE DES NOMS CONNUS : les proposer est gratuit, et
-    # offrir la premiere colonne venue obligerait a re-choisir trois fois ce que
-    # le module vient lui-meme de nommer.
+    # ----------------------------------------------------------------
+    # selecteurs LE TABLEAU DE SAISIE PORTE DES NOMS CONNUS.
     .prefere <- function(nom, dispo, repli) {
       if (nom %in% dispo) nom else repli
     }
@@ -642,8 +633,7 @@ mod_yield_server <- function(id, values) {
     })
 
     # LA REFERENCE DES PERTES NE SE DEVINE PAS NON PLUS, et il peut y en avoir
-    # plusieurs : c'est ce qui rend les trois pertes usuelles calculables d'un
-    # seul geste (NT vs PP, NT vs PV, PV vs PP).
+    # plusieurs.
     output$yieldRefPerteUI <- shiny::renderUI({
       m <- modalites()
       garde <- intersect(as.character(shiny::isolate(input$yieldRefPerte)), m)
@@ -771,8 +761,7 @@ mod_yield_server <- function(id, values) {
       round_numeric_df(d, input$yieldRound, input$yieldDecimals)
     }
 
-    # Les colonnes converties suivent leurs originales : `intersect()` sur les
-    # noms REELS du tableau garde cet ordre, la enumerer a la main le perdrait.
+    # Les colonnes converties suivent leurs originales.
     avec_conv <- function(cols) {
       r <- resultat()
       if (!NROW(r)) return(cols)
@@ -814,8 +803,7 @@ mod_yield_server <- function(id, values) {
         else
           lignes <- c(lignes, tr("Mode « en commun » : la perte est calculée sur le rendement agrégé de chaque modalité, soit une valeur par modalité. Passez en « par répétition » pour obtenir une perte par bloc, avec sa dispersion, analysable par ANOVA ou comparaisons multiples."))
       }
-      # UNE REFERENCE ABSENTE SE NOMME. La retirer en silence laisserait
-      # l'utilisateur devant un tableau ou la colonne demandee n'existe pas.
+      # UNE REFERENCE ABSENTE SE NOMME.
       if (length(abs_))
         lignes <- c(lignes, trf("Référence absente des modalités calculées, donc sans colonne : %s.",
                                 paste(abs_, collapse = ", ")))
@@ -858,9 +846,7 @@ mod_yield_server <- function(id, values) {
     })
 
     # ------------------------------------------------------------- graphique
-    # L'ordre des modalites est un REGLAGE : trier par valeur fait ressortir le
-    # classement, l'ordre alphabetique permet de retrouver une modalite, et «
-    # non traite en premier » met la reference a gauche, la ou on la lit.
+    # L'ordre des modalites est un REGLAGE.
     ordonner <- function(d, mesure, ordre, nt) {
       niveaux <- switch(ordre,
         croissant   = d$Modalite[order(d[[mesure]], na.last = TRUE)],
@@ -877,9 +863,7 @@ mod_yield_server <- function(id, values) {
       dispo <- HSTAT_RDT_MESURES[HSTAT_RDT_MESURES %in% names(r)]
       lib <- attr(r, "libelles_perte") %||% character(0)
       # UNE MESURE QU'ON NE PEUT PAS CALCULER NE S'OFFRE PAS : une colonne de
-      # perte entierement NA -- reference de rendement nul -- rendrait un
-      # graphique vide sans dire pourquoi, et laisser le choix s'y figer le
-      # rendrait vide APRES avoir marche, ce qui est pire.
+      # perte entierement NA -- reference de rendement nul.
       if (length(lib))
         lib <- lib[vapply(names(lib), function(k)
           k %in% names(r) && any(is.finite(r[[k]])), logical(1))]
@@ -913,9 +897,7 @@ mod_yield_server <- function(id, values) {
       if (!(mesure %in% names(r))) return(NULL)
       d <- r[is.finite(r[[mesure]]), , drop = FALSE]
       if (!NROW(d)) return(NULL)
-      # ON RETIRE AVANT D'ORDONNER : les niveaux du facteur sont alors ceux qui
-      # restent, et « valeur croissante » classe ce qui est trace, pas ce qui a
-      # ete calcule.
+      # ON RETIRE AVANT D'ORDONNER.
       masque <- as.character(input$yieldMasquer %||% character(0))
       if (length(masque))
         d <- d[!(as.character(d$Modalite) %in% masque), , drop = FALSE]
@@ -924,18 +906,14 @@ mod_yield_server <- function(id, values) {
       d$.val <- d[[mesure]]
 
       gain <- .hstat_rdt_est_gain(mesure)
-      # La mesure tracee peut etre une colonne CONVERTIE : l'ordonnee doit
-      # alors porter l'unite de conversion, sinon le graphique annonce des
-      # kg/ha en affichant des t/ha.
+      # La mesure tracee peut etre une colonne CONVERTIE.
       u_axe <- if (grepl("_conv$", mesure)) attr(r, "unite_conv") %||% unite_rdt()
                else unite_rdt()
       dispo <- mesures_dispo()
       titre_auto <- names(dispo)[match(mesure, dispo)]
       if (is.na(titre_auto)) titre_auto <- mesure
       # L'ORDRE DES TESTS COMPTE : `.hstat_rdt_est_gain()` est vrai pour une
-      # perte aussi -- toutes deux se lisent par rapport a zero -- et poser
-      # « Gain (%) » sur un axe de pertes annoncerait l'inverse de ce qu'il
-      # porte.
+      # perte aussi -- toutes deux se lisent par rapport a zero.
       relatif <- .hstat_rdt_est_relatif(mesure)
       perte   <- grepl("^Perte_", mesure)
       y_auto <- if (perte)        tr("Perte de rendement (%)")
@@ -983,22 +961,17 @@ mod_yield_server <- function(id, values) {
       }
 
       # LES VALEURS NEGATIVES SE REPRESENTENT COMME LES AUTRES, et il faut deux
-      # choses pour qu'elles se LISENT : le trait de zero, et un axe qui
-      # atteint zero.
+      # choses pour qu'elles se LISENT.
       zeros <- d[is.finite(d$.val) & d$.val == 0, , drop = FALSE]
       if (NROW(zeros) && type %in% c("bar", "barh"))
         p <- p + ggplot2::geom_point(data = zeros, ggplot2::aes(y = 0),
                                      size = max(2, (input$yieldPointSize %||% 4) * 0.6),
                                      shape = 18, show.legend = FALSE)
       negatifs <- any(is.finite(d$.val) & d$.val < 0)
-      # Le kit commun est lu ICI et non plus au moment du theme : pose sur le
-      # zero, le trait de l'axe X doit porter LA COULEUR ET L'EPAISSEUR du
-      # trait d'axe.
+      # Le kit commun est lu ICI et non plus au moment du theme.
       extras <- hstat_plot_extras_lire(input, "yield")
       zmode <- input$yieldZeroMode %||% "reference"
-      # LE REPERE POINTILLE GARDE SA RESERVE D'ORIGINE : sur une serie qui ne
-      # descend jamais sous zero, il double le bas du cadre sans rien
-      # apprendre.
+      # LE REPERE POINTILLE GARDE SA RESERVE D'ORIGINE.
       if (identical(zmode, "reference") && !(gain || negatifs)) zmode <- "aucune"
       zero <- hstat_axe_zero(zmode, negatifs, extras$axe_col, extras$axe_ep)
       p <- p + zero$couches
@@ -1028,10 +1001,7 @@ mod_yield_server <- function(id, values) {
         p <- p + ggplot2::scale_fill_manual(values = rep(u, nrow(d))) +
           ggplot2::scale_colour_manual(values = rep(u, nrow(d)))
       } else {
-        # Le choix des echelles vit dans `hstat_scales_palette()` : « ggplot2 »
-        # se pose par `scale_*_hue()`, un nom de Brewer par `scale_*_brewer()`,
-        # et un nom inconnu ne pose rien plutot que de faire avertir ggplot a
-        # chaque trace.
+        # Le choix des echelles vit dans `hstat_scales_palette()`.
         for (sc in hstat_scales_palette(pal)) p <- p + sc
       }
 
@@ -1072,8 +1042,7 @@ mod_yield_server <- function(id, values) {
             face = input$yieldTitreStyle %||% "bold",
             hjust = as.numeric(input$yieldTitrePos %||% "0.5")),
           # Le sous-titre s'affiche aussi quand il est AUTOMATIQUE (la
-          # reference du gain) : le conditionner au seul champ de saisie
-          # masquait la mention du temoin.
+          # reference du gain).
           plot.subtitle = ggplot2::element_text(
             size = input$yieldSousTitreSize %||% 12,
             face = input$yieldSousTitreStyle %||% "italic",
@@ -1104,7 +1073,7 @@ mod_yield_server <- function(id, values) {
           panel.grid.minor = if (isTRUE(input$yieldGrilleMin))
             ggplot2::element_line(colour = "gray95") else ggplot2::element_blank()) +
         # EN DERNIER, et c'est voulu : un theme complet remplace tout ce qui
-        # precede. Pose avant, le kit serait efface par le theme du module.
+        # precede.
         hstat_plot_extras_theme(extras)
     })
 
@@ -1216,7 +1185,7 @@ mod_yield_server <- function(id, values) {
                hstat_img_fmt(input$yieldExportFormat)),
       content = function(file) {
         # Les pixels saisis fixent la MISE EN PAGE (lue a 96 ppp), le DPI la
-        # finesse du rendu. Voir hstat_export_dims().
+        # finesse du rendu.
         dims <- hstat_export_dims(input$yieldExportW, input$yieldExportH,
                                   input$yieldExportDPI)
         if (!is.null(dims$note))

@@ -2,7 +2,6 @@
 
 # `.hstat_scope_banner()` a rejoint le socle (`R/utils.R`).
 
-
 .mv_theme <- function(cat) {
   switch(cat,
     quanti = list(main = "#3c8dbc", bg = "#e8f2fc", border = "#b8daf0",
@@ -49,7 +48,7 @@
 }
 
 # Element du catalogue de methodes (style maquette) : un titre cliquable + une
-# courte description. Le clic est gere par le JS du catalogue (mvSelectMethod).
+# courte description.
 .mv_cat_item <- function(title, desc, cat = "quanti") {
   shiny::div(class = "mv-cat-item", `data-title` = title, `data-cat` = cat,
     shiny::div(class = "mv-cat-item-title", title),
@@ -58,7 +57,7 @@
 
 .mv_category_header <- function(label, ic, color) {
   # En-tetes de section masques : le catalogue (facon maquette) assure deja le
-  # regroupement par categorie. On retourne un conteneur vide.
+  # regroupement par categorie.
   NULL
 }
 
@@ -93,7 +92,6 @@
       ),
       shiny::tabPanel(shiny::tagList(shiny::icon("chart-area"), " Graphique"),
         # Les dimensions d'origine de ggplot2 : 7 x 7 pouces, carre.
-        # Un seul appel ici habille les QUATORZE analyses du catalogue.
         hstat_carre_ui(paste0("mv_", key, "_plot"), spinner = th$main)
       ),
       shiny::tabPanel(shiny::tagList(shiny::icon("file-alt"), " Détails techniques"),
@@ -216,9 +214,7 @@ ui <- shinydashboard::dashboardPage(
       # Accessibilite : declare la langue du document (lecteurs d'ecran, prononciation).
       shiny::tags$script(shiny::HTML(
         "document.documentElement.setAttribute('lang','fr');")),
-      # Persistance de la session : le voile gris de Shiny (« Disconnected from
-      # the server ») est masque au profit d'un bandeau francais qui annonce
-      # l'etat et laisse reprendre la main.
+      # Persistance de la session.
       shiny::tags$style(shiny::HTML(
         "#shiny-disconnected-overlay{display:none !important;}")),
       shiny::tags$script(src = hstat_asset("hstat-session.js")),
@@ -247,9 +243,7 @@ ui <- shinydashboard::dashboardPage(
         "    document.body.removeChild(ta);",
         "  }",
         "});")),
-      # Realigne en-tetes et corps des DataTables (scrollX) : quand une table est
-      # rendue dans un onglet/box masque, DataTables fige des largeurs d'en-tete
-      # erronees -> decalage colonnes/valeurs. On rajuste a chaque affichage.
+      # Realigne en-tetes et corps des DataTables (scrollX).
       shiny::tags$script(shiny::HTML("
         (function() {
           function hstatAdjustTables() {
@@ -315,7 +309,6 @@ ui <- shinydashboard::dashboardPage(
       ")),
       # ---- Polices professionnelles (locales, sans dependance reseau) ----
       # Newsreader : serif editoriale a fort contraste -> titres.
-      # Archivo    : grotesque neo-suisse -> corps et interface.
       shiny::tags$style(shiny::HTML("
         @font-face { font-family:'Newsreader'; font-style:normal; font-weight:400;
           font-display:swap; src:url('fonts/newsreader-latin-400-normal.woff2') format('woff2'); }
@@ -335,11 +328,7 @@ ui <- shinydashboard::dashboardPage(
           font-display:swap; src:url('fonts/archivo-latin-700-normal.woff2') format('woff2'); }
       ")),
 
-      # ---- Typographie HStat (sans toucher aux couleurs natives de Shiny) ----
-      # On conserve le theme bleu par defaut d'AdminLTE (skin = "blue") pour une
-      # experience familiere et confortable ; on applique uniquement les polices
-      # professionnelles (Newsreader pour les titres, Archivo pour le corps) et
-      # quelques raffinements neutres (rythme, lisibilite).
+      # ---- Typographie HStat (sans toucher aux couleurs natives de Shiny).
       shiny::tags$style(shiny::HTML("
         /* -- Variables typographiques (alignees sur la maquette HStat) -- */
         :root {
@@ -525,9 +514,7 @@ ui <- shinydashboard::dashboardPage(
                     shiny::actionButton("loadData", "Charger", class = "btn-success", icon = shiny::icon("upload")),
 
                     # --- Jeux de donnees integres a R
-                    # -------------------------------- REPLIE, a la demande :
-                    # deplie, le bloc poussait hors de l'ecran la fusion de
-                    # fichiers pour qui charge son propre fichier.
+                    # -------------------------------- REPLIE, a la demande.
                     shiny::tags$hr(style = "margin:18px 0 12px;"),
                     shiny::tags$details(
                       style = "margin:4px 0; padding:10px 14px; background:#f3f7ee; border:1px solid #cfe3bd; border-radius:8px;",
@@ -700,7 +687,7 @@ ui <- shinydashboard::dashboardPage(
       # ---- Visualisation des données ----
       shinydashboard::tabItem(tabName = "visualization",
               mod_viz_ui("visualization")),
-      # ---- 3. Analyses statistiques : Corrélations -> Tests -> Post-hoc -> Multivariées ----
+      # ---- 3.
       mod_correlation_ui("corrélation"),
       mod_tests_ui("tests"),
       mod_posthoc_ui("tests"),
@@ -755,9 +742,9 @@ ui <- shinydashboard::dashboardPage(
                   shiny::div(class = "mv-config-hint mv-empty-hint",
                     shiny::icon("hand-point-left"),
                     shiny::HTML(" Choisissez une méthode dans le catalogue : sa configuration s'affiche ci-dessous. <b>Une seule méthode active à la fois.</b>")),
-                  # En-tete de methode facon maquette (badge + titre + description),
-                  # rempli dynamiquement au clic sur le catalogue. Masque tant qu'aucune
-                  # methode n'est choisie.
+                  # En-tete de methode facon maquette (badge + titre +
+                  # description), rempli dynamiquement au clic sur le
+                  # catalogue.
                   shiny::div(id = "mvMethodHeader", class = "mv-method-header", style = "display:none;",
                     shiny::div(class = "mv-mh-top",
                       shiny::tags$span(id = "mvMhBadge", class = "mv-mh-badge", "QUANTITATIVE")),
@@ -1411,7 +1398,8 @@ ui <- shinydashboard::dashboardPage(
                                                 )
                                             ),
                     
-                                            # 2. CH, DB, Silhouette, Cophénétique
+                                            # 2. CH, DB, Silhouette,
+                                            #    Cophénétique
                                             shiny::div(class = "box box-solid",
                                                 shiny::div(class = "box-header with-border", style = "background-color: #e67e22; color: white;",
                                                     shiny::h4(class = "box-title", style = "color: white;",
@@ -1774,10 +1762,7 @@ ui <- shinydashboard::dashboardPage(
   shiny::div(
     style = "margin-top:18px;",
 
-    # -- Selecteur de categorie MASQUE (le catalogue pilote 'mv_category') --
-    # On conserve l'input radioGroupButtons (invisible) car le catalogue JS l'utilise
-    # pour basculer la categorie affichee ; le bandeau visuel est supprime (redondant
-    # avec le catalogue facon maquette).
+    # -- Selecteur de categorie MASQUE (le catalogue pilote 'mv_category').
     shiny::tags$div(style = "display:none;",
       radioGroupButtons(
         inputId = "mv_category",
@@ -1790,9 +1775,6 @@ ui <- shinydashboard::dashboardPage(
         selected = "quanti"
       )
     ),
-    # Les options d'affichage des graphiques sont desormais propres a CHAQUE
-    # methode (boite "Options d'affichage des graphiques (optionnel)" rendue
-    # dans les controles de chaque analyse).
 
     # =================== CATEGORIE QUANTITATIVES ===================
     shiny::conditionalPanel(
@@ -1958,7 +1940,7 @@ ui <- shinydashboard::dashboardPage(
                 )  # ferme mv-analyses-col
               )    # ferme mv-layout
       ),
-      # ---- 4. Planification & outils : Plan & Puissance -> Seuils ----
+      # ---- 4.
       mod_design_ui("design"),
       # ---- Analyses qualitatives d'enquete ----
       mod_qualitative_ui("qualitative"),

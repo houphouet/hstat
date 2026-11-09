@@ -56,8 +56,7 @@ if (!exists("server") || !is.function(server)) {
 # un 404 sur chaque page : on la repare avant de servir l'interface.
 ui <- hstat_reparer_deps(ui)
 
-# Serialisee a la demande, une fois, puis revalidee par empreinte : chaque
-# visite coutait sinon 4 a 5 s au processus R qui sert toutes les sessions.
+# Serialisee a la demande, une fois, puis revalidee par empreinte.
 ui <- hstat_ui_en_cache(ui)
 
 # La premiere session compilait toute l'application sous les yeux du premier

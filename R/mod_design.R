@@ -1,6 +1,5 @@
 #  Module Shiny : Dispositifs experimentaux & Puissance statistique (type G*Power)
 
-
 .hstat_rename_treat_cols <- function(book, factors) {
   for (fn in names(factors)) {
     levs <- as.character(factors[[fn]])
@@ -53,7 +52,6 @@ hstat_power_families <- function() {
 }
 
 # Moteur F type G*Power : lambda = f^2 * N ; df2 = N - groups - covars.
-# Cette convention (et non celle de pwr.f2.test) reproduit ANOVA/ANCOVA/MANOVA.
 .hstat_gpower_F <- function(f = NULL, alpha, power = NULL, n_total = NULL,
                             df1, groups, covars = 0, solve_effect = FALSE) {
   if (solve_effect) {
@@ -86,7 +84,6 @@ hstat_power_families <- function() {
     list(err = "Taille introuvable dans la plage explorée.")
   }
 }
-
 
 hstat_gpower <- function(test, analysis, effect = NULL, effect2 = NULL,
                          alpha = 0.05, power = NULL, n = NULL, n2 = NULL,
@@ -156,9 +153,9 @@ hstat_gpower <- function(test, analysis, effect = NULL, effect2 = NULL,
            crit = res$crit, crit_lab = "z critique", df_lab = res$extra,
            power = res$power,
            note = trf("Régression logistique (Hsieh et al. 1998) : prédicteur %s ; OR par %s.",
-                          # `trf()` ne traduit jamais ses arguments DE LUI-MEME : ce sont eux
-                          # qui portent les donnees de l'utilisateur. Ici le developpeur
-                          # declare que ces deux-la sont des libelles, pas des donnees.
+                          # `trf()` ne traduit jamais ses arguments DE LUI-MEME :
+                          # ce sont eux qui portent les donnees de
+                          # l'utilisateur.
                           if ((predictor %||% "continuous") == "binary") tr("binaire (exposé/non-exposé)") else tr("continu standardisé"),
                           if ((predictor %||% "continuous") == "binary") tr("exposition") else tr("écart-type")))
     } else if (test == "poisson") {
@@ -218,8 +215,7 @@ hstat_gpower <- function(test, analysis, effect = NULL, effect2 = NULL,
   }, error = function(e) list(err = conditionMessage(e)))
 }
 
-# Reperes de taille d'effet : UNE table, lue par l'indication posee sous le
-# champ « Taille d'effet » et par la classe du tableau des resultats.
+# Reperes de taille d'effet.
 HSTAT_POW_REPERES <- list(
   d  = list(libelle = "d de Cohen", seuils = c(0.20, 0.50, 0.80),
             source = "Cohen (1988)"),
@@ -287,16 +283,12 @@ hstat_pow_classe_phrase <- function(classe, valeur) {
   trf(gab, trimws(formatC(valeur, format = "fg", digits = 3)))
 }
 
-# Taille d'échantillon pour ENQUETE DE TERRAIN (sondage) :
-# estimation d'une proportion ou d'une moyenne, avec correction population finie,
-# effet de plan (grappes), taux de non-reponse, et repartition par strate.
+# Taille d'échantillon pour ENQUETE DE TERRAIN (sondage).
 hstat_survey_size <- function(objective = "proportion", conf_level = 0.95,
                               margin = 0.05, p = 0.5, sd = NULL,
                               population = Inf, design_effect = 1,
                               response_rate = 1, n_strata = 1) {
-  # Les champs arrivent du navigateur : un champ vide vaut NA, et une marge
-  # nulle rend un effectif INFINI, qui fait ensuite tomber la courbe et le
-  # tableau. On refuse en le disant plutot que de rendre « NA personnes ».
+  # Les champs arrivent du navigateur.
   if (!isTRUE(is.finite(margin)) || margin <= 0)
     return(list(err = "La marge d'erreur doit être un nombre strictement positif."))
   if (!isTRUE(is.finite(design_effect)) || design_effect < 1)
@@ -479,8 +471,7 @@ HSTAT_DSG_SENS_BLOCS <- c(vertical_down = "top_down", vertical_up = "bottom_up",
 }
 
 # Applique `f` au(x) panneau(x) du PLAN d'une composition patchwork -- ceux qui
-# portent les parcelles (geom_tile) --, et a rien d'autre : le panneau-fleche
-# du gradient et les piles de legendes gardent leur habillage propre.
+# portent les parcelles (geom_tile) --, et a rien d'autre.
 .hstat_dsg_sur_plan <- function(g, f) {
   if (!inherits(g, "patchwork")) return(f(g))
   for (i in seq_along(g)) {
@@ -523,8 +514,8 @@ HSTAT_DSG_SENS_BLOCS <- c(vertical_down = "top_down", vertical_up = "bottom_up",
   }
 }
 
-# Tri "naturel" (A1, A2, ..., A9, A10, A11) plutot que lexicographique
-# (A1, A10, A11, A2...). Gere les etiquettes melant lettres et nombres.
+# Tri "naturel" (A1, A2, ..., A9, A10, A11) plutot que lexicographique (A1,
+# A10, A11, A2...).
 .natural_sort <- function(x) {
   x <- as.character(x)
   # cle de tri : remplacer chaque bloc de chiffres par une version a largeur fixe
@@ -539,13 +530,8 @@ HSTAT_DSG_SENS_BLOCS <- c(vertical_down = "top_down", vertical_up = "bottom_up",
   x[order(key)]
 }
 
-# =============================================================================
-#  DISPOSITIFS DE MALHERBOLOGIE
-# -----------------------------------------------------------------------------
-# Ce ne sont PAS de nouveaux plans : ce sont des structures de traitements
-# pretes a l'emploi, posees sur les plans qui existent deja (factoriel, blocs
-# de Fisher).
-# =============================================================================
+# DISPOSITIFS DE MALHERBOLOGIE
+# Ce ne sont PAS de nouveaux plans.
 hstat_malherbo_catalog <- function() {
   list(
     mh_densite_croisee = list(
@@ -823,8 +809,7 @@ hstat_design_catalog <- function() {
 HSTAT_DESIGN_UNITES_MAX <- 10000
 
 # Nombre de parcelles d'un plan, avant de le construire : le produit des
-# niveaux par le nombre de repetitions -- sauf le carre latin, dont la taille
-# est le carre du nombre de traitements, quel que soit `r`.
+# niveaux par le nombre de repetitions.
 hstat_design_unites <- function(type, factors, r = 3) {
   n <- vapply(factors, function(f) max(1, length(f)), numeric(1))
   if (!length(n)) return(0)
@@ -857,9 +842,7 @@ hstat_agri_design <- function(type, factors, r = 3, seed = 123, k = NULL,
     set.seed(seed)
     rows <- list(); idx <- 1L; plot_id <- 1L
     for (rep_i in seq_len(rr)) {
-      # `sample(x, n)` PIOCHE DANS 1:x QUAND x EST UN SEUL NOMBRE : un essai a un
-      # seul traitement code numeriquement (« 1 », « 10 ») verrait apparaitre un
-      # traitement qui n'existe pas. On tire donc sur les INDICES.
+      # `sample(x, n)` PIOCHE DANS 1:x QUAND x EST UN SEUL NOMBRE.
       ord <- trts[sample.int(nt)]                    # randomisation dans la replique
       nblocks <- ceiling(nt / kk2)
       blk_vec <- rep(seq_len(nblocks), each = kk2)[seq_len(nt)]
@@ -898,9 +881,9 @@ hstat_agri_design <- function(type, factors, r = 3, seed = 123, k = NULL,
     # Valeurs de k "parfaites" pour agricolae : k divise nt, k < nt, et s = nt/k >= k.
     valid_k <- Filter(function(d) d >= 2 && d < nt && nt %% d == 0 && (nt / d) >= d, 2:(nt-1))
 
-    # MODE "exact" : on respecte STRICTEMENT le k saisi par l'utilisateur, via le
-    # generateur generalise (blocs de taille k, dernier bloc plus petit si nt %% k != 0).
-    # Fonctionne pour TOUT k >= 2 et tout nombre de traitements. C'est le mode par defaut.
+    # MODE "exact" : on respecte STRICTEMENT le k saisi par l'utilisateur, via
+    # le generateur generalise (blocs de taille k, dernier bloc plus petit si
+    # nt %% k != 0).
     if (identical(k_mode, "exact")) {
       return(.build_generalized_alpha(factors[[1]], kk, rr, seed))
     }
@@ -928,9 +911,7 @@ hstat_agri_design <- function(type, factors, r = 3, seed = 123, k = NULL,
     return(.build_generalized_alpha(factors[[1]], kk, rr, seed))
   }
 
-  # SPLIT-SPLIT-PLOT (3 facteurs) : randomisation hierarchique a 3 niveaux,
-  # sans dependance a agricolae (agricolae ne fournit pas design.split a 3
-  # facteurs).
+  # SPLIT-SPLIT-PLOT (3 facteurs).
   if (type == "splitsplit") {
     if (length(factors) < 3)
       stop("Le split-split-plot nécessite 3 facteurs.")
@@ -980,7 +961,7 @@ hstat_agri_design <- function(type, factors, r = 3, seed = 123, k = NULL,
     "fisher" = agricolae::design.rcbd(trt = factors[[1]], r = r, seed = seed)$book,
     "paired" = agricolae::design.rcbd(trt = factors[[1]], r = r, seed = seed)$book,
     "lsd" = agricolae::design.lsd(trt = factors[[1]], seed = seed)$book,
-    "alpha" = .build_generalized_alpha(factors[[1]], k %||% 3, r %||% 3, seed),  # filet (normalement atteint plus haut via return())
+    "alpha" = .build_generalized_alpha(factors[[1]], k %||% 3, r %||% 3, seed),
     "factorial" = {
       d <- agricolae::design.ab(trt = lengths(factors), r = r, design = base_design, seed = seed)$book
       labs <- LETTERS[seq_along(fnames)]
@@ -1038,16 +1019,14 @@ hstat_factorial_df <- function(levels_vec, target = "main1") {
 }
 
 # Repartit le nombre d'unités requis par groupe (nper, issu du calcul de
-# puissance) sur le plan : choisit le nombre de répétitions (R) et
-# d'échantillons par parcelle élémentaire (m) tels que R * m >= nper.
+# puissance) sur le plan.
 hstat_repartition <- function(nper, n_treatments, mode = "blocks",
                               max_blocks = NULL, repetitions = NULL) {
   nper <- max(1, ceiling(nper))
   rep_ok <- length(repetitions) == 1L && is.finite(suppressWarnings(as.numeric(repetitions))) &&
             as.numeric(repetitions) >= 1
   # Un nombre impose absent ou aberrant retombe sur les repetitions seules, le
-  # mode par defaut -- jamais sur le sous-echantillonnage, que personne n'a
-  # demande.
+  # mode par defaut.
   if (identical(mode, "fixed") && !rep_ok) mode <- "blocks"
   if (identical(mode, "fixed")) {
     R <- as.integer(round(as.numeric(repetitions))); m <- max(1L, as.integer(ceiling(nper / R)))
@@ -1080,10 +1059,7 @@ hstat_place_design <- function(book, type, fill_col, seed = 123, tries = 200) {
       if (length(rows) <= 1) { out_idx <- c(out_idx, rows); prev2_treats <- prev_treats; prev_treats <- as.character(df[[fill]][rows]); next }
       base_seed <- as.integer((seed %% 100000L) * 131L + gi * 1299709L) %% .Machine$integer.max
       best_perm <- NULL; best_score <- Inf
-      # On essaie plusieurs permutations et on garde celle qui :
-      #  (a) minimise les voisins identiques DANS le bloc (positions adjacentes)
-      #  (b) minimise les traitements a la MEME position que le bloc precedent
-      #  (c) minimise aussi les collisions avec l'avant-dernier bloc (colonne sur 3 blocs)
+      # On essaie plusieurs permutations et on garde celle qui.
       for (tt in seq_len(tries_cap)) {
         set.seed(base_seed + tt * 7919L)
         perm <- rows[sample.int(length(rows))]
@@ -1149,8 +1125,7 @@ hstat_place_design <- function(book, type, fill_col, seed = 123, tries = 200) {
     attr(b, "gradient") <- "none"
   } else if (type == "fisher" && has_block) {
     # Bloc de Fisher (RCBD classique, image 1) : chaque bloc est une RANGEE
-    # complete contenant tous les traitements randomises ; blocs empiles
-    # verticalement, gradient perpendiculaire aux blocs (vertical).
+    # complete contenant tous les traitements randomises.
     blk <- as.integer(as.factor(b$block))
     b$.y <- blk
     b$.x <- stats::ave(seq_len(nrow(b)), blk, FUN = seq_along)
@@ -1323,8 +1298,7 @@ hstat_design_analysis <- function(type, n_factors) {
   b$.blocklab <- factor(b$.blocklab, levels = unique(b$.blocklab[order(b$.blockord)]))
 
   # Deux axes INDEPENDANTS : - block_stack : disposition des blocs (pilotee par
-  # le gradient) "vertical" -> blocs empiles de haut en bas :
-  # facet_grid(.blocklab ~ .) "horizontal" -> blocs cote a cote : facet_grid(.
+  # le gradient) "vertical" -> blocs empiles de haut en bas.
   blocks_side_by_side <- (block_stack == "horizontal")
   # cols/rows = vars(.blocklab) : equivaut a ".
   facet_layer <- if (blocks_side_by_side)
@@ -1432,9 +1406,8 @@ hstat_design_analysis <- function(type, n_factors) {
     if (!all(c(f1, f2, "block") %in% names(b))) return(NULL)
     nsub <- length(unique(b[[f2]]))
     main_levels <- unique(b[[f1]])
-    # Reordonner : pour chaque bloc, regrouper les sous-parcelles SOUS leur grande
-    # parcelle (meme niveau du Facteur1 contigu) ; l'ordre des grandes parcelles et
-    # des sous-parcelles est randomise mais reste GROUPE.
+    # Reordonner : pour chaque bloc, regrouper les sous-parcelles SOUS leur
+    # grande parcelle (meme niveau du Facteur1 contigu).
     ord <- integer(0)
     ub <- unique(b$block)
     for (bi in seq_along(ub)) {
@@ -1449,7 +1422,7 @@ hstat_design_analysis <- function(type, n_factors) {
     }
     b <- b[ord, , drop = FALSE]
     b$.x <- stats::ave(seq_len(nrow(b)), b$block, FUN = function(ix) seq_along(ix))
-    b$.fill <- reorder_fill(b[[f1]])    # couleur = facteur principal (meme couleur par grande parcelle)
+    b$.fill <- reorder_fill(b[[f1]])
     b$.lab <- vapply(as.character(b[[f2]]), lab_of, character(1))
     main_breaks <- seq(nsub, by = nsub, length.out = length(main_levels) - 1) + 0.5
     g <- ggplot2::ggplot(b, ggplot2::aes(factor(.x), 1, fill = .fill)) +
@@ -1520,8 +1493,8 @@ hstat_design_analysis <- function(type, n_factors) {
                              lab2 = as.character(d[[f2n]][1]),
                              stringsAsFactors = FALSE)))
     band_h <- 0.18   # hauteur du bandeau F2 (en unites de cellule, cellule = 1)
-    # -- Personnalisation utilisateur : traits pointilles + couleur du bandeau --
-    # Validation defensive : toute valeur invalide retombe sur un defaut sur.
+    # -- Personnalisation utilisateur : traits pointilles + couleur du bandeau
+    # -- Validation defensive.
     sub_lw <- suppressWarnings(as.numeric(sub_line %||% 0.8))
     if (!is.finite(sub_lw) || sub_lw < 0) sub_lw <- 0.8
     .valid_col <- function(x, fallback) {
@@ -1537,10 +1510,8 @@ hstat_design_analysis <- function(type, n_factors) {
       "white" else "#1a5276"
     n_per_block <- max(b$.x)
     band_breaks <- sort(unique(c(sub_breaks, main_breaks)))
-    # ---- Separations GEOMETRIQUES proportionnelles (correctif parcelles invisibles) --
-    # Les anciens traits blancs avaient une epaisseur ABSOLUE (mm) : avec
-    # beaucoup de parcelles, chaque trait devenait plus large que les cellules
-    # et les recouvrait entierement.
+    # ---- Separations GEOMETRIQUES proportionnelles (correctif parcelles
+    # invisibles).
     gap  <- max(0, min(0.35, (suppressWarnings(as.numeric(cell_sep)) %||% 1) * 0.05))
     if (!is.finite(gap)) gap <- 0.05
     vgap <- min(0.05, gap)                     # jeu vertical bandeau / cellules
@@ -1554,11 +1525,8 @@ hstat_design_analysis <- function(type, n_factors) {
     # Etiquettes d'axe : eclaircies quand les parcelles sont nombreuses.
     ax_breaks <- if (n_per_block > 24) unique(c(1, seq(5, n_per_block, by = 5)))
                  else seq_len(n_per_block)
-    # Filets blancs FINS a epaisseur fixe (independante du curseur de separation) :
-    # quand les parcelles sont nombreuses, les retraits geometriques deviennent
-    # inferieurs au pixel ; ces filets garantissent une separation nette et
-    # reguliere sans jamais recouvrir les cellules (contrairement a l'ancien
-    # linewidth = cell_sep qui rendait les parcelles invisibles).
+    # Filets blancs FINS a epaisseur fixe (independante du curseur de
+    # separation).
     hair <- 0.3
     cell_breaks <- if (n_per_block > 1) seq(1.5, n_per_block - 0.5, by = 1) else numeric(0)
     # Etiquettes de cellules : rotation verticale automatique au-dela de 24
@@ -1686,7 +1654,7 @@ hstat_design_analysis <- function(type, n_factors) {
       ggplot2::theme(panel.grid = ggplot2::element_blank(),
                      strip.text = ggplot2::element_text(face = "bold", size = font_axis),
                      strip.background = ggplot2::element_rect(fill = "#ecf0f1", color = NA),
-                     panel.spacing = ggplot2::unit(2.2, "lines"),  # espace blanc epais entre repliques
+                     panel.spacing = ggplot2::unit(2.2, "lines"),
                      legend.position = legend_pos)
   } else return(NULL)
 
@@ -1695,13 +1663,9 @@ hstat_design_analysis <- function(type, n_factors) {
   if (treat_orient == "vertical" && type == "strip") {
     g <- g + ggplot2::coord_flip()
   }
-  # Note : la disposition des panneaux (repliques/blocs empiles vs cote a cote)
-  # est desormais geree directement par l'orientation des facettes ci-dessus
-  # (ncol = 1 vs nrow = 1, ou block ~ .
 
-  # ---- Gradient(s) d'heterogeneite ----
-  # Une direction EXPLICITE (haut->bas, gauche->droite...) est rendue telle
-  # quelle : elle ne suit pas l'empilement des blocs (hstat_dsg_gradient).
+  # ---- Gradient(s) d'heterogeneite ---- Une direction EXPLICITE (haut->bas,
+  # gauche->droite...) est rendue telle quelle.
   sens_inverse <- identical(grad_sens, "inverse")
   if (grad %in% HSTAT_DSG_GRAD_DIRECTIONS) {
     main_dir <- grad
@@ -1788,9 +1752,7 @@ hstat_design_analysis <- function(type, n_factors) {
     }, error = function(e) NULL)
     if (is.null(pal) || length(pal) < length(fill_levels))
       pal <- grDevices::hcl.colors(length(fill_levels), "Dynamic")
-    # Attribution des couleurs PAR NOM de modalite (et non par position) : avec un
-    # ordre de legende inverse ou d'apparition, chaque swatch garde la couleur de
-    # sa modalite dans le graphe.
+    # Attribution des couleurs PAR NOM de modalite (et non par position).
     col_map <- if (!is.null(names(pal)) && all(fill_levels %in% names(pal))) {
       pal[fill_levels]
     } else {
@@ -2197,9 +2159,8 @@ mod_design_ui <- function(id) {
                     shiny::tagList(shiny::icon("th"), " Afficher chaque bloc en facette (avec son nom)"),
                     value = TRUE)))
               ),
-              # ============ GRADIENT D'HÉTÉROGÉNÉITÉ ==================
-              # Il vit SOUS le « Sens des blocs » : les deux se reglent ensemble,
-              # les blocs etant perpendiculaires au gradient choisi.
+              # ============ GRADIENT D'HÉTÉROGÉNÉITÉ ================== Il vit
+              # SOUS le « Sens des blocs ».
               .sect("arrows-alt", "Gradient d'hétérogénéité"),
               shiny::fluidRow(
                 shiny::column(6, shiny::selectInput(ns("dsgGradient"),
@@ -2447,10 +2408,7 @@ mod_design_server <- function(id, values) {
              else if (test %in% c("gof", "chisq_generic")) "w de Cohen"
              else if (test %in% c("prop2", "prop1", "mcnemar", "sign")) "h de Cohen"
              else ""
-      # Les reperes de la mesure attendue, puis la classe de la valeur saisie :
-      # un nombre nu (« 0,25 ») ne dit pas s'il est petit ou grand, et les
-      # seuils changent d'une mesure a l'autre -- 0,25 est un f moyen mais un d
-      # petit.
+      # Les reperes de la mesure attendue, puis la classe de la valeur saisie.
       mes <- hstat_pow_mesure(test)
       rep <- if (!is.na(mes)) HSTAT_POW_REPERES[[mes]]
       # Deux decimales : les seuils se recopient tels qu'on les publie (0,10 / 0,25).
@@ -2601,8 +2559,7 @@ mod_design_server <- function(id, values) {
       F_total <- test %in% c("anova_factorial", "rm_between", "rm_within", "rm_interaction",
                              "ancova", "manova_global", "reg_r2inc", "reg_r2dev", "f_generic")
       # Bornes assainies : %||% ne protege que contre NULL, or un champ vide
-      # renvoie NA et un calcul de puissance peut renvoyer n = Inf (effet ~0) ;
-      # seq() exige des bornes finies.
+      # renvoie NA et un calcul de puissance peut renvoyer n = Inf (effet ~0).
       base <- if (F_total) hstat_finite(r$ntot, 60) else hstat_finite(r$nper, 60)
       from <- if (F_total) hstat_finite(df1, 2) + hstat_finite(groups, 2) +
         hstat_finite(covars, 0) + 2 else 3
@@ -2633,7 +2590,7 @@ mod_design_server <- function(id, values) {
     })
 
     # Le nombre de repetitions usuel du dispositif est propose des qu'on le
-    # choisit ; il reste modifiable, c'est une suggestion et non une contrainte.
+    # choisit.
     shiny::observeEvent(input$dsgType, {
       mh <- hstat_malherbo_catalog()[[input$dsgType %||% ""]]
       if (!is.null(mh)) shiny::updateNumericInput(session, "dsgRep", value = mh$r)
@@ -2741,8 +2698,8 @@ mod_design_server <- function(id, values) {
         shiny::updateTextInput(session, paste0("dsgFLevels", i),
                         value = paste(mods, collapse = ", "))
       }
-      # Les repetitions imposees dans la repartition voyagent avec les facteurs :
-      # les recuperer sans elles laisserait le plan sur ses 3 blocs par defaut.
+      # Les repetitions imposees dans la repartition voyagent avec les
+      # facteurs.
       if (identical(input$powRepartMode, "fixed")) {
         rp <- tryCatch(pow_repartition(), error = function(e) NULL)
         reps <- if (!is.null(rp)) rp$`répétitions` else hstat_borne_client(input$powRepNb, 4, 1, 1000)
@@ -2780,8 +2737,8 @@ mod_design_server <- function(id, values) {
         }
         shiny::div(style = "border-left:3px solid #3c8dbc;padding-left:8px;margin-bottom:8px;",
           shiny::textInput(ns(paste0("dsgFName", i)), trf("Nom du facteur %s", i), value = paste0("Facteur", i)),
-          # Generateur automatique de modalites : lettre + chiffre de debut + chiffre de fin.
-          # Ex : lettre = A, début = 0, fin = 2  ->  A0, A1, A2 (rempli automatiquement ci-dessous).
+          # Generateur automatique de modalites : lettre + chiffre de debut +
+          # chiffre de fin.
           shiny::fluidRow(
             shiny::column(4, shiny::textInput(ns(paste0("dsgFLetter", i)),
                                 shiny::tagList(shiny::icon("font"), " Lettre"), value = default_letter)),
@@ -2801,8 +2758,7 @@ mod_design_server <- function(id, values) {
     shiny::observe({
       t <- input$dsgType %||% "crd"
       # Un dispositif de malherbologie porte ses propres modalites (doses,
-      # densites, strategies) : le generateur automatique les ecraserait par
-      # « A0, A1, A2 » des le premier passage.
+      # densites, strategies).
       if (!is.null(hstat_malherbo_catalog()[[t]])) return()
       nf <- if (t == "splitsplit") 3 else if (t %in% c("split", "strip")) 2 else if (t == "factorial") max(2, input$dsgNFactors %||% 2) else 1
       for (i in seq_len(nf)) {
@@ -2849,8 +2805,6 @@ mod_design_server <- function(id, values) {
       if (t == "splitsplit") shiny::validate(shiny::need(length(fl) >= 3, "Le split-split-plot nécessite 3 facteurs (parcelle principale, sous-parcelle, sous-sous-parcelle)."))
       kk <- input$dsgK
       k_mode <- input$dsgKMode %||% "exact"
-      # Alpha Lattice : le dispositif reussit desormais dans TOUS les
-      # contextes.
       if (t == "alpha") {
         nt <- length(fl[[1]])
         valid_k <- Filter(function(d) d >= 2 && d < nt && nt %% d == 0 && (nt / d) >= d, 2:(nt-1))
@@ -3034,9 +2988,7 @@ mod_design_server <- function(id, values) {
       .apply_legend_fonts <- function(g) {
         if (is.null(g) || !inherits(g, "ggplot")) return(g)
         # Une composition patchwork (fleche du gradient + plan, pile de
-        # legendes) se regle sur le PANNEAU DU PLAN, jamais sur l'ensemble :
-        # la sauter laissait les tailles de legende sans effet sur le rendu
-        # par defaut (blocs en facettes), qui est justement une composition.
+        # legendes) se regle sur le PANNEAU DU PLAN, jamais sur l'ensemble.
         if (inherits(g, "patchwork")) return(.hstat_dsg_sur_plan(g, .apply_legend_fonts))
         txt_sz  <- suppressWarnings(as.numeric(input$dsgLegendTextSize  %||% 11))
         ttl_sz  <- suppressWarnings(as.numeric(input$dsgLegendTitleSize %||% 12))
@@ -3081,17 +3033,13 @@ mod_design_server <- function(id, values) {
 
       pal  <- input$dsgPalette %||% "ggplot2"
       if (identical(pal, "default")) pal <- "ggplot2"
-      # Le catalogue commun : il interpole au-dela du plafond de RColorBrewer,
-      # ce que ce module faisait a la main, avec sa propre table des plafonds.
       fill_scale <- hstat_scales_palette(pal, fill = TRUE, colour = FALSE)[[1]]
 
       # ---- Rendu FACETTE pour split-plot, strip-plot et alpha (un panneau par
       # bloc/replique), conforme aux representations agronomiques de reference ----
       if (t %in% c("split", "strip", "alpha", "splitsplit")) {
-        # Orientation de l'empilement des blocs incomplets (meme logique que RCBD) :
-        #  - "Orientation des traitements" = VERTICALE  -> blocs cote a cote (horizontal)
-        #  - "Orientation des traitements" = HORIZONTALE -> blocs empiles (vertical)
-        #  - "Automatique" -> deduit du "Sens des blocs".
+        # Orientation de l'empilement des blocs incomplets (meme logique que
+        # RCBD).
         to_f <- input$dsgTreatOrient %||% "auto"
         orient_f <- input$dsgBlockOrient %||% "top_down"
         ug_f <- input$dsgGradient %||% "auto"
@@ -3299,9 +3247,7 @@ mod_design_server <- function(id, values) {
       # Axe des blocs dans ce plan : par defaut empiles sur Y (rangees de
       # blocs).
       block_designs_perp <- c("fisher", "alpha", "split", "strip", "factorial")
-      # L'axe des blocs est SUIVI (`blocs_en_y`), pas devine : l'ancien critere
-      # « plus de rangees que de colonnes » prenait 3 blocs de 4 parcelles pour
-      # des blocs en colonnes, et posait un gradient PARALLELE aux blocs.
+      # L'axe des blocs est SUIVI (`blocs_en_y`), pas devine.
       blocks_on_y <- if (t %in% block_designs_perp) blocs_en_y else TRUE
       # Gradient perpendiculaire : blocs sur Y -> gradient vertical ;
       #                            blocs sur X -> gradient horizontal.

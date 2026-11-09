@@ -1,17 +1,10 @@
-# =============================================================================
-#  HStat -- PONT vers le socle (R/utils.R)
-# -----------------------------------------------------------------------------
+# HStat -- PONT vers le socle (R/utils.R)
 # Les ~5 700 lignes de definitions qui vivaient ici sont passees dans
 # `R/utils.R`, ou elles forment le code du paquet.
 # 1. AMENER LE SOCLE dans l'environnement de l'application ;
-# 2. FAIRE CE QUI DOIT L'ETRE AU DEMARRAGE -- reglages de session, locale,
-# installation des paquets, alias anti-masquage, et replis des paquets
-# d'interface optionnels.
-# =============================================================================
+# 2. FAIRE CE QUI DOIT L'ETRE AU DEMARRAGE.
 
-# --- 1. Chargement du socle
-# --------------------------------------------------- LES SOURCES PRIMENT SUR
-# LE PAQUET INSTALLE.
+# --- 1.
 .hstat_charger_socle <- function(envir = globalenv()) {
   rel <- c(".", "..", file.path("..", ".."), file.path("..", "..", ".."))
   cands <- file.path(rel, "R", "utils.R")
@@ -42,8 +35,7 @@
 }
 .hstat_charger_socle()
 
-# --- 2. Demarrage de l'application -------------------------------------------
-
+# --- 2.
 
 options(encoding = "UTF-8")
 
@@ -72,20 +64,12 @@ local({
   }
 })
 
-
 install_and_load(required_packages)
 hstat_load_model_packages()
 
-# -- Blindage contre la pollution du chemin de recherche
-# ----------------------- L'application ne controle pas l'environnement R de
-# l'utilisateur : un .Rprofile, un workspace RStudio restaure ou un library()
-# anterieur peut attacher des packages dont les exports masquent des fonctions
-# vitales.
+# -- Blindage contre la pollution du chemin de recherche.
 em     <- shiny::em
 margin <- ggplot2::margin
 
-# --- Replis des paquets d'interface optionnels -------------------------------
-# Leur DEFINITION vit dans le socle (`hstat_installer_replis_ui`) ; ce qui reste
-# ici, c'est la DECISION de les installer, qui depend de ce qui est present sur
-# cette machine-ci.
+# --- Replis des paquets d'interface optionnels.
 hstat_installer_replis_ui()

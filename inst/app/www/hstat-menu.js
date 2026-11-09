@@ -1,16 +1,4 @@
-/* HStat — sections repliables de la barre laterale.
- *
- * Chaque titre de section portant `data-hstat-repli` regroupe les entrees qui
- * le suivent, jusqu'au titre suivant. Les entrees sont masquees par defaut :
- *   - le SURVOL du titre (ou de ses entrees) les deroule le temps du passage ;
- *   - le CLIC sur le titre les garde ouvertes, un second clic les replie.
- * L'etat epingle survit au rechargement (localStorage, par onglet de
- * navigateur). Un titre sans l'attribut (« 6. A propos ») reste deplie.
- *
- * Le masquage est pose par ce script et non par la feuille de style : si le
- * script ne se charge pas, le menu reste entierement visible au lieu de
- * disparaitre. Les evenements passent par jQuery (regle du depot).
- */
+// HStat — sections repliables de la barre laterale.
 (function () {
   "use strict";
   var CLE = "hstat-menu-epingle";

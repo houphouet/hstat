@@ -109,10 +109,7 @@ mod_tests_ui <- function(id) {
                                                selected = "holm")
                                ),
                                # --- Configuration des tests apparies --- Aucun
-                               # selecteur de colonne de plus : la forme LARGE
-                               # reprend les deux variables reponse choisies,
-                               # la forme LONGUE la reponse, le facteur et
-                               # l'identifiant du bloc des mesures repetees.
+                               # selecteur de colonne de plus.
                                shiny::div(style = "background-color:#fff8e1; border-left:4px solid #ef6c00; padding:10px; margin-top:12px;",
                                    shiny::h6(shiny::tagList(shiny::icon("link"), " Données appariées"),
                                       style = "color:#e65100; margin-top:0; font-weight:bold;"),
@@ -141,9 +138,7 @@ mod_tests_ui <- function(id) {
                                    shiny::actionButton(ns("testHomogeneityRaw"), "Test d'homogénéité",    class = "btn-warning btn-block", icon = shiny::icon("balance-scale"))
                                ),
                                # L'hypothese de normalite porte sur chaque
-                               # groupe : le test global melange les groupes,
-                               # et deux groupes normaux eloignes y forment une
-                               # distribution bimodale que Shapiro-Wilk rejette.
+                               # groupe.
                                shiny::checkboxInput(ns("normParGroupe"),
                                    "Test de normalité : Shapiro-Wilk par groupe du facteur sélectionné", value = FALSE),
                                shiny::conditionalPanel(ns = ns,
@@ -178,8 +173,7 @@ mod_tests_ui <- function(id) {
                                # --- CHI-DEUX D'ADEQUATION
                                # ------------------------------------ Place
                                # SOUS les tests parametriques, dans leur
-                               # colonne : c'est un test d'ajustement, il se
-                               # lit a la suite.
+                               # colonne.
                                shiny::div(style = "border-left:4px solid #1565C0; padding-left:10px; margin-top:16px;",
                                    shiny::h4(shiny::tagList(shiny::icon("chart-simple"), " Chi² d'adéquation"),
                                       style = "color:#1565C0;"),
@@ -221,15 +215,9 @@ mod_tests_ui <- function(id) {
                                    shiny::actionButton(ns("testRMNonParam"), "Non paramétrique répété",  class = "btn-primary btn-block", icon = shiny::icon("repeat")),
                                    shiny::actionButton(ns("testPERMANOVA"),       "PERMANOVA (>= 2 réponses)",  class = "btn-primary btn-block", icon = shiny::icon("layer-group"))
                                ),
-                               # Le Test Chi² / Multinomial a été déplacé dans
-                               # « Analyses qualitatives » (famille Nominale) où
-                               # il vit désormais avec les tableaux croisés.
 
                                # --- Comparaison a une valeur de reference
-                               # (norme) ------------- Tests a UN echantillon :
-                               # les donnees sont confrontees a une valeur
-                               # cible connue au lieu d'etre comparees entre
-                               # groupes.
+                               # (norme) ------------- Tests a UN echantillon.
                                shiny::div(style = "border-left:4px solid #6a1b9a; padding-left:10px; margin-top:16px;",
                                    shiny::h4(shiny::tagList(shiny::icon("bullseye"), " Comparaison à une norme"),
                                       style = "color:#6a1b9a;"),
@@ -255,9 +243,9 @@ mod_tests_ui <- function(id) {
                                                     class = "btn-block", icon = shiny::icon("bullseye"),
                                                     style = "background:#8e44ad; color:#fff; border-color:#76398f;"))),
 
-                               # --- Reglages de la comparaison a une norme --------------------
-                               # Places SOUS les boutons ci-dessus : meme accent violet, meme
-                               # colonne, l'ensemble se lit d'un seul tenant.
+                               # --- Reglages de la comparaison a une norme
+                               # -------------------- Places SOUS les boutons
+                               # ci-dessus.
                                shiny::div(style = "border-left:4px solid #6a1b9a; padding-left:10px; margin-top:12px;",
                                    shiny::h4(shiny::tagList(shiny::icon("sliders-h"), " Réglages de la norme"),
                                       style = "color:#6a1b9a;"),
@@ -309,11 +297,6 @@ mod_tests_ui <- function(id) {
                   )
                 ),
 
-                # RESULTAT DETAILLE DE LA COMPARAISON A UNE NORME
-                # Les reglages et les boutons vivent desormais dans la boite
-                # « Parametres des tests » ; seul le detail du resultat
-                # (estimation, intervalle de confiance, taille d'effet) apparait
-                # ici, et uniquement apres execution d'un test de conformite.
                 shiny::conditionalPanel(
                   ns = ns,
                   condition = "output.hasRefTest",
@@ -343,8 +326,7 @@ mod_tests_ui <- function(id) {
                 ),
 
                 # RESULTAT DETAILLE DU CHI-DEUX D'ADEQUATION Meme motif que la
-                # comparaison a une norme : la boite n'existe a l'ecran QUE
-                # pour le test qu'on vient de lancer.
+                # comparaison a une norme.
                 shiny::conditionalPanel(
                   ns = ns,
                   condition = "output.hasChiSqTest",
@@ -568,8 +550,6 @@ mod_tests_ui <- function(id) {
                   )
                 ),
               
-              
-              
                 # La transformation est un OUTIL, pas un resultat : elle ne se
                 # deplie que si on la demande.
                 shiny::fluidRow(
@@ -762,7 +742,7 @@ mod_tests_ui <- function(id) {
                         ),
                         shiny::plotOutput(ns("modelDiagnostics"), height = "500px"),
                         shiny::br(),
-                        hstat_export_plot_ui(ns, "diagExp", width = 10.67, height = 8, theme = FALSE),  # graphique de base R : aucun theme ggplot ne l'atteint (exception nommee dans les tests)
+                        hstat_export_plot_ui(ns, "diagExp", width = 10.67, height = 8, theme = FALSE),
                         shiny::htmlOutput(ns("modelDiagnosticsInterpretation"))
                     ),
                     shinydashboard::box(title = "Résidus et validation", status = "info", width = 6, solidHeader = TRUE,
@@ -807,10 +787,8 @@ mod_posthoc_ui <- function(id) {
                 .hstat_scope_banner(exact = FALSE),
                 shiny::fluidRow(
                 
-                
                   shinydashboard::box(title = shiny::div(shiny::icon("cog"), " Configuration de l'analyse"), 
                       status = "primary", width = 4, solidHeader = TRUE,
-                    
                     
                       shiny::div(style = "background-color: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 15px;",
                           shiny::h4(style = "color: #2c3e50; margin-top: 0;", shiny::icon("chart-line"), " Sélection des variables"),
@@ -819,7 +797,6 @@ mod_posthoc_ui <- function(id) {
                           # Bandeau info transformations actives (affiché si variables transformées sélectionnées)
                           shiny::uiOutput(ns("postHocTransformInfo"))
                       ),
-                    
                     
                       shiny::div(style = "background-color: #fef9e7; padding: 15px; border-radius: 8px; margin-bottom: 15px;",
                           shiny::h4(style = "color: #2c3e50; margin-top: 0;", shiny::icon("hashtag"), " Affichage des résultats"),
@@ -833,7 +810,6 @@ mod_posthoc_ui <- function(id) {
                           shiny::helpText(style = "font-size: 11px; color: #5f6b7a;",
                                    "Si décoché, les valeurs s'affichent sans arrondi.")
                       ),
-                    
                     
                       shiny::div(style = "background-color: #e8f4fd; padding: 15px; border-radius: 8px; margin-bottom: 15px;",
                           shiny::h4(style = "color: #2c3e50; margin-top: 0;", shiny::icon("vial"), " Tests statistiques"),
@@ -910,10 +886,7 @@ mod_posthoc_ui <- function(id) {
                                              "background:#fff8e1;border:1px solid #ffb300;",
                                              "border-radius:6px;"),
                               shiny::checkboxInput(ns("showBackTransformed"),
-                                # La chaine ASSEMBLEE passe par tr() : le
-                                # traducteur du navigateur ne remplace que des
-                                # correspondances entieres, et ce libelle n'existe
-                                # comme chaine entiere qu'apres le paste0.
+                                # La chaine ASSEMBLEE passe par tr().
                                 shiny::HTML(tr(paste0(
                                   "<b style='color:#e65100;'>",
                                   "<i class='fa fa-exchange-alt'></i>&nbsp;",
@@ -928,7 +901,6 @@ mod_posthoc_ui <- function(id) {
                             )
                           )
                       ),
-                    
                     
                       shiny::div(style = "border: 3px solid #e74c3c; border-radius: 8px; padding: 15px; margin-bottom: 15px; background: linear-gradient(135deg, #fff5f5 0%, #ffe8e8 100%);",
                           shiny::h4(style = "color: #c0392b; margin-top: 0;", 
@@ -958,7 +930,6 @@ mod_posthoc_ui <- function(id) {
                     
                       shiny::hr(),
                     
-                    
                       shiny::actionButton(ns("runMultiple"), 
                                    shiny::HTML("<h5 style='margin: 5px 0;'><i class='fa fa-play'></i> LANCER L'ANALYSE</h5>"), 
                                    class = "btn-success btn-lg", 
@@ -967,7 +938,6 @@ mod_posthoc_ui <- function(id) {
                       shiny::br(), shiny::br(),
                     
                   ),
-                
                 
                   shinydashboard::box(title = shiny::div(shiny::icon("table"), " Résultats et visualisations"), 
                       status = "primary", width = 8, solidHeader = TRUE,
@@ -1233,7 +1203,6 @@ mod_posthoc_ui <- function(id) {
                                        choices = c("Boxplot" = "box", "Violon" = "violin",
                                                    "Points + barres" = "point", "Barres" = "hist"),
                                        selected = "box"),
-                          # « Defaut (gris) » ETAIT UN LIBELLE FAUX.
                           shiny::selectInput(ns("boxColor"), "Palette de couleurs",
                                       choices = hstat_palettes_choix(),
                                       selected = unname(HSTAT_PALETTE_GG)),
@@ -1416,10 +1385,9 @@ mod_posthoc_ui <- function(id) {
                         .hstat_opt_section(
                           "Légende", "list", "#5f6b7a", "#f4f6f7",
                           shiny::selectInput(ns("legendPosition"), "Position",
-                                      # « Haut » et « Bas » seuls sont des valeurs de
-                                      # données plausibles (une colonne « Niveau ») :
-                                      # le dictionnaire du navigateur les traduirait
-                                      # jusque dans le fichier de l'utilisateur.
+                                      # « Haut » et « Bas » seuls sont des
+                                      # valeurs de données plausibles (une
+                                      # colonne « Niveau »).
                                       choices = list("Droite" = "right", "Gauche" = "left",
                                                      "En haut" = "top", "En bas" = "bottom",
                                                      "Masquée" = "none"),
@@ -1457,7 +1425,6 @@ mod_posthoc_ui <- function(id) {
                   )
                 ),
 
-              
                 shiny::conditionalPanel(
                   ns = ns,
                   condition = "output.hasLMPostHoc",
@@ -1604,7 +1571,6 @@ mod_posthoc_ui <- function(id) {
                 )
                 ),
               
-              
                 shiny::conditionalPanel(
                   ns = ns,
                   condition = "output.hasRMPostHoc",
@@ -1637,14 +1603,11 @@ mod_posthoc_ui <- function(id) {
                 )
                 )
               
-              
       )
 }
 
-
-# ============================ TESTS DE CORRÉLATION ============================
-# Page dédiée : corrélations de Pearson, Kendall et Spearman sur toutes les
-# paires de variables numériques, avec correction pour comparaisons multiples.
+# ============================ TESTS DE CORRÉLATION
+# ============================ Page dédiée.
 mod_correlation_ui <- function(id) {
   ns <- shiny::NS(id)
   shinydashboard::tabItem(tabName = "corrélation",
@@ -2001,9 +1964,8 @@ mod_correlation_server <- function(id, values) {
         "spectral" = grDevices::colorRampPalette(c("#9E0142","#D53E4F","#F46D43","#FDAE61","#FEE08B","#FFFFBF","#E6F598","#ABDDA4","#66C2A5","#3288BD","#5E4FA2"))(200),
         NULL)
 
-      # ---- Rendu dédié au mode "une variable contre les autres" (matrice 1 x N) ----
-      # La matrice n'est pas carrée : on utilise is.corr = FALSE (mais l'échelle reste
-      # [-1, 1] via col.lim) et on superpose coefficient + p-value proprement.
+      # ---- Rendu dédié au mode "une variable contre les autres" (matrice 1 x
+      # N) ---- La matrice n'est pas carrée.
       if (focus_mode) {
         cp_args <- list(corr = cor_matrix, method = if (display == "number") "color" else display,
                         is.corr = FALSE, col.lim = c(-1, 1),
@@ -2156,9 +2118,7 @@ mod_correlation_server <- function(id, values) {
             p$pval_size, p$reorder, p$palette, p$coef_color, p$pval_color_sig,
             p$pval_color_ns, p$white_on_dark, focus_var = fv)
         # Un seul chemin d'ecriture, qui garantit un fichier valide du format
-        # demande : les sept branches de peripheriques qui vivaient ici
-        # laissaient un fichier vide quand le trace levait, et Shiny renvoyait
-        # alors sa page d'erreur HTML sous le nom demande.
+        # demande.
         hstat_ecrire_image(file, draw, fmt, size_in, size_in, dpi)
         shiny::showNotification(trf("Graphique téléchargé (%s, %d DPI).", toupper(fmt), dpi),
                          type = "message", duration = 3)
@@ -2166,12 +2126,9 @@ mod_correlation_server <- function(id, values) {
   })
 }
 
-
 mod_tests_server <- function(id, values) {
   shiny::moduleServer(id, function(input, output, session) {
     ns <- session$ns
-
-  # `get_plot_theme()` vivait ici.
 
   output$responseVarSelect <- shiny::renderUI({
     shiny::req(values$filteredData)
@@ -2194,7 +2151,6 @@ mod_tests_server <- function(id, values) {
   shiny::observeEvent(input$deselectAllResponse, {
     updatePickerInput(session, "responseVar", selected = character(0))
   })
-  
   
   # Bloc 1 : Sélecteur de variables à transformer
   output$transformVarSelect <- shiny::renderUI({
@@ -2724,12 +2680,9 @@ mod_tests_server <- function(id, values) {
     }
   })
 
-  # ===========================================================================
-  #  COMPARAISON A UNE VALEUR DE REFERENCE (NORME) -- tests a un echantillon
-  # ---------------------------------------------------------------------------
+  # COMPARAISON A UNE VALEUR DE REFERENCE (NORME) -- tests a un echantillon
   # Les moteurs de calcul vivent dans Utils.R (hstat_ref_test /
   # hstat_ref_prop_test).
-  # ===========================================================================
 
   # Niveau de confiance borne au domaine valide.
   .ref_conf <- function() {
@@ -2787,15 +2740,13 @@ mod_tests_server <- function(id, values) {
       rows[[var]] <- hstat_ref_result_row(res, var)
       details[[var]] <- .ref_detail_row(res, var)
       # La conformite d'une VARIANCE ne se resume pas en « moyenne ±
-      # dispersion » : sa reference est une variance. Pas de synthese pour elle.
+      # dispersion » : sa reference est une variance.
       if (method != "variance")
         synth[[var]] <- hstat_synthese_reference(
           values$filteredData[[var]], var, res$reference, res$statistic,
           if (is.na(res$parameter)) NA else hstat_ddl_fmt(res$parameter), res$p.value,
           symbole = switch(method, ztest = "z", wilcoxon = "V", sign = "S", "t"),
-          # Les lettres ne se posent que pour un test sur la MOYENNE (t, z) : le
-          # Wilcoxon signe et le test du signe portent sur la mediane, et des
-          # lettres tirees de la moyenne pourraient dire l'inverse du test.
+          # Les lettres ne se posent que pour un test sur la MOYENNE (t, z).
           lettres = method %in% c("ttest", "ztest"))
       if (!is.na(res$note)) notes <- c(notes, res$note)
     }
@@ -2839,7 +2790,7 @@ mod_tests_server <- function(id, values) {
     ps <- vapply(rows, function(r) r$p_value[1], numeric(1))
     n_sig <- sum(!is.na(ps) & ps < 0.05)
     # Le TOST inverse l'hypothèse nulle : un p petit y conclut à l'ÉQUIVALENCE
-    # et non à un écart. Le message doit suivre.
+    # et non à un écart.
     is_tost <- any(grepl("TOST", vapply(rows, function(r) r$Test[1], character(1)),
                          fixed = TRUE))
     shiny::showNotification(
@@ -2955,9 +2906,7 @@ mod_tests_server <- function(id, values) {
         shiny::tags$ul(lapply(n, shiny::tags$li)))
   })
 
-  # ===========================================================================
-  #  TESTS APPARIES : t, Wilcoxon signe, test du signe
-  # ===========================================================================
+  # TESTS APPARIES : t, Wilcoxon signe, test du signe
   # Le calcul vit dans le socle (`hstat_test_apparie()`, `hstat_paires_*()`) :
   # le serveur ne fait que choisir les colonnes, publier et annoncer.
   .paired_conf <- function() {
@@ -3033,9 +2982,7 @@ mod_tests_server <- function(id, values) {
             else sprintf("[%s ; %s]",
                          if (is.finite(res$conf.low)) signif(res$conf.low, 5) else "-Inf",
                          if (is.finite(res$conf.high)) signif(res$conf.high, 5) else "+Inf")
-      # La normalite porte sur les DIFFERENCES, pas sur chaque mesure : c'est
-      # l'hypothese du t apparie, et deux mesures non normales peuvent avoir
-      # des differences parfaitement normales.
+      # La normalite porte sur les DIFFERENCES, pas sur chaque mesure.
       dif <- p$b - p$a
       sw <- if (methode == "t" && length(dif) >= 3 && length(dif) <= 5000 &&
                 stats::sd(dif) > 0)
@@ -3054,8 +3001,7 @@ mod_tests_server <- function(id, values) {
           greater   = tr("unilatérale (la deuxième mesure est supérieure)"),
           less      = tr("unilatérale (la deuxième mesure est inférieure)")),
         p_value = res$p.value, stringsAsFactors = FALSE)
-      # CE QUI EST RETIRE SE NOMME : un test porte sur moins d'unites que le
-      # fichier n'en compte, sans rien qui le dise, se lit comme l'essai entier.
+      # CE QUI EST RETIRE SE NOMME.
       if (isTRUE(p$ecartees > 0))
         notes <- c(notes, trf("%s : %d ligne(s) sans mesure exploitable écartée(s).",
                               j$etiquette, p$ecartees))
@@ -3265,7 +3211,6 @@ mod_tests_server <- function(id, values) {
           error_messages <- c(error_messages, trf("%s : Aucun effet trouvé (uniquement des résidus)", var))
         }
         
-        
       }, error = function(e) {
         error_msg <- hstat_err_fr(e, var)
         error_messages <<- c(error_messages, error_msg)
@@ -3395,8 +3340,7 @@ mod_tests_server <- function(id, values) {
         
         for (i in 1:(nrow(anova_table) - 1)) {
           # `summary(aov)` garde les accents graves d'un nom non syntaxique
-          # (« `Type sol` ») et remplit d'espaces : le nom affiche et celui que
-          # la synthese rapproche du facteur doivent etre le nom de la colonne.
+          # (« `Type sol` ») et remplit d'espaces.
           effect_name <- gsub("`", "", trimws(rownames(anova_table)[i]), fixed = TRUE)
           results_list[[paste(var, effect_name, sep = "_")]] <- data.frame(
             Test = "ANOVA",
@@ -3711,8 +3655,7 @@ mod_tests_server <- function(id, values) {
   })
   
   # --- Selecteur COMPLET de la structure d'effets aleatoires du GLMM ---
-  # Interface guidee : groupes croises, emboitement, pentes aleatoires,
-  # + saisie libre prioritaire. Un apercu de la formule est affiche.
+  # Interface guidee.
   output$glmmRandomSelect <- shiny::renderUI({
     df <- values$filteredData %||% values$cleanData %||% values$data
     shiny::req(df)
@@ -3772,8 +3715,8 @@ mod_tests_server <- function(id, values) {
     )
   })
   
-  # Construit le terme d'effets aleatoires a partir de l'interface OU du champ libre.
-  # Source unique de verite : utilisee par l'apercu ET par l'observer.
+  # Construit le terme d'effets aleatoires a partir de l'interface OU du champ
+  # libre.
   glmm_random_term <- shiny::reactive({
     custom <- input$glmmRandomCustom
     if (!is.null(custom) && nzchar(trimws(custom))) {
@@ -3892,8 +3835,8 @@ mod_tests_server <- function(id, values) {
       }
     }
     
-    # --- Validation prealable : la famille est-elle compatible avec les donnees ? ---
-    # Evite des messages d'erreur bruts de R (ex. "y values must be 0 <= y <= 1").
+    # --- Validation prealable : la famille est-elle compatible avec les
+    # donnees ? --- Evite des messages d'erreur bruts de R (ex.
     fam_check <- function(var) {
       y <- suppressWarnings(as.numeric(df[[var]]))
       y <- y[!is.na(y)]
@@ -3944,8 +3887,7 @@ mod_tests_server <- function(id, values) {
         n_resp  <- length(input$responseVar)
         
         # MEME REGLE QUE LA REGRESSION ET LE GLM : un modele mixte qui ne
-        # converge pas -- le cas ordinaire des le plan un peu desequilibre --
-        # emportait l'ajustement de TOUTES les autres variables reponses.
+        # converge pas -- le cas ordinaire des le plan un peu desequilibre.
         for (var in input$responseVar) tryCatch({
           fixed <- paste(sapply(input$factorVar, function(x) paste0("`", x, "`")),
                          collapse = if (isTRUE(input$interaction)) " * " else " + ")
@@ -4019,9 +3961,7 @@ mod_tests_server <- function(id, values) {
         if (length(results_list) > 0) {
           values$testResultsDF   <- do.call(rbind, results_list)
           # DEPUIS QUE CHAQUE VARIABLE PORTE SA GARDE, le tableau peut etre
-          # rempli de lignes d'echec alors qu'AUCUN modele n'a ete ajuste :
-          # `model_list[[0]]` leverait « subscript out of bounds » et ferait
-          # tomber la sortie que la garde venait de sauver.
+          # rempli de lignes d'echec alors qu'AUCUN modele n'a ete ajuste.
           if (length(model_list)) {
             values$currentModel    <- model_list[[length(model_list)]]
             values$modelList       <- model_list
@@ -4049,9 +3989,7 @@ mod_tests_server <- function(id, values) {
   shiny::observeEvent(input$testGLMM, .run_mixed(lineaire = FALSE))
   shiny::observeEvent(input$testLMM,  .run_mixed(lineaire = TRUE))
   
-  
-  #  ANOVA A MESURES REPETEES (parametrique) -- moteurs lmer (mixte) ou afex
-  #  + post-hoc (emmeans, comparaisons par paires sur le facteur intra/inter)
+  # ANOVA A MESURES REPETEES (parametrique).
   shiny::observeEvent(input$testRMAnova, {
     shiny::req(input$responseVar)
     df <- values$filteredData %||% values$cleanData %||% values$data
@@ -4367,7 +4305,6 @@ mod_tests_server <- function(id, values) {
     })
   })
   
-
   shiny::observeEvent(input$testMANOVA, {
     shiny::req(input$responseVar, input$factorVar)
     
@@ -4508,9 +4445,6 @@ mod_tests_server <- function(id, values) {
     })
   })
   
-  # Le second bouton de diagnostic vivait dans la boite d'attente, retiree :
-  # elle s'affichait tant que MANOVA n'etait PAS possible, si bien que son
-  # bouton ne pouvait que refuser. Un seul point d'entree desormais.
   shiny::observeEvent(input$runManovaDiagnostic, {
     if ((input$runManovaDiagnostic %||% 0) == 0) return()
     shiny::req(input$responseVar, input$factorVar)
@@ -4628,7 +4562,6 @@ mod_tests_server <- function(id, values) {
       shiny::showNotification(hstat_err_fr(e, "Erreur effets simples"), type = "error")
     })
   })
-  
   
   output$showManovaDiagnostics <- shiny::reactive({
     ctt <- values$currentTestType
@@ -4796,7 +4729,6 @@ mod_tests_server <- function(id, values) {
       "PERMANOVA" = values$manovaPermanovaResults,
       "PERMDISP"  = values$manovaPermDisp))
   }, "PERMANOVA", "PERMANOVA")
-  
   
   output$showManovaWorkflow <- shiny::reactive({
     ctt <- values$currentTestType
@@ -5097,9 +5029,6 @@ mod_tests_server <- function(id, values) {
     dt
   })
   
-  
-  
-  
   shiny::observeEvent(input$runChiSqPostHoc, {
     shiny::req(values$chiSqFreqData)
     chi_data   <- values$chiSqFreqData
@@ -5148,7 +5077,7 @@ mod_tests_server <- function(id, values) {
   shiny::outputOptions(output, "showChiSqResults", suspendWhenHidden = FALSE)
   
   # Graphique chi2 pour l'onglet PostHoc (même logique, inputs distincts)
-  # runChiSqPostHoc2 : lien depuis l'onglet PostHoc (chiSqDataType2 + chiSqPostHocAdj2)
+  # runChiSqPostHoc2.
   
   output$showParametricDiagnostics <- shiny::reactive({
     !is.null(values$currentTestType) && values$currentTestType == "parametric" && !is.null(values$modelList)
@@ -5722,7 +5651,6 @@ mod_tests_server <- function(id, values) {
   
   # Module Chi² / Multinomial -- Tests du Khi², comparaisons paires, graphiques
   
-  
   chi2_palette <- function(n) {
     cols <- c("#1565C0","#2E7D32","#C62828","#6A1B9A","#E65100",
               "#00695C","#AD1457","#4E342E","#37474F","#F9A825")
@@ -5763,7 +5691,6 @@ mod_tests_server <- function(id, values) {
     }
     list(groupes = grp, paires = res_paires)
   }
-  
   
   shiny::observeEvent(input$runChiSqTest, {
     df <- values$filteredData %||% values$cleanData %||% values$data
@@ -5923,7 +5850,6 @@ mod_tests_server <- function(id, values) {
     shiny::updateTabsetPanel(session, "chiSqResultsTabs", selected = "chiSq_résumé")
   })
   
-  
   creer_graphique_chi2 <- shiny::reactive({
     shiny::req(values$chiSqFreqData)
     fdf       <- values$chiSqFreqData
@@ -5937,9 +5863,7 @@ mod_tests_server <- function(id, values) {
     
     n   <- nrow(fdf)
     # `brewer.pal(max(3, n), p)[seq_len(n)]` laissait des NA au-dela du plafond
-    # de la palette (9 pour Set1) : les modalites en trop sortaient grises, et
-    # le rattrapage `n > length(pal)` ne voyait rien puisque la longueur etait
-    # bien n. Le catalogue commun interpole.
+    # de la palette (9 pour Set1).
     pal <- if (identical(palette_g, "default")) chi2_palette(n)
            else hstat_palette_couleurs(palette_g, n)
     
@@ -6068,8 +5992,7 @@ mod_tests_server <- function(id, values) {
   })
   
   # ---------------------------------------------------------------- chi-deux
-  # LE SOUS-SYSTEME EXISTAIT EN ENTIER -- analyse, post-hoc, graphique et
-  # exports -- SANS UNE SEULE SORTIE POSEE DANS L'INTERFACE.
+  # LE SOUS-SYSTEME EXISTAIT EN ENTIER.
   HSTAT_TEST_FAMILLES <- c(
     "parametric"     = "Test paramétrique",
     "non-parametric" = "Test non paramétrique",
@@ -6081,7 +6004,7 @@ mod_tests_server <- function(id, values) {
     d <- values$testResultsDF
     if (is.null(d) || !NROW(d)) return(NULL)
     # `[[` LEVE « subscript out of bounds » SUR UN NOM INCONNU -- et le nom est
-    # vide tant qu'aucun test n'a tourne. `[` rend `NA`, qu'on traite.
+    # vide tant qu'aucun test n'a tourne.
     fam <- unname(HSTAT_TEST_FAMILLES[values$currentTestType %||% ""])
     if (is.na(fam)) fam <- NULL
     noms <- if ("Test" %in% names(d)) unique(as.character(d$Test)) else character(0)
@@ -6192,12 +6115,7 @@ mod_tests_server <- function(id, values) {
     })
   )
   
-  
-  
-  
   # ---- Comparaisons multiples PostHoc  ----
-  
-  # LA COPIE LOCALE DE `calc_cv` A ETE RETIREE.
   
   perform_simple_effect_posthoc <- function(df, var, factor1, factor2, level, test_type, test_method) {
     
@@ -6305,9 +6223,7 @@ mod_tests_server <- function(id, values) {
       
       if (is.null(groups)) return(NULL)
       
-      # MEME PROTECTION QUE LES COMPARAISONS MULTIPLES, et pour la meme raison
-      # : sans difference globale DANS CE NIVEAU, classer les modalites en a /
-      # ab / b contredit l'analyse.
+      # MEME PROTECTION QUE LES COMPARAISONS MULTIPLES, et pour la meme raison.
       omni_se <- hstat_omnibus(
         df_subset, var, factor1,
         parametric = identical(test_type, "param"),
@@ -6343,7 +6259,6 @@ mod_tests_server <- function(id, values) {
     })
   }
   
-  
   shiny::observeEvent(values$testResultsDF, {
     shiny::req(values$testResultsDF)
     # Un test apparie ou une comparaison a une norme n'a pas de post-hoc : il
@@ -6362,7 +6277,6 @@ mod_tests_server <- function(id, values) {
           type = "message", duration = 8)
       }
     }
-    
     
     shiny::showNotification(
       shiny::tagList(
@@ -6552,9 +6466,7 @@ mod_tests_server <- function(id, values) {
                 shiny::showNotification(trf("PostHoc '%s' : moins de 2 niveaux, test ignoré.", fvar), type="warning", duration=4)
                 next
               }
-              # Ajustement des p-values : LSD accepte p.adj ; les autres
-              # (Tukey, Duncan, SNK, Scheffé, REGW, Waller) gèrent leur propre
-              # contrôle de l'erreur -> l'argument est ignoré pour eux.
+              # Ajustement des p-values : LSD accepte p.adj.
               pm_adj <- input$multiParamAdjust %||% "holm"
               mc <- tryCatch(
                 if (input$multiTest == "lsd") {
@@ -7037,7 +6949,6 @@ mod_tests_server <- function(id, values) {
     }
   })
   
-  
   output$hasLMPostHoc <- shiny::reactive({
     !is.null(values$lmPostHocResults) && length(values$lmPostHocResults) > 0
   })
@@ -7112,9 +7023,7 @@ mod_tests_server <- function(id, values) {
   })
   
   output$downloadLMPostHoc <- hstat_classeur_handler(function() {
-    # LES NOMS DE FEUILLE VIENNENT DES VARIABLES DE L'UTILISATEUR : tronques a
-    # 31 caracteres mais jamais nettoyes, ils faisaient LEVER `addWorksheet()`
-    # des qu'une variable portait un caractere interdit par Excel ([]:*?/\).
+    # LES NOMS DE FEUILLE VIENNENT DES VARIABLES DE L'UTILISATEUR.
     tb <- list()
     for (key in names(values$lmPostHocResults)) {
       e <- values$lmPostHocResults[[key]]
@@ -7123,7 +7032,6 @@ mod_tests_server <- function(id, values) {
     }
     hstat_tables_non_vides(tb)
   }, "PostHoc_LM_GLM", "Comparaisons post-hoc")
-  
   
   output$hasMultivariatePosthoc <- shiny::reactive({
     !is.null(values$manovaMultiPostHoc) && length(values$manovaMultiPostHoc) > 0
@@ -7503,9 +7411,7 @@ mod_tests_server <- function(id, values) {
     dt <- DT::datatable(
       main_data[, cols_to_show, drop = FALSE],
       options = list(
-        # scrollX retire volontairement : avec scrollX, DataTables scinde
-        # l'en-tete et le corps en DEUX tables dont les largeurs derivent ->
-        # les valeurs se retrouvent sous la mauvaise colonne.
+        # scrollX retire volontairement.
         scrollX = FALSE,
         autoWidth = FALSE,
         pageLength = 15,
@@ -7913,7 +7819,6 @@ mod_tests_server <- function(id, values) {
     })
   })
   
-  
   # Les niveaux de l'axe X du graphique post-hoc : le facteur en cours, dans
   # l'ordre choisi par l'utilisateur s'il en a choisi un.
   posthoc_x_niveaux <- shiny::reactive({
@@ -8025,7 +7930,6 @@ mod_tests_server <- function(id, values) {
     )
   })
   
-  
   shiny::observe({
     shiny::req(input$multiResponse, input$multiFactor, values$filteredData)
     
@@ -8070,7 +7974,6 @@ mod_tests_server <- function(id, values) {
       }, ignoreInit = TRUE)
     })
   })
-  
   
   shiny::observeEvent(input$resetXOrder, {
     values$customXLevels(NULL)
@@ -8129,9 +8032,7 @@ mod_tests_server <- function(id, values) {
     error_type <- input$errorType
     color_by_groups <- input$colorByGroups
     box_color <- input$boxColor
-    # Un reglage que le reactif NE LIT PAS se change sans que l'image bouge :
-    # chaque nouvelle option est donc lue ici, meme quand elle n'est utilisee
-    # que plus bas.
+    # Un reglage que le reactif NE LIT PAS se change sans que l'image bouge.
     x_label_angle <- input$xLabelAngle %||% 45
     y_label_angle <- input$yLabelAngle %||% 0
     title_position <- input$titlePosition %||% "0.5"
@@ -8305,8 +8206,7 @@ mod_tests_server <- function(id, values) {
       posthoc_plot_msg(trf("Ce graphique ne peut pas être tracé : les résultats ne contiennent pas les colonnes attendues (%s). Cela arrive notamment pour les analyses multivariées (MANOVA / PERMANOVA), qui n'ont pas de moyennes par groupe à représenter : consultez les onglets de résultats correspondants.", paste(missing, collapse = ", ")))
       return(NULL)
     }
-    # Colonnes secondaires optionnelles : on les cree vides si absentes pour ne pas
-    # bloquer le trace d'une ANOVA valide qui n'aurait pas tout fourni.
+    # Colonnes secondaires optionnelles.
     if (!"Ecart_type" %in% colnames(agg))  agg[["Ecart_type"]]  <- NA_real_
     if (!"Erreur_type" %in% colnames(agg)) agg[["Erreur_type"]] <- NA_real_
     if (!"groups" %in% colnames(agg))      agg[["groups"]]      <- ""
@@ -8315,7 +8215,6 @@ mod_tests_server <- function(id, values) {
       return(NULL)
     }
     posthoc_plot_msg(NULL)
-    
     
     # Theme de base choisi par l'utilisateur (viz_get_theme est le meme helper
     # que le module de visualisation : un theme ajoute la profite aux deux).
@@ -8369,8 +8268,6 @@ mod_tests_server <- function(id, values) {
           size = legend_text_size, 
           face = legend_text_font_style
         ),
-        # `legendKeySize` etait declare dans l'interface mais jamais lu : le
-        # reglage existait a l'ecran et ne faisait rien.
         legend.key.height = ggplot2::unit(legend_key_size, "lines"),
         legend.key.width = ggplot2::unit(legend_key_size * 1.25, "lines"),
         legend.spacing.y = ggplot2::unit(legend_spacing, "lines"),  
@@ -8383,7 +8280,6 @@ mod_tests_server <- function(id, values) {
                            else ggplot2::element_blank(),
         panel.background = ggplot2::element_rect(fill = "white", color = NA)
       )
-    
     
     plot_title <- if (!is.null(custom_title) && custom_title != "") {
       custom_title
@@ -8424,7 +8320,6 @@ mod_tests_server <- function(id, values) {
       plot_data[[fvar]] <- factor(plot_data[[fvar]], levels = common_levels)
       agg[[fvar]] <- factor(agg[[fvar]], levels = common_levels)
       
-      
       if (!is.null(custom_x_order) && custom_x_order && !is.null(custom_x_levels)) {
         custom_order <- custom_x_levels
         
@@ -8464,7 +8359,6 @@ mod_tests_server <- function(id, values) {
       } else {
         4  # Valeur par défaut
       }
-      
       
       # `colour = NA` n'est PAS l'absence d'argument : il EFFACE le contour que
       # la geometrie dessinerait.
@@ -8614,7 +8508,7 @@ mod_tests_server <- function(id, values) {
       }
       
       # Les etiquettes de modalites : l'axe affiche le nom choisi, les donnees
-      # gardent le leur. `common_levels` est l'ordre reellement trace.
+      # gardent le leur.
       etiquettes_x <- hstat_etiquettes_x(common_levels, custom_x_labels)
       styles_x <- stats::setNames(rep("plain", length(common_levels)), common_levels)
       if (!is.null(custom_x_styles) && length(custom_x_styles) &&
@@ -8623,9 +8517,7 @@ mod_tests_server <- function(id, values) {
         if (length(com)) styles_x[com] <- as.character(custom_x_styles[com])
       }
       if ((!is.null(custom_x_labels) && length(custom_x_labels)) || any(styles_x != "plain")) {
-        # Le libelle est resolu PAR RUPTURE et non par position : une echelle
-        # peut n'afficher qu'une partie des niveaux, et un decalage donnerait
-        # le gras -- ou le nom -- de la modalite voisine.
+        # Le libelle est resolu PAR RUPTURE et non par position.
         p <- p + ggplot2::scale_x_discrete(labels = function(ruptures) {
           b <- as.character(ruptures)
           i <- match(b, common_levels)
@@ -8644,7 +8536,6 @@ mod_tests_server <- function(id, values) {
         for (sc in hstat_scales_palette(box_color)) p <- p + sc
       }
       
-      
       if (!is.null(p) && !is.null(custom_axis_limits) && custom_axis_limits) {
         ylim_min <- if (!is.null(y_axis_min) && !is.na(y_axis_min)) y_axis_min else NA
         ylim_max <- if (!is.null(y_axis_max) && !is.na(y_axis_max)) y_axis_max else NA
@@ -8659,7 +8550,6 @@ mod_tests_server <- function(id, values) {
           )
         }
       }
-      
       
       if (!is.null(p) && !is.null(custom_axis_breaks) && custom_axis_breaks) {
         
@@ -8705,9 +8595,7 @@ mod_tests_server <- function(id, values) {
       }
       
       if (!is.null(p)) {
-        # LE KIT SE POSE EN DERNIER : un theme complet remplace tout ce qui
-        # precede, si bien que pose avant celui du module il serait efface
-        # sans un mot.
+        # LE KIT SE POSE EN DERNIER.
         p <- p + hstat_plot_extras_theme(extras)
         # Le plotmath ne survit pas a `ggplotly` : le rendu interactif rejoue
         # les memes styles en HTML.
@@ -8748,9 +8636,7 @@ mod_tests_server <- function(id, values) {
       # NB : pas de boxmode = "group" ici -- le post-hoc n'a jamais plusieurs
       # boites par categorie x, et ce mode decalerait les boites de leur axe.
 
-      # Gras et italique des NIVEAUX de l'axe X, rejoues en HTML : plotmath ne
-      # survit pas a la conversion, l'axe afficherait `bold("T1")` en toutes
-      # lettres. Les positions d'un axe discret valent 1..n.
+      # Gras et italique des NIVEAUX de l'axe X, rejoues en HTML.
       lv <- attr(p, "hstat_x_niveaux")
       st <- attr(p, "hstat_x_styles")
       if (!is.null(lv) && length(lv) && length(st) == length(lv) &&
@@ -8762,9 +8648,9 @@ mod_tests_server <- function(id, values) {
       }
       gp %>% config(displaylogo = FALSE)
     }, error = function(e_plotly) {
-      # Repli : si la conversion plotly echoue, on renvoie tout de meme un objet
-      # plotly valide (jamais un renderPlot, qui serait invalide ici et laisserait
-      # la zone vide). On convertit l'image en plotly minimal porteur d'un message.
+      # Repli : si la conversion plotly echoue, on renvoie tout de meme un
+      # objet plotly valide (jamais un renderPlot, qui serait invalide ici et
+      # laisserait la zone vide).
       msg <- ggplot2::ggplot() +
         ggplot2::annotate("text", x = 0, y = 0, size = 4.5, colour = "#5f6b7a",
           label = "Le graphique n'a pas pu être rendu en interactif.\nUtilisez le téléchargement pour l'image haute qualité.") +
@@ -8839,8 +8725,7 @@ mod_tests_server <- function(id, values) {
   
   output$downloadMultiPlot <- shiny::downloadHandler(
     filename = function() {
-      # L'extension passe par le normaliseur : c'est elle que Shiny traduit en
-      # type MIME, et l'ecrivain commun normalise deja le contenu de son cote.
+      # L'extension passe par le normaliseur.
       paste0("graphique_posthoc_", Sys.Date(), ".",
              hstat_img_fmt(input$multiPlotFormat))
     },
@@ -8850,7 +8735,7 @@ mod_tests_server <- function(id, values) {
       p <- values$currentPlot
       if (is.null(p)) p <- tryCatch(create_posthoc_plot(), error = function(e) NULL)
       # Capuchons de moustache sur le fichier exporte (l'apercu plotly les
-      # dessine deja ; le ggplot brut non). Idempotent.
+      # dessine deja ; le ggplot brut non).
       if (inherits(p, "ggplot")) p <- hstat_add_whisker_caps(p)
 
       fmt <- input$multiPlotFormat %||% "png"
@@ -8869,9 +8754,7 @@ mod_tests_server <- function(id, values) {
           ggplot2::theme_void()
       }
 
-      # Le commutateur de peripheriques qui vivait ici etait CALCULE PUIS JAMAIS
-      # LU depuis le branchement sur l'ecrivain commun : quinze lignes qui
-      # decrivaient un comportement que le code n'avait plus.
+      # JAMAIS LU depuis le branchement sur l'ecrivain commun.
 
       # Le chemin d'echec ne laissait AUCUN fichier : Shiny renvoyait sa page
       # d'erreur HTML, enregistree sous le nom demande.
@@ -8926,8 +8809,6 @@ mod_tests_server <- function(id, values) {
     })
   )
   
-  # Ce bouton n'ecrivait RIEN : Shiny renvoyait sa page d'erreur, enregistree
-  # sous « rapport_complet_....pdf ».
   output$downloadFullReport <- shiny::downloadHandler(
     filename = function() { paste0("rapport_complet_", Sys.Date(), ".pdf") },
     content = function(file) {

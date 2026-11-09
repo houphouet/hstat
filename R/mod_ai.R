@@ -1,17 +1,9 @@
-# ===========================================================================
-# HStat - mod_ai.R
-# Moteur d'inference partage
-# ---------------------------------------------------------------------------
+# HStat - mod_ai.R Moteur d'inference partage
 # Un seul role : parler aux fournisseurs de modeles de langue, pour les modules
 # qui en ont besoin.
-# ===========================================================================
 
-# ---------------------------------------------------------------------------
 # 10. ASSISTANT DE CODAGE - UNE TABLE DE FOURNISSEURS, TROIS PROTOCOLES
-# ---------------------------------------------------------------------------
-# L'assistance doit pouvoir tourner GRATUITEMENT et SANS CONNEXION : c'est la
-# raison d'etre du moteur "auto", et c'est pourquoi il reste le defaut.
-# ---------------------------------------------------------------------------
+# L'assistance doit pouvoir tourner GRATUITEMENT et SANS CONNEXION.
 
 HSTAT_AI_FOURNISSEURS <- list(
   auto = list(
@@ -51,13 +43,12 @@ HSTAT_AI_FOURNISSEURS <- list(
     modele = "moonshot-v1-8k", paye = TRUE, cle_url = "platform.moonshot.ai"))
 
 # Liste de choix, dans l'ordre de la table : le gratuit d'abord, le paye
-# ensuite. Un test garde cet ordre.
+# ensuite.
 HSTAT_AI_ENGINES <- stats::setNames(
   names(HSTAT_AI_FOURNISSEURS),
   vapply(HSTAT_AI_FOURNISSEURS, function(f) f$label, character(1)))
 
-# Fournisseur d'un moteur. Un identifiant inconnu retombe sur "auto", qui
-# fonctionne toujours -- jamais sur une API payante.
+# Fournisseur d'un moteur.
 hstat_ai_fournisseur <- function(engine = "auto") {
   id <- if (is.null(engine)) "" else as.character(engine)[1]
   f <- HSTAT_AI_FOURNISSEURS[[id]]
@@ -67,7 +58,7 @@ hstat_ai_fournisseur <- function(engine = "auto") {
 HSTAT_AI_MODEL <- HSTAT_AI_FOURNISSEURS$claude$modele   # retro-compatibilite
 
 # Cle d'API : celle saisie dans l'interface, sinon la variable d'environnement
-# PROPRE AU SERVICE. Une cle OpenAI ne doit pas servir a appeler DeepSeek.
+# PROPRE AU SERVICE.
 hstat_ai_key <- function(engine = "claude", explicit = NULL, url = NULL) {
   k <- if (is.null(explicit)) "" else trimws(as.character(explicit)[1])
   if (is.na(k) || !nzchar(k)) {
@@ -92,8 +83,7 @@ hstat_ai_url <- function(engine = "local", url = NULL) {
   if (.hstat_ai_url_ok(u)) u else ""
 }
 
-# Une adresse que l'application accepte d'appeler : http ou https, un hote,
-# et ni espace ni identifiant (`http://user@hote`) dans la partie hote.
+# Une adresse que l'application accepte d'appeler.
 .hstat_ai_url_ok <- function(u) {
   isTRUE(grepl("^https?://[^[:space:]/?#@]+([/?#][^[:space:]]*)?$", u,
                ignore.case = TRUE)) &&
@@ -208,8 +198,7 @@ hstat_ai_models <- function(engine = "local", url = NULL, api_key = NULL,
   hstat_ai_openai_models(url, api_key, timeout, engine)
 }
 
-# Diagnostic lisible, propre a chaque moteur. Toujours actionnable : on dit ce
-# qui manque ET comment y remedier, plutot qu'un simple « indisponible ».
+# Diagnostic lisible, propre a chaque moteur.
 hstat_ai_status <- function(engine = "auto", url = NULL, model = NULL,
                             api_key = NULL) {
   f <- hstat_ai_fournisseur(engine)
@@ -266,8 +255,7 @@ hstat_ai_available <- function(explicit = NULL) {
 }
 
 # --- Appels HTTP, un par moteur ---------------------------------------------
-# Tous renvoient list(ok, text, error) : aucune panne reseau, aucun serveur
-# absent ne doit faire tomber l'application.
+# Tous renvoient list(ok, text, error).
 
 .hstat_ai_post <- function(url, body, headers = NULL, timeout = 600) {
   if (!.hstat_ai_url_ok(url)) return(simpleError(tr(HSTAT_AI_URL_REFUS)))
@@ -280,8 +268,7 @@ hstat_ai_available <- function(explicit = NULL) {
   tryCatch(do.call(httr::POST, args), error = function(e) e)
 }
 
-# Corps de requete, isole du reseau : c'est la partie qui casse en silence si
-# un champ change de nom, et c'est donc celle qu'il faut pouvoir tester.
+# Corps de requete, isole du reseau.
 .hstat_ai_messages <- function(prompt, system = NULL) {
   msgs <- list()
   if (!is.null(system) && nzchar(system))
@@ -344,9 +331,7 @@ hstat_ai_available <- function(explicit = NULL) {
 }
 
 # --- Gemini : le seul service qui ne parle ni OpenAI ni Anthropic ------------
-# Le corps est construit a part, comme les deux autres : c'est la piece qui
-# casse en silence quand un champ est renomme, elle doit rester testable sans
-# serveur.
+# Le corps est construit a part, comme les deux autres.
 .hstat_ai_body_gemini <- function(prompt, system = NULL, json = TRUE) {
   body <- list(
     contents = list(list(role = "user", parts = list(list(text = prompt)))),
@@ -496,16 +481,15 @@ hstat_ai_call <- function(prompt, system = NULL, engine = "auto",
     return(.hstat_ai_call_gemini(prompt, system, url, model, api_key, json,
                                  timeout %||% 300))
   # Un modele qui tourne sur le processeur de l'utilisateur est bien plus lent
-  # qu'une API distante : le delai d'attente par defaut en tient compte.
+  # qu'une API distante.
   tmo <- timeout %||% (if (nzchar(f$cle_env)) 300 else 900)
   .hstat_ai_call_openai(prompt, system, url, model,
                         hstat_ai_key(engine, api_key, url), max_tokens, json, tmo,
                         engine = engine)
 }
 
-
-# Extraction tolerante du JSON : le modele peut encadrer sa reponse de texte
-# ou de balises ```json. On isole le premier objet/tableau complet.
+# Extraction tolerante du JSON : le modele peut encadrer sa reponse de texte ou
+# de balises ```json.
 hstat_ai_extract_json <- function(txt) {
   if (is.null(txt) || !nzchar(txt)) return(NULL)
   if (!requireNamespace("jsonlite", quietly = TRUE)) return(NULL)

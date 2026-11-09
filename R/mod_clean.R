@@ -1,6 +1,5 @@
 #  Module Shiny : Nettoyage des donnees
 
-
 mod_clean_ui <- function(id) {
   ns <- shiny::NS(id)
   shiny::tagList(
@@ -147,9 +146,9 @@ mod_clean_ui <- function(id) {
                           shiny::br(),
                           shiny::div(
                             style = "background-color: #ffebee; padding: 12px; border-radius: 5px;",
-                            # Le contenu d'un <code> n'est jamais traduit par le
-                            # navigateur : les exemples de syntaxe resteraient en
-                            # francais. Le bloc entier passe donc par tr().
+                            # Le contenu d'un <code> n'est jamais traduit par
+                            # le navigateur : les exemples de syntaxe
+                            # resteraient en francais.
                             shiny::tags$p(style = "font-size: 11px; color: #5f6b7a; margin-bottom: 8px;",
                                    shiny::HTML(tr(paste0("Formats : <code>1,3,5</code> -- ",
                                                          "<code>10 à 20</code> -- ",
@@ -781,7 +780,6 @@ mod_clean_server <- function(id, values) {
 
   parseRowSelection <- hstat_lignes_selection
 
-  
   output$deleteRowsPreview <- shiny::renderUI({
     shiny::req(values$cleanData)
     txt <- input$deleteRowsInput %||% ""
@@ -898,7 +896,6 @@ mod_clean_server <- function(id, values) {
       type = "message", duration = 5)
   })
   
-
   # ---- Nettoyage ----
   
   output$varTypeUI <- shiny::renderUI({
@@ -1691,10 +1688,7 @@ mod_clean_server <- function(id, values) {
                           check.names = FALSE, stringsAsFactors = FALSE))
       }
       n_out <- sum(xs < b[1] | xs > b[2])
-      # Bornes affichees = valeurs REELLES observees dans les donnees :
-      # plus petite et plus grande valeur non aberrante (convention des
-      # moustaches du boxplot), et non les bornes theoriques (Q1 - k*IQR...)
-      # qui peuvent etre negatives ou hors de la plage des donnees.
+      # Bornes affichees = valeurs REELLES observees dans les donnees.
       inb <- xs[xs >= b[1] & xs <= b[2]]
       low_real  <- if (length(inb) > 0) min(inb) else min(xs)
       high_real <- if (length(inb) > 0) max(inb) else max(xs)
@@ -1813,9 +1807,6 @@ mod_clean_server <- function(id, values) {
           for (cn in input$outlierVars) {
             x <- d[[cn]]; b <- hstat_outlier_bornes(x, method, iqr_k, z_thr)
             if (anyNA(b)) next
-            # Correction : l'ancienne expression `keep & !out | is.na(x)`
-            # re-gardait une ligne deja marquee aberrante des qu'une autre
-            # colonne etait NA (priorite de & sur |).
             out <- !is.na(x) & (x < b[1] | x > b[2])
             keep <- keep & !out
           }
@@ -1833,13 +1824,8 @@ mod_clean_server <- function(id, values) {
       type = "message", duration = 4)
   })
 
-  # =========================================================================
   # VARIABLES A VALEURS NULLES
-  # -------------------------------------------------------------------------
-  # La liste se recalcule sur `values$cleanData` : elle dit l'etat REEL des
-  # donnees de travail apres chaque geste, sans bouton « rafraichir » qui
-  # pourrait afficher un diagnostic perime.
-  # =========================================================================
+  # La liste se recalcule sur `values$cleanData`.
   zero_message <- shiny::reactiveVal(NULL)
 
   # Les quatre messages de ce module decrivent un geste pose sur le fichier
@@ -1914,9 +1900,7 @@ mod_clean_server <- function(id, values) {
                       selected = z$Variable)
   })
 
-  # Les choix sont renvoyes avec la deselection : `selected = character(0)`
-  # seul est lu par Shiny comme « ne rien changer », et la liste resterait
-  # cochee -- l'utilisateur croirait le bouton sans effet.
+  # Les choix sont renvoyes avec la deselection.
   shiny::observeEvent(input$zeroSelectNone, {
     z <- zero_table()
     if (is.null(z) || !nrow(z)) return()
@@ -1925,8 +1909,7 @@ mod_clean_server <- function(id, values) {
   })
 
   # Saisie directe : la zone est PRE-REMPLIE avec les valeurs actuelles, pour
-  # que l'utilisateur corrige au lieu de tout retaper -- et pour que le nombre
-  # de lignes attendu soit visible d'emblee.
+  # que l'utilisateur corrige au lieu de tout retaper.
   output$zeroSaisieUI <- shiny::renderUI({
     v <- input$zeroVars
     d <- values$cleanData
@@ -1970,7 +1953,7 @@ mod_clean_server <- function(id, values) {
     }
     action <- input$zeroAction %||% "na"
     # Le tableau est preleve AVANT le geste : c'est le diagnostic qui l'a
-    # motive. Apres coup, les variables corrigees en ont disparu.
+    # motive.
     zt <- zero_table()
 
     if (action == "saisie" && length(vars) != 1) {
@@ -1978,9 +1961,7 @@ mod_clean_server <- function(id, values) {
         texte = "La saisie une à une porte sur une seule variable à la fois."))
       return()
     }
-    # Les refus de saisie sont deja des phrases francaises actionnables : les
-    # faire passer par hstat_err_fr() les ferait annoncer « message renvoye par
-    # R (non traduit) », ce qui est faux et deroutant.
+    # Les refus de saisie sont deja des phrases francaises actionnables.
     val <- NA_real_; saisie <- NULL
     if (action == "valeur") {
       val <- suppressWarnings(as.numeric(input$zeroRemplacement)[1])
@@ -2041,9 +2022,7 @@ mod_clean_server <- function(id, values) {
                      type = "message", duration = 4)
   })
 
-  # =========================================================================
   # CLASSES D'INTERVALLES (discrétisation) -- ex. classes d'âge
-  # =========================================================================
   output$cutVarSelect <- shiny::renderUI({
     shiny::req(values$cleanData)
     d <- values$cleanData
@@ -2182,9 +2161,7 @@ mod_clean_server <- function(id, values) {
     )
   })
 
-  # =========================================================================
   # DOUBLONS -- reperer, supprimer, marquer, corriger
-  # =========================================================================
   # Le calcul vit dans le socle (hstat_doublons) ; le module choisit et ecrit.
   shiny::observeEvent(names(values$cleanData), {
     v <- names(values$cleanData)

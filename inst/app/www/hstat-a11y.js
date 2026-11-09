@@ -1,18 +1,4 @@
-/* Accessibilite et ergonomie communes a toute l'application.
- *
- * Applique au DOM rendu, y compris a ce que Shiny ajoute apres coup
- * (MutationObserver) : une correction posee module par module oublierait
- * le module suivant.
- *
- * - les icones decoratives sont cachees aux lecteurs d'ecran ; un bouton
- *   qui n'a qu'une icone recoit un nom accessible ;
- * - les listes selectize, les selecteurs de couleur et les curseurs sont
- *   relies a leur etiquette ;
- * - une sortie de texte qui defile se parcourt au clavier ;
- * - les boutons de repli des boites disent leur etat ;
- * - l'entree active du menu porte aria-current ;
- * - un lien d'evitement mene au contenu, et changer d'onglet remonte en haut.
- */
+// Accessibilite et ergonomie communes a toute l'application.
 (function () {
   "use strict";
 
