@@ -24,7 +24,7 @@ mod_yield_ui <- function(id) {
     .hstat_scope_banner(),
 
     shiny::fluidRow(
-      # ---------------------------------------------------------------- config
+      # config
       shinydashboard::box(
         title = shiny::tagList(shiny::icon("wheat-awn"), " Configuration de l'analyse"),
         status = "primary", width = 4, solidHeader = TRUE, collapsible = TRUE,
@@ -142,7 +142,7 @@ mod_yield_ui <- function(id) {
         )
       ),
 
-      # -------------------------------------------------------------- resultats
+      # resultats
       shinydashboard::box(
         title = shiny::tagList(shiny::icon("chart-column"), " Rendements, gains et graphiques"),
         status = "primary", width = 8, solidHeader = TRUE,
@@ -231,7 +231,7 @@ mod_yield_ui <- function(id) {
       )
     ),
 
-    # ------------------------------------------------------- options graphiques
+    # options graphiques
     shiny::fluidRow(
       # Les options occupent une boite entiere sous la configuration, comme
       # celles du post-hoc.
@@ -244,7 +244,7 @@ mod_yield_ui <- function(id) {
             " Toute la mise en forme du graphique des rendements, de la palette à l'export."),
 
         shiny::fluidRow(
-          # ---- COL 1 : type, couleurs, geometrie ----
+          # COL 1 : type, couleurs, geometrie
           shiny::column(3,
             .hstat_opt_section(
               "Type et couleurs", "palette", "#8e44ad", "#f7f0fb",
@@ -284,7 +284,7 @@ mod_yield_ui <- function(id) {
             )
           ),
 
-          # ---- COL 2 : textes ----
+          # COL 2 : textes
           shiny::column(3,
             .hstat_opt_section(
               "Titres et libellés", "heading", "#2980b9", "#eaf3fa",
@@ -314,7 +314,7 @@ mod_yield_ui <- function(id) {
             )
           ),
 
-          # ---- COL 3 : tailles et valeurs portees ----
+          # COL 3 : tailles et valeurs portees
           shiny::column(3,
             .hstat_opt_section(
               "Tailles", "text-height", "#d35400", "#fdf2e9",
@@ -356,7 +356,7 @@ mod_yield_ui <- function(id) {
             )
           ),
 
-          # ---- COL 4 : axes, legende, export ----
+          # COL 4 : axes, legende, export
           shiny::column(3,
             .hstat_opt_section(
               "Axes et ordre", "ruler-combined", "#16a085", "#e8f8f4",
@@ -438,7 +438,7 @@ mod_yield_server <- function(id, values) {
   shiny::moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
-    # ------------------------------------------------------------------ saisie
+    # saisie
     saisie <- shiny::reactiveVal(hstat_rdt_saisie_vide())
 
     # LA TABLE N'EST CONSTRUITE QU'UNE FOIS, et mise a jour ensuite par son
@@ -560,7 +560,6 @@ mod_yield_server <- function(id, values) {
       names(d)
     })
 
-    # ----------------------------------------------------------------
     # selecteurs LE TABLEAU DE SAISIE PORTE DES NOMS CONNUS.
     .prefere <- function(nom, dispo, repli) {
       if (nom %in% dispo) nom else repli
@@ -676,7 +675,7 @@ mod_yield_server <- function(id, values) {
                 trf("Converti aussi en %s", unite_conv())))
     })
 
-    # ------------------------------------------------------------------ calcul
+    # calcul
     resultat <- shiny::reactive({
       d <- donnees()
       pret <- identical(input$yieldSource %||% "fichier", "rendement")
@@ -845,7 +844,7 @@ mod_yield_server <- function(id, values) {
         tr("Détail par répétition")))
     })
 
-    # ------------------------------------------------------------- graphique
+    # graphique
     # L'ordre des modalites est un REGLAGE.
     ordonner <- function(d, mesure, ordre, nt) {
       niveaux <- switch(ordre,
@@ -1133,7 +1132,7 @@ mod_yield_server <- function(id, values) {
             shiny::div(shiny::icon("circle-info"), " ", t)))
     })
 
-    # -------------------------------------------------------------- exports
+    # exports
     output$yieldExportTable <- shiny::renderUI({
       shiny::req(NROW(resultat()))
       shiny::fluidRow(
@@ -1205,7 +1204,7 @@ mod_yield_server <- function(id, values) {
             type = "error", duration = 10)
       })
 
-    # ----------------------------------------------------------------- aide
+    # aide
     output$yieldAide <- shiny::renderUI({
       shiny::HTML(tr(paste0(
         "<h4>Les deux formules</h4>",

@@ -35,7 +35,7 @@ mod_ml_ui <- function(id) {
   ns <- shiny::NS(id)
   shiny::tagList(
     shiny::tabsetPanel(id = ns("mlTabs"),
-      # ================= APPRENTISSAGE SUPERVISÉ =================
+      # APPRENTISSAGE SUPERVISÉ
       shiny::tabPanel(shiny::tagList(shiny::icon("bullseye"), " Supervisé (prédiction)"),
         shiny::div(style = "padding-top:12px;"),
         shiny::fluidRow(
@@ -147,7 +147,7 @@ mod_ml_ui <- function(id) {
                   hstat_export_table_ui(ns, "simB"),
                   shiny::uiOutput(ns("simBatchInterp")))))))
       ,
-      # ================= NON SUPERVISÉ =================
+      # NON SUPERVISÉ
       shiny::tabPanel(shiny::tagList(shiny::icon("object-group"), " Non supervisé (clustering)"),
         shiny::div(style = "padding-top:12px;"),
         shiny::fluidRow(
@@ -224,7 +224,7 @@ mod_ml_server <- function(id, values) {
           else " Cible catégorielle (ou peu de valeurs distinctes) : tâche de CLASSIFICATION (prédire une classe).")
     })
 
-    # ---- Préparation commune --------------------------------------------------
+    # Préparation commune
     prepare <- function() {
       df <- values$cleanData
       shiny::validate(shiny::need(!is.null(df), "Chargez d'abord des données."),
@@ -281,8 +281,8 @@ mod_ml_server <- function(id, values) {
       al
     }
 
-    # ---- Recherche d'hyperparamètres : validation interne au train
-    # -------------- Le jeu de test n'est JAMAIS utilisé ici.
+    # Recherche d'hyperparamètres : validation interne au train
+    # Le jeu de test n'est JAMAIS utilisé ici.
     tune_split <- function(tr, cap = 20000) {
       n <- nrow(tr)
       if (n > cap) tr <- tr[sample.int(n, cap), , drop = FALSE]
@@ -295,7 +295,7 @@ mod_ml_server <- function(id, values) {
       else sqrt(mean((as.numeric(obs) - as.numeric(pred))^2))
     }
 
-    # ---- Ajustement d'un modèle ------------------------------------------------
+    # Ajustement d'un modèle
     fit_ml <- function(idm, p) {
       tr <- p$train; te <- p$test; ti <- p$ti; cls <- p$task == "classification"
       need_pkg <- function(pkg) if (!requireNamespace(pkg, quietly = TRUE))
@@ -664,7 +664,7 @@ mod_ml_server <- function(id, values) {
       list(r = r, p = f$p)
     })
 
-    # ---- Graphique principal : obs vs préd / ROC -------------------------------
+    # Graphique principal : obs vs préd / ROC
     main_gg <- shiny::reactive({
       c0 <- cur(); r <- c0$r; p <- c0$p
       col <- hstat_plot_opt(input, "mlO", "Col", "#2c7fb8")
@@ -707,7 +707,7 @@ mod_ml_server <- function(id, values) {
     output$mlPlDl <- hstat_export_plot_handler(input, "mlPl",
                        function() main_gg(), "ml_diagnostic")
 
-    # ---- Graphique secondaire : confusion / résidus ----------------------------
+    # Graphique secondaire : confusion / résidus
     second_gg <- shiny::reactive({
       c0 <- cur(); r <- c0$r; p <- c0$p
       col <- hstat_plot_opt(input, "mlO", "Col", "#2c7fb8")
@@ -736,7 +736,7 @@ mod_ml_server <- function(id, values) {
     output$mlP2Dl <- hstat_export_plot_handler(input, "mlP2",
                        function() second_gg(), "ml_confusion_ou_erreurs")
 
-    # ---- Importance des variables ----------------------------------------------
+    # Importance des variables
     imp_gg <- shiny::reactive({
       c0 <- cur()
       shiny::validate(shiny::need(!is.null(c0$r$imp) && nrow(c0$r$imp) > 0,
@@ -760,7 +760,7 @@ mod_ml_server <- function(id, values) {
                   c0$r$imp$Variable[1], c0$p$target))
     })
 
-    # ---- Métriques + interprétation ---------------------------------------------
+    # Métriques + interprétation
     output$mlMetrics <- DT::renderDataTable(
       DT::datatable(cur()$r$metrics, rownames = FALSE,
                     options = list(dom = "t", scrollX = TRUE)))
@@ -795,7 +795,7 @@ mod_ml_server <- function(id, values) {
             else NULL))
     })
 
-    # ---- Simulateur ---------------------------------------------------------------
+    # Simulateur
     output$simForm <- shiny::renderUI({
       c0 <- tryCatch(cur(), error = function(e) NULL)
       if (is.null(c0)) return(shiny::tags$em("Entraînez d'abord un modèle."))
@@ -877,7 +877,7 @@ mod_ml_server <- function(id, values) {
                        max(table(pc))))
     })
 
-    # ================= NON SUPERVISÉ ============================================
+    # NON SUPERVISÉ
     clres <- shiny::eventReactive(input$clRun, {
       df <- values$cleanData
       shiny::validate(shiny::need(!is.null(df), "Chargez d'abord des données."),

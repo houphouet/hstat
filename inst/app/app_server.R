@@ -64,7 +64,7 @@ server <- function(input, output, session) {
   
   values$customXLevels <- shiny::reactiveVal(NULL)
   
-  # ---- Aide et réinitialisation ----
+  # Aide et réinitialisation
   # `shinyalert` est un paquet OPTIONNEL (il figure parmi ceux dont l'absence
   # est toleree au demarrage).
   .hstat_a_shinyalert <- isTRUE(requireNamespace("shinyalert", quietly = TRUE))
@@ -134,7 +134,7 @@ server <- function(input, output, session) {
     .hstat_reinitialiser()
   })
   
-  # ---- Chargement ----
+  # Chargement
   # LE fichier courant, et la seule porte par laquelle on y accede.
   fichier_actif <- shiny::reactive({
     f <- input$file
@@ -331,7 +331,7 @@ server <- function(input, output, session) {
     })
   })
 
-  # ---- Jeux de donnees integres a R ----
+  # Jeux de donnees integres a R
   # QUATRIEME PORTE D'IMPORT, donc quatrieme appel a `.hstat_purger_session()`.
   r_data_msg <- shiny::reactiveVal(NULL)
 
@@ -417,7 +417,7 @@ server <- function(input, output, session) {
                                  lengthMenu = c(10, 25, 50, 100)))
   })
 
-  # ---- Fusion de plusieurs fichiers.
+  # Fusion de plusieurs fichiers.
   merge_headers_read <- shiny::reactive({
     mf <- tryCatch(merge_frames_read(), error = function(e) NULL)
     if (is.null(mf)) return(NULL)
@@ -622,16 +622,16 @@ server <- function(input, output, session) {
     DT::datatable(utils::head(values$data, 50), options = list(scrollX = TRUE))
   })
   
-  # ---- Exploration (module Shiny) ----
+  # Exploration (module Shiny)
   mod_explore_server("explore", values)
 
-  # ---- Nettoyage (module Shiny) ----
+  # Nettoyage (module Shiny)
   mod_clean_server("clean", values)
 
-  # ---- Filtrage (module Shiny) ----
+  # Filtrage (module Shiny)
   mod_filter_server("filter", values)
 
-  # ---- Gestion echantillon de travail (UI dans onglet Chargement) ----
+  # Gestion echantillon de travail (UI dans onglet Chargement)
   # Ligne d'information sur l'echantillon courant
   output$sampleInfoLine <- shiny::renderUI({    shiny::req(values$data)
     if (!identical(values$dataMode, "duckdb")) return(NULL)
@@ -678,15 +678,15 @@ server <- function(input, output, session) {
     })
   })
 
-  # ---- Analyses descriptives (module Shiny) ----
+  # Analyses descriptives (module Shiny)
   mod_descriptive_server("descriptive", values)
 
-  # ---- Tableaux croises (module Shiny) ----
+  # Tableaux croises (module Shiny)
 
-  # ---- Visualisation des donnees (module Shiny) ----
+  # Visualisation des donnees (module Shiny)
   mod_viz_server("visualization", values)
 
-  # ---- Tests statistiques + Post-hoc (module Shiny combine) ----
+  # Tests statistiques + Post-hoc (module Shiny combine)
   mod_tests_server("tests", values)
   mod_correlation_server("corrélation", values)
   mod_design_server("design", values)
@@ -696,7 +696,7 @@ server <- function(input, output, session) {
   mod_ml_server("ml", values)
   mod_dl_server("dl", values)
 
-  # ---- Analyses multivariees ----
+  # Analyses multivariees
   
   options(lifecycle_verbosity = "quiet")
   suppressMessages(suppressWarnings(library(ggplot2)))
@@ -2006,7 +2006,7 @@ server <- function(input, output, session) {
     print_fixed(res.pca$var$cos2, dec)
   })
   
-  # -- 1.
+  # 1. Bartlett + KMO (Adéquation des données à l'ACP)
   output$pcaBartlettKMO <- shiny::renderUI({
     shiny::req(pcaResultReactive(), values$filteredData, input$pcaVars)
     tryCatch({
@@ -2112,7 +2112,7 @@ server <- function(input, output, session) {
     })
   })
   
-  # -- 2.
+  # 2. Scree Plot (Graphique des éboulis)
   createScreePlot <- function(res.pca) {
     eig_mat <- res.pca$eig
     df_eig <- data.frame(
@@ -2167,7 +2167,7 @@ server <- function(input, output, session) {
     }
   )
   
-  # -- 3.
+  # 3. Analyse parallèle
   createParallelPlot <- function(pca_data_raw, res.pca) {
     n <- nrow(pca_data_raw)
     p <- ncol(pca_data_raw)
@@ -2268,7 +2268,7 @@ server <- function(input, output, session) {
     }
   )
   
-  # -- 4.
+  # 4. Rotation orthogonale
   output$pcaRotationResult <- shiny::renderPrint({
     shiny::req(pcaResultReactive(), values$filteredData, input$pcaVars, input$pcaRotationMethod, input$pcaRotationNFactors)
     tryCatch({
@@ -2384,7 +2384,7 @@ server <- function(input, output, session) {
     })
   })
   
-  # -- 5.
+  # 5. Contributions absolues (CTR)
   createCTRPlot <- function(res.pca, axis_num) {
     ctr_vars <- res.pca$var$contrib[, axis_num, drop = FALSE]
     df_ctr <- data.frame(
@@ -2438,7 +2438,7 @@ server <- function(input, output, session) {
     }
   )
   
-  # ---- Helpers internes 
+  # Helpers internes
   
   # Les deux telechargements (classeur et archive CSV) d'un meme resultat sont
   # declares d'un seul appel.
@@ -3219,7 +3219,7 @@ server <- function(input, output, session) {
     }, error = function(e) NULL)
   })
   
-  # -- 1.
+  # 1. Graphique des hauteurs de fusion (indices d'agrégation)
   createHcpcHeightsPlot <- function(res.hcpc) {
     tree        <- res.hcpc$call$t$tree
     heights     <- rev(tree$height)
@@ -3284,7 +3284,7 @@ server <- function(input, output, session) {
     }
   )
   
-  # -- 2.
+  # 2. Métriques de validation des clusters (CH, DB, Silhouette, Cophénétique)
   output$hcpcMetricsUI <- shiny::renderUI({
     vd <- hcpcValidationData()
     shiny::req(vd)
@@ -3295,7 +3295,7 @@ server <- function(input, output, session) {
       res.hcpc <- vd$hcpc
       res.pca  <- vd$pca
       
-      # ---- Calinski-Harabasz ----
+      # Calinski-Harabasz
       n <- nrow(coords)
       grand_mean <- colMeans(coords)
       
@@ -3311,7 +3311,7 @@ server <- function(input, output, session) {
       CH <- if (SS_W > 0) (SS_B / (k - 1)) / (SS_W / (n - k)) else NA
       CH <- round(CH, 2)
       
-      # ---- Davies-Bouldin ----
+      # Davies-Bouldin
       cluster_list <- lapply(unique(sort(clusters)), function(cl) coords[clusters == cl, , drop = FALSE])
       centroids    <- lapply(cluster_list, colMeans)
       dispersions  <- sapply(seq_along(cluster_list), function(i) {
@@ -3327,14 +3327,14 @@ server <- function(input, output, session) {
       })
       DB <- round(mean(DB_vals), 3)
       
-      # ---- Silhouette ---- Gros volumes.
+      # Silhouette ---- Gros volumes.
       sil_mean <- round(hstat_silhouette_mean(coords, clusters), 3)
       
-      # ---- Corrélation cophénétique ----
+      # Corrélation cophénétique
       tree        <- res.hcpc$call$t$tree
       coph_corr   <- round(hstat_cophenetic_corr(res.pca$ind$coord, tree), 3)
       
-      # ---- Interprétations ----
+      # Interprétations
       ch_interp <- shiny::div(
         style = "font-size: 11px; margin-top: 5px;",
         p(style = "margin: 0; color: #555; font-style: italic;",
@@ -3413,7 +3413,7 @@ server <- function(input, output, session) {
     })
   })
   
-  # -- 3.
+  # 3. Stabilité par sous-échantillonnage
   output$hcpcStabilityUI <- shiny::renderUI({
     shiny::req(hcpcValidationData())
     vd <- hcpcValidationData()
@@ -4960,7 +4960,7 @@ server <- function(input, output, session) {
       options = list(`actions-box` = TRUE)
     )
   })
-  # ---- Analyses multivariees etendues (quanti / quali / mixtes) ----
+  # Analyses multivariees etendues (quanti / quali / mixtes)
 
   # L'INSTALLATION NE SE FAIT PAS DANS LE SERVEUR.
   mv_has <- function(p) isTRUE(requireNamespace(p, quietly = TRUE))
@@ -5742,7 +5742,7 @@ server <- function(input, output, session) {
               "kmodes","lca","logit","famd","mfa","kproto"))
     mv_register(k)
 
-  # ============================ CONTROLES =====================================
+  # CONTROLES
   mv_pick_num <- function(id, label, multiple = TRUE, selected = NULL) {
     nc <- mv_num_cols()
     pickerInput(id, label, choices = nc, multiple = multiple,
@@ -5815,7 +5815,7 @@ server <- function(input, output, session) {
                   selected = "MLR"), mv_disp_box("mv_cfa"))
   })
 
-  # ---- MTMM : controles ------------------------------------------------------
+  # MTMM : controles
   # Chaque variable selectionnee mesure UN trait par UNE methode.
   .mtmm_parse_name <- function(nm, sep) {
     # Coupe sur la DERNIERE occurrence LITTERALE du separateur (aucune regex :
@@ -6062,7 +6062,7 @@ server <- function(input, output, session) {
                                value = 20, min = 5, max = 100))), mv_disp_box("mv_kproto"))
   })
 
-  # ====================== VERIFICATION DES CONDITIONS =========================
+  # VERIFICATION DES CONDITIONS
   output$mv_kmeans_conditions <- shiny::renderUI({
     shiny::req(mv_data())
     n <- nrow(mv_data()); k <- as.integer(round(hstat_borne_client(input$mv_kmeans_k, 3, 2, 15)))
@@ -6080,7 +6080,7 @@ server <- function(input, output, session) {
               .mv_badge("info", paste0("k = ", k))), msgs, lvl)
   })
 
-  # ---- AFE -----------------------------------------------------------------
+  # AFE
   output$mv_efa_conditions <- shiny::renderUI({
     shiny::req(mv_data())
     n <- nrow(mv_data()); p <- length(input$mv_efa_vars %||% character(0))
@@ -6097,7 +6097,7 @@ server <- function(input, output, session) {
               .mv_badge("info", "KMO & Bartlett vérifies au lancement")), msgs, lvl)
   })
 
-  # ---- AFC confirmatoire ---------------------------------------------------
+  # AFC confirmatoire
   output$mv_cfa_conditions <- shiny::renderUI({
     shiny::req(mv_data())
     n <- nrow(mv_data())
@@ -6112,7 +6112,7 @@ server <- function(input, output, session) {
               .mv_badge(if (mv_has("lavaan")) "ok" else "err", "lavaan")), msgs, lvl)
   })
 
-  # ---- PLS -----------------------------------------------------------------
+  # PLS
   output$mv_pls_conditions <- shiny::renderUI({
     shiny::req(mv_data())
     n <- nrow(mv_data()); p <- length(input$mv_pls_x %||% character(0))
@@ -6129,7 +6129,7 @@ server <- function(input, output, session) {
               .mv_badge(if (mv_has("pls")) "ok" else "err", "pls")), msgs, lvl)
   })
 
-  # ---- Regression lineaire multiple ----------------------------------------
+  # Regression lineaire multiple
   output$mv_regmult_conditions <- shiny::renderUI({
     shiny::req(mv_data())
     n <- nrow(mv_data()); p <- length(input$mv_regmult_x %||% character(0))
@@ -6147,7 +6147,7 @@ server <- function(input, output, session) {
               .mv_badge(n_st, paste0("n/p = ", if (is.na(ratio)) "-" else round(ratio,1)))), msgs, lvl)
   })
 
-  # ---- AFC (correspondances) ----------------------------------------------
+  # AFC (correspondances)
   output$mv_afc_conditions <- shiny::renderUI({
     shiny::req(mv_data())
     n <- nrow(mv_data())
@@ -6164,7 +6164,7 @@ server <- function(input, output, session) {
               .mv_badge(v_st, "2 variables distinctes")), msgs, lvl)
   })
 
-  # ---- ACM -----------------------------------------------------------------
+  # ACM
   output$mv_mca_conditions <- shiny::renderUI({
     shiny::req(mv_data())
     n <- nrow(mv_data()); p <- length(input$mv_mca_vars %||% character(0))
@@ -6180,7 +6180,7 @@ server <- function(input, output, session) {
               .mv_badge(p_st, paste0("p = ", p, " var. quali"))), msgs, lvl)
   })
 
-  # ---- k-modes -------------------------------------------------------------
+  # k-modes
   output$mv_kmodes_conditions <- shiny::renderUI({
     shiny::req(mv_data())
     n <- nrow(mv_data()); k <- as.integer(round(hstat_borne_client(input$mv_kmodes_k, 3, 2, 15)))
@@ -6200,7 +6200,7 @@ server <- function(input, output, session) {
               .mv_badge(if (mv_has("klaR")) "ok" else "err", "klaR")), msgs, lvl)
   })
 
-  # ---- LCA -----------------------------------------------------------------
+  # LCA
   output$mv_lca_conditions <- shiny::renderUI({
     shiny::req(mv_data())
     n <- nrow(mv_data()); p <- length(input$mv_lca_vars %||% character(0))
@@ -6219,7 +6219,7 @@ server <- function(input, output, session) {
               .mv_badge(if (mv_has("poLCA")) "ok" else "err", "poLCA")), msgs, lvl)
   })
 
-  # ---- Regression logistique ----------------------------------------------
+  # Regression logistique
   output$mv_logit_conditions <- shiny::renderUI({
     shiny::req(mv_data())
     n <- nrow(mv_data()); p <- length(input$mv_logit_x %||% character(0))
@@ -6236,7 +6236,7 @@ server <- function(input, output, session) {
               .mv_badge(p_st, trf("p = %s prédicteurs", p))), msgs, lvl)
   })
 
-  # ---- AFDM ----------------------------------------------------------------
+  # AFDM
   output$mv_famd_conditions <- shiny::renderUI({
     shiny::req(mv_data())
     n <- nrow(mv_data())
@@ -6256,7 +6256,7 @@ server <- function(input, output, session) {
               .mv_badge(mix_st, paste0(nq, " quanti / ", nc, " quali"))), msgs, lvl)
   })
 
-  # ---- AFM -----------------------------------------------------------------
+  # AFM
   output$mv_mfa_conditions <- shiny::renderUI({
     shiny::req(mv_data())
     n <- nrow(mv_data())
@@ -6275,7 +6275,7 @@ server <- function(input, output, session) {
               .mv_badge(b_st, paste0("bloc quali : ", nc))), msgs, lvl)
   })
 
-  # ---- k-prototypes --------------------------------------------------------
+  # k-prototypes
   output$mv_kproto_conditions <- shiny::renderUI({
     shiny::req(mv_data())
     n <- nrow(mv_data()); k <- as.integer(round(hstat_borne_client(input$mv_kproto_k, 3, 2, 15)))
@@ -6298,9 +6298,9 @@ server <- function(input, output, session) {
               .mv_badge(if (mv_has("clustMixType")) "ok" else "err", "clustMixType")), msgs, lvl)
   })
 
-  # ====================== MOTEURS D'ANALYSE (QUANTI) ==========================
+  # MOTEURS D'ANALYSE (QUANTI)
 
-  # ---- k-means -------------------------------------------------------------
+  # k-means
   shiny::observeEvent(input$mv_kmeans_run, {
     mv_res[["kmeans"]] <- local({
       tryCatch({
@@ -6405,7 +6405,7 @@ server <- function(input, output, session) {
     })
   })
 
-  # ---- AFE -----------------------------------------------------------------
+  # AFE
   shiny::observeEvent(input$mv_efa_run, {
     mv_res[["efa"]] <- local({
       tryCatch({
@@ -6505,7 +6505,7 @@ server <- function(input, output, session) {
             "", "Communautés :", paste(utils::capture.output(round(comm,3)), collapse="\n")),
           plotfn = function() {
             if (identical(input$mv_efa_plot %||% "heat", "path")) {
-              # ---- Diagramme des variables latentes (path diagram).
+              # Diagramme des variables latentes (path diagram).
               thr <- 0.30
               vars_n <- rownames(load); facs_n <- colnames(load)
               vdf <- data.frame(name = vars_n, x = 0,
@@ -6582,7 +6582,7 @@ server <- function(input, output, session) {
     })
   })
 
-  # ---- AFC confirmatoire ---------------------------------------------------
+  # AFC confirmatoire
   shiny::observeEvent(input$mv_cfa_run, {
     mv_res[["cfa"]] <- local({
       tryCatch({
@@ -6602,7 +6602,7 @@ server <- function(input, output, session) {
         }
         fit <- lavaan::cfa(mdl_safe, data = d_safe, estimator = input$mv_cfa_est %||% "MLR",
                            missing = "fiml")
-        # ---- Garde de convergence.
+        # Garde de convergence.
         cfa_note <- ""
         if (!isTRUE(lavaan::lavInspect(fit, "converged"))) {
           fit2 <- tryCatch(lavaan::cfa(mdl_safe, data = d_safe,
@@ -6701,7 +6701,7 @@ server <- function(input, output, session) {
     })
   })
 
-  # ---- MTMM (Multi-Trait Multi-Method, Campbell & Fiske 1959) ---------------
+  # MTMM (Multi-Trait Multi-Method, Campbell & Fiske 1959)
   shiny::observeEvent(input$mv_mtmm_run, {
     mv_res[["mtmm"]] <- local({
       tryCatch({
@@ -6717,7 +6717,7 @@ server <- function(input, output, session) {
         n <- nrow(X)
         if (n < 10)
           return(list(ok = FALSE, error = "Effectif exploitable insuffisant apr\u00e8s retrait des valeurs manquantes."))
-        # ---- Affectation trait / methode de chaque variable -----------------
+        # Affectation trait / methode de chaque variable
         all_cols <- names(d)
         if (isTRUE(input$mv_mtmm_auto %||% TRUE)) {
           sep <- input$mv_mtmm_sep %||% "_"
@@ -6746,13 +6746,13 @@ server <- function(input, output, session) {
           return(list(ok = FALSE, error = paste0(
             "Chaque combinaison trait \u00d7 m\u00e9thode doit correspondre \u00e0 UNE seule variable. En double : ",
             paste(gsub(" \\|\\| ", " \u00d7 ", dup), collapse = " ; "), ".")))
-        # ---- Matrice MTMM ordonnee par blocs de methode ----------------------
+        # Matrice MTMM ordonnee par blocs de methode
         ord <- order(match(methods, Mn), match(traits, Tn))
         X <- X[, ord, drop = FALSE]; traits <- traits[ord]; methods <- methods[ord]
         R <- suppressWarnings(stats::cor(X, use = "pairwise.complete.obs"))
         p_of <- function(r) 2 * stats::pt(abs(r) * sqrt(n - 2) / sqrt(pmax(1e-12, 1 - r^2)),
                                           df = n - 2, lower.tail = FALSE)
-        # ---- Classification des paires ---------------------------------------
+        # Classification des paires
         pr <- which(upper.tri(R), arr.ind = TRUE)
         cls <- data.frame(
           Var1 = colnames(R)[pr[, 1]], Var2 = colnames(R)[pr[, 2]],
@@ -6770,7 +6770,7 @@ server <- function(input, output, session) {
         val$p <- p_of(val$r)
         mean_val <- mean(val$r); mean_htmm <- if (nrow(htmm)) mean(abs(htmm$r)) else NA
         mean_hthm <- if (nrow(hthm)) mean(abs(hthm$r)) else NA
-        # ---- Criteres de Campbell & Fiske ------------------------------------
+        # Criteres de Campbell & Fiske
         # C1 : validites significatives et suffisamment grandes.
         c1_sig <- mean(val$p < .05) * 100
         # all() sur un vecteur contenant NA rend NA, et `if (NA && ...)`
@@ -6848,7 +6848,7 @@ server <- function(input, output, session) {
           mv_card(border_color = "#6c757d",
             mv_section_header("Affectations traits / m\u00e9thodes", "#6c757d", "tags"),
             mv_data_table(asg_df, "#6c757d")))
-        # ---- Donnees du graphique (heatmap zonee) -----------------------------
+        # Donnees du graphique (heatmap zonee)
         vn <- colnames(R)
         hm <- expand.grid(Vx = vn, Vy = vn, stringsAsFactors = FALSE)
         hm$r <- as.vector(R[cbind(match(hm$Vy, vn), match(hm$Vx, vn))])
@@ -6903,7 +6903,7 @@ server <- function(input, output, session) {
     })
   })
 
-  # ---- PLS / PLS-DA --------------------------------------------------------
+  # PLS / PLS-DA
   shiny::observeEvent(input$mv_pls_run, {
     mv_res[["pls"]] <- local({
       tryCatch({
@@ -7049,7 +7049,7 @@ server <- function(input, output, session) {
     })
   })
 
-  # ---- Regression lineaire multiple ----------------------------------------
+  # Regression lineaire multiple
   shiny::observeEvent(input$mv_regmult_run, {
     mv_res[["regmult"]] <- local({
       tryCatch({
@@ -7134,9 +7134,9 @@ server <- function(input, output, session) {
     })
   })
 
-  # ====================== MOTEURS D'ANALYSE (QUALI) ==========================
+  # MOTEURS D'ANALYSE (QUALI)
 
-  # ---- AFC (correspondances) ----------------------------------------------
+  # AFC (correspondances)
   shiny::observeEvent(input$mv_afc_run, {
     mv_res[["afc"]] <- local({
       tryCatch({
@@ -7250,7 +7250,7 @@ server <- function(input, output, session) {
     })
   })
 
-  # ---- ACM -----------------------------------------------------------------
+  # ACM
   shiny::observeEvent(input$mv_mca_run, {
     mv_res[["mca"]] <- local({
       tryCatch({
@@ -7384,7 +7384,7 @@ server <- function(input, output, session) {
     })
   })
 
-  # ---- k-modes -------------------------------------------------------------
+  # k-modes
   shiny::observeEvent(input$mv_kmodes_run, {
     mv_res[["kmodes"]] <- local({
       tryCatch({
@@ -7463,7 +7463,7 @@ server <- function(input, output, session) {
     })
   })
 
-  # ---- LCA -----------------------------------------------------------------
+  # LCA
   shiny::observeEvent(input$mv_lca_run, {
     mv_res[["lca"]] <- local({
       tryCatch({
@@ -7541,7 +7541,7 @@ server <- function(input, output, session) {
     })
   })
 
-  # ---- Regression logistique ----------------------------------------------
+  # Regression logistique
   shiny::observeEvent(input$mv_logit_run, {
     mv_res[["logit"]] <- local({
       tryCatch({
@@ -7683,9 +7683,9 @@ server <- function(input, output, session) {
     })
   })
 
-  # ====================== MOTEURS D'ANALYSE (MIXTES) ========================
+  # MOTEURS D'ANALYSE (MIXTES)
 
-  # ---- AFDM ----------------------------------------------------------------
+  # AFDM
   shiny::observeEvent(input$mv_famd_run, {
     mv_res[["famd"]] <- local({
       tryCatch({
@@ -7801,7 +7801,7 @@ server <- function(input, output, session) {
     })
   })
 
-  # ---- AFM -----------------------------------------------------------------
+  # AFM
   shiny::observeEvent(input$mv_mfa_run, {
     mv_res[["mfa"]] <- local({
       tryCatch({
@@ -7902,7 +7902,7 @@ server <- function(input, output, session) {
     })
   })
 
-  # ---- k-prototypes --------------------------------------------------------
+  # k-prototypes
   shiny::observeEvent(input$mv_kproto_run, {
     mv_res[["kproto"]] <- local({
       tryCatch({
@@ -7983,7 +7983,7 @@ server <- function(input, output, session) {
 
   invisible(NULL)
 
-  # ---- Seuils d'efficacite (module Shiny) ----
+  # Seuils d'efficacite (module Shiny)
   mod_threshold_server("threshold", values)
   mod_yield_server("yield", values)
   mod_dosage_server("dosage", values)
@@ -7992,7 +7992,7 @@ server <- function(input, output, session) {
   mod_epidemio_server("epidemio", values)
   mod_dl50_server("dl50", values)
 
-  # ---- Citer HStat ----
+  # Citer HStat
   cite_text <- shiny::reactive({
     hstat_citation(input$citeStyle %||% "text")
   })

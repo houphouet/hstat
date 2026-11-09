@@ -154,7 +154,7 @@ mod_timeseries_server <- function(id, values) {
   shiny::moduleServer(id, function(input, output, session) {
     ns <- session$ns
 
-    # ---- Choix de variables synchronisés avec les données -------------------
+    # Choix de variables synchronisés avec les données
     shiny::observe({
       df <- values$cleanData
       shiny::req(df)
@@ -170,7 +170,7 @@ mod_timeseries_server <- function(id, values) {
                         selected = if (length(num) > 1) num[2] else NULL)
     })
 
-    # ---- Construction de la série ts ----------------------------------------
+    # Construction de la série ts
     ts_freq <- shiny::reactive({
       f <- hstat_finite(input$tsFreqCustom, NA)
       if (is.finite(f) && f >= 1) as.integer(round(f))
@@ -232,7 +232,7 @@ mod_timeseries_server <- function(id, values) {
       fc
     }
 
-    # ---- Ajustement d'un modèle du catalogue --------------------------------
+    # Ajustement d'un modèle du catalogue
     fit_one <- function(idm, train, h, dates_train = NULL,
                         expo = NULL, expo_future = NULL) {
       if (!requireNamespace("forecast", quietly = TRUE) && idm != "prophet")
@@ -350,7 +350,7 @@ mod_timeseries_server <- function(id, values) {
         stop("Modèle inconnu : ", idm))
     }
 
-    # ---- Entraînement + comparaison ------------------------------------------
+    # Entraînement + comparaison
     fits <- shiny::eventReactive(input$tsRun, {
       df <- values$cleanData
       shiny::validate(shiny::need(!is.null(df), "Chargez d'abord des données."),
@@ -611,7 +611,7 @@ mod_timeseries_server <- function(id, values) {
     })
 
     # Décomposition STL
-    # ----------------------------------------------------------- Le calcul ne
+    # Le calcul ne
     # depend que de l'ajustement.
     decomp_data <- shiny::reactive({
       f <- fits(); shiny::req(f)
@@ -646,7 +646,7 @@ mod_timeseries_server <- function(id, values) {
       c0 <- cur()
       y <- c0$f$y
       h <- hstat_borne_client(input$simH, 12, 1, 500)
-      # --- Cas DLNM : le fichier importé fournit les EXPOSITIONS futures -----
+      # Cas DLNM : le fichier importé fournit les EXPOSITIONS futures
       if (identical(input$tsShow, "dlnm")) {
         expo_full <- c0$f$expo
         shiny::validate(shiny::need(!is.null(expo_full),
@@ -685,7 +685,7 @@ mod_timeseries_server <- function(id, values) {
         return(list(fc = r$fc, y = y, h = h, appended = 0L,
                     label = c0$label, note = note))
       }
-      # --- Cas général : saisie manuelle ou fichier AJOUTENT des observations --
+      # Cas général : saisie manuelle ou fichier AJOUTENT des observations
       appended <- 0L
       manual <- parse_manual(input$simManual)
       if (length(manual) > 0) {

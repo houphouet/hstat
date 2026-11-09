@@ -48,7 +48,7 @@ mod_diversity_ui <- function(id) {
     .hstat_scope_banner(exact = FALSE),
 
     shiny::fluidRow(
-      # ---------------------------------------------------------------- CONFIG
+      # CONFIG
       shiny::column(4,
         shinydashboard::box(
           title = shiny::tagList(shiny::icon("seedling"), " Constitution du tableau"),
@@ -114,7 +114,7 @@ mod_diversity_ui <- function(id) {
         )
       ),
 
-      # --------------------------------------------------------------- RESULTS
+      # RESULTS
       shiny::column(8,
         shiny::conditionalPanel(
           ns = ns, condition = "output.hasDiv == false",
@@ -299,7 +299,7 @@ mod_diversity_server <- function(id, values,
       rv$mat <- NULL; rv$richesse <- NULL; rv$indices <- NULL; rv$message <- NULL
     }, ignoreInit = TRUE)
 
-    # ------------------------------------------------------------- SELECTEURS
+    # SELECTEURS
     output$divVarsUI <- shiny::renderUI({
       df <- donnees()
       if (is.null(df) || !ncol(df))
@@ -334,7 +334,7 @@ mod_diversity_server <- function(id, values,
       }
     })
 
-    # ---------------------------------------------------------------- CALCUL
+    # CALCUL
     shiny::observeEvent(input$divCalculer, {
       df <- donnees()
       if (is.null(df)) {
@@ -395,7 +395,7 @@ mod_diversity_server <- function(id, values,
                  shiny::icon("triangle-exclamation"), " ", rv$message)
     })
 
-    # ------------------------------------------------------------- AGREGATS
+    # AGREGATS
     # Le peuplement TOTAL, toutes stations confondues.
     total_indices <- shiny::reactive({
       shiny::req(rv$mat)
@@ -425,7 +425,7 @@ mod_diversity_server <- function(id, values,
                      input$divBetaSortie %||% "similarite")
     })
 
-    # ---------------------------------------------------------------- TABLES
+    # TABLES
     # UN COMPTAGE N'A PAS DE DECIMALES.
     .tab <- function(df, titre, digits = 4) {
       d <- DT::datatable(df, rownames = FALSE, filter = "top", extensions = "Buttons",
@@ -593,7 +593,7 @@ mod_diversity_server <- function(id, values,
            "Matrice relevés × espèces", 2)
     })
 
-    # -------------------------------------------------------------- GRAPHIQUE
+    # GRAPHIQUE
     # UNE SEULE FONCTION POUR HUIT FIGURES.
     rare_data <- shiny::reactive({
       shiny::req(rv$mat)
@@ -797,7 +797,7 @@ mod_diversity_server <- function(id, values,
 
     output$divPlot <- shiny::renderPlot({ graphique() })
 
-    # ---------------------------------------------------------------- EXPORTS
+    # EXPORTS
     tables_export <- function() {
       if (is.null(rv$mat)) return(list())
       l <- list(

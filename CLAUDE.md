@@ -11677,3 +11677,11 @@ hors commentaires et le texte de chaque chaîne sont identiques à ceux d'avant,
 et les scripts de `www/` sont identiques une fois leurs commentaires ôtés.
 
 Règle pour la suite : le récit d'une correction va ici, jamais dans le code.
+
+Deux reprises en 1.48.4. Treize fichiers gardaient des bannières à tirets
+(`# ---- Titre`, `# ── 2. log(x+1) ──`) : elles se réduisent à `# Titre`. Et la
+coupe à la « première phrase » s'était arrêtée sur le point d'un numéro ou d'une
+abréviation : dix-sept titres réduits à `# 1.` ont retrouvé leur intitulé, et sept
+légendes de paramètres (`# prob.`, `# C.`, `# D : dose cible (µg/g) ; x.`) leur
+texte entier. Une légende de paramètres n'est pas une phrase de récit : elle se
+garde entière. Vérifié de même : jetons et chaînes identiques à la version d'avant.

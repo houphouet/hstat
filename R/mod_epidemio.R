@@ -184,7 +184,7 @@ mod_epidemio_server <- function(id, values) {
 
     output$epiAide <- shiny::renderUI(.hstat_epi_aide(input$epiAnalyse %||% "dlnm"))
 
-    # ------------------------------------------------------------- CONFIG
+    # CONFIG
     output$epiConfigUI <- shiny::renderUI({
       df <- donnees()
       if (is.null(df) || !ncol(df))
@@ -372,7 +372,7 @@ mod_epidemio_server <- function(id, values) {
                          choices = c("(à choisir)" = "", m))
     })
 
-    # ------------------------------------------------------------- LANCEMENT.
+    # LANCEMENT.
     shiny::observeEvent(input$epiExtraire, {
       df <- donnees()
       if (is.null(df) || !NROW(df)) {
@@ -518,7 +518,7 @@ mod_epidemio_server <- function(id, values) {
                                 selected = "facettes")))
     })
 
-    # ------------------------------------------------------------- TABLEAUX
+    # TABLEAUX
     # `courant()` rend le resultat A TRACER.
     courant <- shiny::reactive({
       r <- rv$res; if (is.null(r)) return(NULL)
@@ -645,7 +645,7 @@ mod_epidemio_server <- function(id, values) {
       shiny::div(class = "hstat-interpretation", shiny::HTML(hstat_html_escape(l)))
     })
 
-    # ------------------------------------------------------------- GRAPHIQUE
+    # GRAPHIQUE
     # L'ETIQUETTE DE LA LIGNE DE REFERENCE voyage AVEC la figure.
     repere <- shiny::reactive(list(
       montrer = isTRUE(input$epiRefLab %||% TRUE),

@@ -7,7 +7,7 @@
 # 3. les solutions FILLES obtenues d'une solution mere par un coefficient de
 #    dilution, avec le volume a prelever et l'eau a ajouter.
 
-# --- Unites -----------------------------------------------------------------
+# Unites
 #  UN SEUL CATALOGUE, D'OU DERIVENT TOUTES LES LISTES DU MODULE.
 .hstat_unites_bloc <- function(categorie, base, groupe, facteurs, libelles = NULL) {
   u <- names(facteurs)
@@ -839,8 +839,8 @@ HSTAT_MERE_FORMULES <- c(
 .hstat_mere_refus <- function(motif) list(ok = FALSE, motif = motif)
 
 # -- Application topique
-# -------------------------------------------------------- D : dose cible
-# (µg/g) ; x.
+# D : dose cible (µg/g) ; x : masse moyenne de l'insecte (g) ; V : volume
+# final de la mere (µL) ; a : volume applique par insecte (µL) ; P : purete (%).
 hstat_mere_topique <- function(D, x, V, a = 1, P) {
   D <- .hstat_mere_pos(D); x <- .hstat_mere_pos(x)
   V <- .hstat_mere_pos(V); a <- .hstat_mere_pos(a)
@@ -857,8 +857,7 @@ hstat_mere_topique <- function(D, x, V, a = 1, P) {
 }
 
 # -- Concentration (trempage de disques, IRAC 035)
-# ------------------------------ C : concentration visee de la mere (mg/mL) ;
-# V.
+# C : concentration visee de la mere (mg/mL) ; V : volume final (mL).
 hstat_mere_concentration <- function(C, V, produit = "technique", P = NA,
                                           teneur = NA, densite = NA) {
   produit <- if (length(produit) && produit[1] %in% HSTAT_MERE_PRODUITS)
@@ -891,7 +890,8 @@ hstat_mere_concentration <- function(C, V, produit = "technique", P = NA,
 }
 
 # -- Tubes impregnes (vial test)
-# ------------------------------------------------ C.
+# C : concentration de matiere active (mg/l) ; V : volume a preparer (ml) ;
+# P : purete (%) ; v : volume depose dans chaque flacon (ml).
 hstat_mere_tube <- function(C, v, V, P, Vprep = NA) {
   C <- .hstat_mere_pos(C); v <- .hstat_mere_pos(v); V <- .hstat_mere_pos(V)
   P <- .hstat_mere_purete(P)
@@ -1469,7 +1469,7 @@ mod_dosage_server <- function(id, values) {
       shiny::updateSelectizeInput(session, id, choices = c("", choix), selected = valeur)
     }
 
-    # ---------------------------------------------------------------- dose
+    # dose
     dose_res <- shiny::reactive({
       sens <- input$doseSens %||% "dose"
       hstat_dose_bilan(
@@ -1522,7 +1522,7 @@ mod_dosage_server <- function(id, values) {
                                 },
                                 "doses_a_l_hectare")
 
-    # ------------------------------------------------------- convertisseur Les
+    # convertisseur Les
     # categories du selecteur, ramenees a celles du catalogue.
     .conv_cats <- function(c) switch(c %||% "quantite",
       quantite = c("masse", "volume"), surface = "surface", dose = "dose",
@@ -1563,7 +1563,7 @@ mod_dosage_server <- function(id, values) {
                                 },
                                 "conversions_d_unites")
 
-    # ------------------------------------------------------------ dilution
+    # dilution
     # Le tableau part VIDE : les produits y sont deposes par le formulaire.
     saisie <- shiny::reactiveVal(hstat_dilution_table_vide(0))
 
