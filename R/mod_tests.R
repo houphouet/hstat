@@ -62,7 +62,7 @@ mod_tests_ui <- function(id) {
                                    shiny::uiOutput(ns("glmmFamilyHelp")),
                                    shiny::uiOutput(ns("glmmLinkHelp")),
                                    shiny::uiOutput(ns("glmmRandomSelect")),
-                                   shiny::div(style = "font-size:10px; color:#7f8c8d; margin-top:4px;",
+                                   shiny::div(style = "font-size:10px; color:#5f6b7a; margin-top:4px;",
                                        shiny::icon("circle-info"),
                                        " Effet aléatoire d'ordonnée à l'origine : ", shiny::tags$code("(1 | groupe)"), ".")
                                ),
@@ -85,7 +85,7 @@ mod_tests_ui <- function(id) {
                                                   choices = NULL, multiple = TRUE,
                                                   options = list(plugins = list("remove_button"),
                                                                  placeholder = "Ex. : traitement, groupe...")),
-                                   shiny::div(style = "font-size:10px; color:#7f8c8d; margin:-2px 0 6px 0;",
+                                   shiny::div(style = "font-size:10px; color:#5f6b7a; margin:-2px 0 6px 0;",
                                        shiny::icon("circle-info"),
                                        shiny::HTML(" <b>Sujet</b> = unité mesurée plusieurs fois (ex. plante, parcelle). <b>Période</b> = facteur de temps répété sur le même sujet (intra-sujet). <b>Traitement</b> = facteur appliqué (souvent inter-sujet ; mettez-le en intra s'il varie au sein d'un même sujet).")),
                                    shiny::selectInput(ns("rmEngine"), "Moteur (paramétrique) :",
@@ -95,7 +95,7 @@ mod_tests_ui <- function(id) {
                                    shiny::selectInput(ns("rmInteractions"), "Interactions entre facteurs :",
                                                choices = HSTAT_RM_INTERACTIONS,
                                                selected = "complet"),
-                                   shiny::div(style = "font-size:10px; color:#7f8c8d; margin:-2px 0 6px 0;",
+                                   shiny::div(style = "font-size:10px; color:#5f6b7a; margin:-2px 0 6px 0;",
                                        shiny::icon("circle-info"),
                                        shiny::span(" Période et Traitement se croisent : leurs interactions sont testées, puis lues par les effets simples (un facteur à chaque niveau des autres). Le moteur afex ajuste toujours le plan factoriel complet.")),
                                    shiny::selectInput(ns("rmNonParam"), "Test non paramétrique :",
@@ -122,7 +122,7 @@ mod_tests_ui <- function(id) {
                                        choices = c("Deux colonnes, une ligne par unité (avant / après)" = "large",
                                                    "Format long : réponse, facteur à 2 modalités, identifiant" = "longue"),
                                        selected = "large"),
-                                   shiny::div(style = "font-size:10px; color:#7f8c8d; margin:-4px 0 6px 0;",
+                                   shiny::div(style = "font-size:10px; color:#5f6b7a; margin:-4px 0 6px 0;",
                                        shiny::icon("circle-info"), " ",
                                        shiny::HTML(tr("<b>Deux colonnes</b> : choisissez exactement deux variables réponse ; la différence calculée est la deuxième moins la première. <b>Format long</b> : la variable réponse, le facteur (deux modalités) et le <b>sujet</b> du bloc « Mesures répétées » ; les deux mesures d'un même sujet forment la paire."))),
                                    shiny::selectInput(ns("pairedAlt"), "Hypothèse alternative :",
@@ -135,7 +135,7 @@ mod_tests_ui <- function(id) {
                                )
                         ),
                         shiny::column(4,
-                               shiny::h4("Tests sur données brutes", style = "color: #3c8dbc;"),
+                               shiny::h4("Tests sur données brutes", style = "color: #2b6f99;"),
                                shiny::div(style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px;",
                                    shiny::actionButton(ns("testNormalityRaw"),   "Test de normalité",     class = "btn-warning btn-block", icon = shiny::icon("chart-line")),
                                    shiny::actionButton(ns("testHomogeneityRaw"), "Test d'homogénéité",    class = "btn-warning btn-block", icon = shiny::icon("balance-scale"))
@@ -152,17 +152,17 @@ mod_tests_ui <- function(id) {
                                        choices = c("Sur les données brutes" = "brutes",
                                                    "Sur les résidus du modèle (écart à la moyenne de la cellule)" = "residus"),
                                        selected = c("brutes", "residus")),
-                                   shiny::div(style = "font-size:11px;color:#7f8c8d;margin:-6px 0 10px 0;",
+                                   shiny::div(style = "font-size:11px;color:#5f6b7a;margin:-6px 0 10px 0;",
                                        shiny::icon("circle-info"), " ",
                                        "Une ligne par modalité de chaque facteur sélectionné, en plus du test global. Les résidus croisent tous les facteurs sélectionnés ; la ligne « Ensemble » teste les résidus regroupés, le diagnostic classique de l'ANOVA.")),
-                               shiny::h4("Tests paramétriques", style = "color: #00a65a;"),
+                               shiny::h4("Tests paramétriques", style = "color: #007f46;"),
                                shiny::div(style="display:flex; flex-direction:column; gap:8px;",
                                    shiny::actionButton(ns("testT"),    "Test t de Welch (variances inégales)", class = "btn-success btn-block", icon = shiny::icon("check")),
                                    shiny::actionButton(ns("testTStudent"), "Test t de Student (variances égales)", class = "btn-success btn-block", icon = shiny::icon("check")),
                                    shiny::actionButton(ns("testTPaired"), "Test t apparié (mesures liées)", class = "btn-success btn-block", icon = shiny::icon("link")),
                                    shiny::actionButton(ns("testANOVA"),"ANOVA (Fisher, variances égales)", class = "btn-success btn-block", icon = shiny::icon("check")),
                                    shiny::actionButton(ns("testANOVAWelch"), "ANOVA de Welch (variances inégales)", class = "btn-success btn-block", icon = shiny::icon("check")),
-                                   shiny::div(style = "font-size:11px;color:#7f8c8d;margin:-2px 0 4px 0;",
+                                   shiny::div(style = "font-size:11px;color:#5f6b7a;margin:-2px 0 4px 0;",
                                        shiny::icon("circle-info"), " ",
                                        shiny::HTML(tr("Welch ne suppose pas les variances égales : c'est le choix sûr quand le test d'homogénéité les rejette, et il coûte peu quand elles sont égales. Il n'existe que ces deux tests de Welch, le t à deux échantillons et l'ANOVA à un facteur. Leur post-hoc est Games-Howell, présélectionné après coup."))),
                                    shiny::actionButton(ns("testMANOVA"),"MANOVA (>= 2 réponses)",     class = "btn-success btn-block", icon = shiny::icon("layer-group")),
@@ -170,7 +170,7 @@ mod_tests_ui <- function(id) {
                                    shiny::actionButton(ns("testGLM"),  "Modèle linéaire généralisé",   class = "btn-success btn-block", icon = shiny::icon("check")),
                                    shiny::actionButton(ns("testLMM"),  "Modèle linéaire mixte (LMM)",  class = "btn-success btn-block", icon = shiny::icon("sitemap")),
                                    shiny::actionButton(ns("testGLMM"), "Modèle (généralisé) mixte",    class = "btn-success btn-block", icon = shiny::icon("sitemap")),
-                                   shiny::div(style = "font-size:11px;color:#7f8c8d;margin:-2px 0 4px 0;",
+                                   shiny::div(style = "font-size:11px;color:#5f6b7a;margin:-2px 0 4px 0;",
                                        shiny::icon("circle-info"), " ",
                                        shiny::HTML(tr("Le modèle linéaire mixte est la réponse gaussienne à lien identité : le bouton LMM impose les deux et ne lit ni la famille ni le lien. Le bouton « (généralisé) mixte » ouvre les autres familles — comptages, proportions, données strictement positives."))),
                                    shiny::actionButton(ns("testRMAnova"), "ANOVA à mesures répétées",   class = "btn-success btn-block", icon = shiny::icon("repeat"))
@@ -183,7 +183,7 @@ mod_tests_ui <- function(id) {
                                shiny::div(style = "border-left:4px solid #1565C0; padding-left:10px; margin-top:16px;",
                                    shiny::h4(shiny::tagList(shiny::icon("chart-simple"), " Chi² d'adéquation"),
                                       style = "color:#1565C0;"),
-                                   shiny::div(style = "font-size:11px; color:#7f8c8d; margin:-4px 0 8px 0;",
+                                   shiny::div(style = "font-size:11px; color:#5f6b7a; margin:-4px 0 8px 0;",
                                        "Compare la répartition observée des modalités du facteur à une répartition théorique."),
                                    shiny::radioButtons(ns("chiSqDataType"), "Nature de la variable réponse",
                                      choices = c("Effectifs (fréquences)" = "freq",
@@ -213,7 +213,7 @@ mod_tests_ui <- function(id) {
                                    shiny::actionButton(ns("testWilcox"),          "Test de Wilcoxon",          class = "btn-primary btn-block", icon = shiny::icon("check")),
                                    shiny::actionButton(ns("testWilcoxPaired"),    "Wilcoxon apparié (rangs signés)", class = "btn-primary btn-block", icon = shiny::icon("link")),
                                    shiny::actionButton(ns("testSignPaired"),      "Test du signe apparié",     class = "btn-primary btn-block", icon = shiny::icon("link")),
-                                   shiny::div(style = "font-size:11px;color:#7f8c8d;margin:-2px 0 4px 0;",
+                                   shiny::div(style = "font-size:11px;color:#5f6b7a;margin:-2px 0 4px 0;",
                                        shiny::icon("circle-info"), " ",
                                        shiny::HTML(tr("Le « Test de Wilcoxon » ci-dessus compare deux groupes indépendants (Mann-Whitney). Deux mesures sur la même unité relèvent des tests appariés : Wilcoxon apparié si les différences sont symétriques, test du signe sinon."))),
                                    shiny::actionButton(ns("testKruskal"),         "Test de Kruskal-Wallis",     class = "btn-primary btn-block", icon = shiny::icon("check")),
@@ -233,7 +233,7 @@ mod_tests_ui <- function(id) {
                                shiny::div(style = "border-left:4px solid #6a1b9a; padding-left:10px; margin-top:16px;",
                                    shiny::h4(shiny::tagList(shiny::icon("bullseye"), " Comparaison à une norme"),
                                       style = "color:#6a1b9a;"),
-                                   shiny::div(style = "font-size:11px; color:#7f8c8d; margin:-4px 0 8px 0;",
+                                   shiny::div(style = "font-size:11px; color:#5f6b7a; margin:-4px 0 8px 0;",
                                        "Confronte les variables réponse à une valeur de référence (réglages ci-dessous)."),
                                    shiny::div(style = "display:flex; flex-direction:column; gap:8px;",
                                        shiny::actionButton(ns("testRefT"), "Test t (1 échantillon)",
@@ -278,7 +278,7 @@ mod_tests_ui <- function(id) {
                                                selected = "two.sided"),
                                    shiny::sliderInput(ns("refConf"), "Niveau de confiance :",
                                                min = 0.80, max = 0.99, value = 0.95, step = 0.01),
-                                   shiny::div(style = "font-size:11px; color:#7f8c8d; margin-top:-4px;",
+                                   shiny::div(style = "font-size:11px; color:#5f6b7a; margin-top:-4px;",
                                        shiny::icon("circle-info"),
                                        paste(" L'écart-type ne sert qu'au test z et au Chi² de variance ;",
                                              "la marge, qu'au test d'équivalence.")),
@@ -300,7 +300,7 @@ mod_tests_ui <- function(id) {
                                        shiny::actionButton(ns("testRefPoisson"), "Test de Poisson (taux)",
                                                     class = "btn-block", icon = shiny::icon("percent"),
                                                     style = "background:#8e44ad; color:#fff; border-color:#76398f;")),
-                                   shiny::div(style = "font-size:11px; color:#7f8c8d; margin-top:6px;",
+                                   shiny::div(style = "font-size:11px; color:#5f6b7a; margin-top:6px;",
                                        shiny::icon("circle-info"),
                                        paste(" Pour Poisson, la référence est un taux d'événements",
                                              "par observation, non une proportion bornée à 1.")))
@@ -457,7 +457,7 @@ mod_tests_ui <- function(id) {
                                           ns = ns,
                                           condition = "output.hasManovaParam",
                                           shiny::h5(shiny::icon("table"), " 4 statistiques MANOVA",
-                                             style = "color:#00a65a; margin-top:0;"),
+                                             style = "color:#007f46; margin-top:0;"),
                                           withSpinner(DT::DTOutput(ns("manovaParamTable")), color = "#00a65a"),
                                           shiny::br()
                                         ),
@@ -466,7 +466,7 @@ mod_tests_ui <- function(id) {
                                           ns = ns,
                                           condition = "output.hasManovaPermanova",
                                           shiny::h5(shiny::icon("random"), " Résultats PERMANOVA (par permutations)",
-                                             style = "color:#f39c12; margin-top:0;"),
+                                             style = "color:#a95600; margin-top:0;"),
                                           shiny::div(style = "font-size:11px; color:#6c757d; margin-bottom:6px;",
                                               shiny::icon("info-circle"),
                                               " pseudo-F, R² (part de variance expliquée), p-value par permutations. Interactions incluses si l'option est cochée."),
@@ -487,7 +487,7 @@ mod_tests_ui <- function(id) {
                                         shiny::br(),
                                       
                                         shiny::h5(shiny::icon("project-diagram"), " Homogénéité des dispersions (PERMDISP)",
-                                           style = "color:#f39c12;"),
+                                           style = "color:#a95600;"),
                                         shiny::div(style = "font-size:11px; color:#6c757d; margin-bottom:6px;",
                                             shiny::icon("info-circle"), " Équivalent multivarié non paramétrique du test de Levene."),
                                         withSpinner(DT::DTOutput(ns("manovaPermDispTable")), color = "#f39c12"),
@@ -830,7 +830,7 @@ mod_posthoc_ui <- function(id) {
                             shiny::numericInput(ns("multiDecimals"), "Nombre de décimales :",
                                          value = 2, min = 0, max = 8, step = 1)
                           ),
-                          shiny::helpText(style = "font-size: 11px; color: #7f8c8d;",
+                          shiny::helpText(style = "font-size: 11px; color: #5f6b7a;",
                                    "Si décoché, les valeurs s'affichent sans arrondi.")
                       ),
                     
@@ -839,8 +839,8 @@ mod_posthoc_ui <- function(id) {
                           shiny::h4(style = "color: #2c3e50; margin-top: 0;", shiny::icon("vial"), " Tests statistiques"),
                           shiny::radioButtons(ns("testType"), "Type de comparaisons",
                                        choiceNames = list(
-                                         shiny::HTML("<b>Paramétrique</b> <small style='color:#7f8c8d;'>- Données normales</small>"), 
-                                         shiny::HTML("<b>Non paramétrique</b> <small style='color:#7f8c8d;'>- Sans normalité</small>")
+                                         shiny::HTML("<b>Paramétrique</b> <small style='color:#5f6b7a;'>- Données normales</small>"), 
+                                         shiny::HTML("<b>Non paramétrique</b> <small style='color:#5f6b7a;'>- Sans normalité</small>")
                                        ),
                                        choiceValues = list("param", "nonparam"),
                                        selected = "param"
@@ -875,7 +875,7 @@ mod_posthoc_ui <- function(id) {
                                                     "Hochberg" = "hochberg", "Hommel" = "hommel",
                                                     "Aucun" = "none"),
                                         selected = "holm"),
-                            shiny::div(style = "font-size:11px;color:#7f8c8d;margin-top:-6px;margin-bottom:8px;",
+                            shiny::div(style = "font-size:11px;color:#5f6b7a;margin-top:-6px;margin-bottom:8px;",
                                 shiny::icon("info-circle"),
                                 shiny::HTML(" S'applique aux méthodes par comparaisons de paires (LSD, Bonferroni, LM/GLM). Un ajustement plus strict (Bonferroni, Holm) rend les groupes plus homogènes ; les méthodes qui portent leur propre procédure (Tukey, Duncan, SNK, Scheffé, REGW, Waller-Duncan, Games-Howell) conservent la leur et ignorent ce réglage."))
                           ),
@@ -1221,7 +1221,7 @@ mod_posthoc_ui <- function(id) {
                                     " Options du graphique"),
                     status = "primary", width = 12, solidHeader = TRUE,
                     collapsible = TRUE, collapsed = FALSE,
-                    shiny::div(style = "font-size:12px; color:#7f8c8d; margin-bottom:12px;",
+                    shiny::div(style = "font-size:12px; color:#5f6b7a; margin-bottom:12px;",
                         shiny::icon("info-circle"),
                         " Toute la mise en forme du graphique post-hoc, de la palette à l'export."),
                     shiny::fluidRow(
@@ -1246,7 +1246,7 @@ mod_posthoc_ui <- function(id) {
                           shiny::checkboxInput(ns("colorByGroups"),
                                         shiny::HTML("Colorer par groupes statistiques <small style='color:#6c757d;'>(a, b, c...)</small>"),
                                         value = FALSE),
-                          shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
+                          shiny::tags$small(style = "color:#5f6b7a;font-style:italic;",
                                      "Un dégradé sur des groupes sans ordre naturel suggère une progression qui n'existe pas.")
                         ),
                         .hstat_opt_section(
@@ -1294,7 +1294,7 @@ mod_posthoc_ui <- function(id) {
                           shiny::selectInput(ns("subtitlePosition"), "Position du sous-titre",
                                       choices = list("Centré" = "0.5", "Gauche" = "0", "Droite" = "1"),
                                       selected = "0.5"),
-                          shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
+                          shiny::tags$small(style = "color:#5f6b7a;font-style:italic;",
                                      "Le gras et l'italique s'écrivent aussi dans le texte : **gras**, *italique*.")
                         ),
                         .hstat_opt_section(
@@ -1312,7 +1312,7 @@ mod_posthoc_ui <- function(id) {
                             shiny::selectInput(ns("meanValueFontStyle"), "Style",
                                         choices = HSTAT_FONT_STYLES, selected = "bold")
                           ),
-                          shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
+                          shiny::tags$small(style = "color:#5f6b7a;font-style:italic;",
                                      "Les moyennes ne se portent que sur le graphique en barres.")
                         )
                       ),
@@ -1378,7 +1378,7 @@ mod_posthoc_ui <- function(id) {
                               shiny::column(6, shiny::numericInput(ns("xAxisMin"), "X min", value = NULL, step = 0.1)),
                               shiny::column(6, shiny::numericInput(ns("xAxisMax"), "X max", value = NULL, step = 0.1))
                             ),
-                            shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
+                            shiny::tags$small(style = "color:#5f6b7a;font-style:italic;",
                                        "Les limites X ne s'appliquent qu'à un axe numérique.")
                           ),
                           shiny::checkboxInput(ns("customAxisBreaks"), "Personnaliser les graduations", value = FALSE),
@@ -1414,7 +1414,7 @@ mod_posthoc_ui <- function(id) {
                           )
                         ),
                         .hstat_opt_section(
-                          "Légende", "list", "#7f8c8d", "#f4f6f7",
+                          "Légende", "list", "#5f6b7a", "#f4f6f7",
                           shiny::selectInput(ns("legendPosition"), "Position",
                                       # « Haut » et « Bas » seuls sont des valeurs de
                                       # données plausibles (une colonne « Niveau ») :
@@ -1436,7 +1436,7 @@ mod_posthoc_ui <- function(id) {
                             shiny::column(6, shiny::sliderInput(ns("legendSpacing"), "Espacement", min = 0, max = 6, value = 0, step = 0.1, ticks = FALSE)),
                             shiny::column(6, shiny::sliderInput(ns("legendKeySize"), "Taille des clés", min = 0.4, max = 3, value = 1.2, step = 0.1, ticks = FALSE))
                           ),
-                          shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
+                          shiny::tags$small(style = "color:#5f6b7a;font-style:italic;",
                                      "La légende n'apparaît qu'avec « Colorer par groupes statistiques ».")
                         ),
                         # Le post-hoc porte DEJA le trait des axes et la taille
@@ -1449,7 +1449,7 @@ mod_posthoc_ui <- function(id) {
                             shiny::column(6, shiny::numericInput(ns("plotWidth"), "Largeur (pouces)", value = 8, min = 3, max = 20, step = 0.5)),
                             shiny::column(6, shiny::numericInput(ns("plotHeight"), "Hauteur (pouces)", value = 6, min = 3, max = 20, step = 0.5))
                           ),
-                          shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
+                          shiny::tags$small(style = "color:#5f6b7a;font-style:italic;",
                                      "Format et résolution se choisissent sous le graphique.")
                         )
                       )
@@ -1580,7 +1580,7 @@ mod_posthoc_ui <- function(id) {
                                                    withSpinner(DT::DTOutput(ns("manovaInteractionLettersTable")), color = "#2e7d32"),
                                                    shiny::br(),
                                                    shiny::h5(shiny::icon("code-branch"), " Comparaisons par paires des cellules",
-                                                      style = "color:#f39c12;"),
+                                                      style = "color:#a95600;"),
                                                    withSpinner(DT::DTOutput(ns("manovaInteractionPairsTable")), color = "#f39c12")
                                                  ),
                                                  shiny::conditionalPanel(
@@ -1709,14 +1709,14 @@ mod_correlation_ui <- function(id) {
           ),
           shiny::fluidRow(
             shiny::column(3,
-              shiny::h5(shiny::icon("sliders-h"), " Méthode", style = "color:#27ae60;font-weight:bold;"),
+              shiny::h5(shiny::icon("sliders-h"), " Méthode", style = "color:#1e8449;font-weight:bold;"),
               shiny::selectInput(ns("corrMethod"), "Méthode de corrélation",
                 choices = c("Pearson (linéaire)" = "pearson",
                             "Spearman (monotone)" = "spearman",
                             "Kendall (robuste)" = "kendall"),
                 selected = "pearson")),
             shiny::column(3,
-              shiny::h5(shiny::icon("palette"), " Affichage", style = "color:#27ae60;font-weight:bold;"),
+              shiny::h5(shiny::icon("palette"), " Affichage", style = "color:#1e8449;font-weight:bold;"),
               shiny::selectInput(ns("corrDisplay"), "Mode d'affichage",
                 choices = c("Nombres" = "number", "Cercles" = "circle",
                             "Carrés" = "square", "Ellipses" = "ellipse",
@@ -1727,13 +1727,13 @@ mod_correlation_ui <- function(id) {
                             "Triangulaire inférieur" = "lower"),
                 selected = "upper")),
             shiny::column(3,
-              shiny::h5(shiny::icon("text-height"), " Tailles", style = "color:#27ae60;font-weight:bold;"),
+              shiny::h5(shiny::icon("text-height"), " Tailles", style = "color:#1e8449;font-weight:bold;"),
               shiny::sliderInput(ns("corrTextSize"), "Taille des valeurs",
                           min = 0.3, max = 2, value = 0.8, step = 0.1, ticks = FALSE),
               shiny::sliderInput(ns("corrLabelSize"), "Taille des labels",
                           min = 0.3, max = 2, value = 0.9, step = 0.1, ticks = FALSE)),
             shiny::column(3,
-              shiny::h5(shiny::icon("heading"), " Titre & probabilités", style = "color:#27ae60;font-weight:bold;"),
+              shiny::h5(shiny::icon("heading"), " Titre & probabilités", style = "color:#1e8449;font-weight:bold;"),
               shiny::textInput(ns("corrTitle"), "Titre personnalisé",
                         placeholder = "Vide = titre auto"),
               hstat_dpi_input(ns("corrDPI"), shiny::tagList(shiny::icon("image"), " DPI export")),
@@ -3736,7 +3736,7 @@ mod_tests_server <- function(id, values) {
         shiny::checkboxInput(ns("glmmNested"),
                       shiny::tagList(shiny::icon("diagram-next"), " Emboîter les groupes (A/B/...) au lieu de croisés"),
                       value = FALSE),
-        shiny::div(style = "font-size:10px; color:#7f8c8d; margin:-4px 0 6px 0;",
+        shiny::div(style = "font-size:10px; color:#5f6b7a; margin:-4px 0 6px 0;",
             "Croisés : ", shiny::tags$code("(1|A) + (1|B)"), " — Emboîtés : ", shiny::tags$code("(1|A/B)"), ".")
       ),
       shiny::checkboxInput(ns("glmmUseSlope"),
@@ -3755,14 +3755,14 @@ mod_tests_server <- function(id, values) {
         shiny::checkboxInput(ns("glmmCorrSlope"),
                       "Corréler pente et ordonnée à l'origine",
                       value = TRUE),
-        shiny::div(style = "font-size:10px; color:#7f8c8d; margin:-4px 0 6px 0;",
+        shiny::div(style = "font-size:10px; color:#5f6b7a; margin:-4px 0 6px 0;",
             "Corrélés : ", shiny::tags$code("(1+X|g)"), " — Indépendants : ", shiny::tags$code("(1|g) + (0+X|g)"), ".")
       ),
       shiny::hr(style = "margin:8px 0;"),
       shiny::textInput(ns("glmmRandomCustom"),
                 shiny::tagList(shiny::icon("pen"), " Formule libre (avancé, prioritaire) :"),
                 value = "", placeholder = "ex. (1|Bloc) + (1+Dose|Site)"),
-      shiny::div(style = "font-size:10px; color:#7f8c8d; margin-top:-4px;",
+      shiny::div(style = "font-size:10px; color:#5f6b7a; margin-top:-4px;",
           "Si renseigné, ce champ remplace l'interface guidée ci-dessus."),
       # 5) Apercu de la formule complete
       shiny::div(style = "background:#ede7f6; border:1px solid #b39ddb; border-radius:6px; padding:8px 10px; margin-top:8px;",
@@ -7966,8 +7966,8 @@ mod_tests_server <- function(id, values) {
     styles_actuels <- as.list(values$posthocXStyles %||% character(0))
     
     shiny::tagList(
-      shiny::h6("Ordre, étiquettes et style des catégories :", style = "font-weight: bold; color: #27ae60;"),
-      shiny::tags$small(style = "color:#7f8c8d; font-style:italic; display:block; margin-bottom:6px;",
+      shiny::h6("Ordre, étiquettes et style des catégories :", style = "font-weight: bold; color: #1e8449;"),
+      shiny::tags$small(style = "color:#5f6b7a; font-style:italic; display:block; margin-bottom:6px;",
                  "Le nom saisi ne change que l'affichage : les données gardent leur modalité d'origine. Le style s'applique au seul niveau choisi."),
       shiny::div(style = "max-height: 300px; overflow-y: auto; border: 1px solid #ddd; border-radius: 5px; padding: 5px;",
           lapply(seq_along(current_levels), function(i) {
@@ -8766,7 +8766,7 @@ mod_tests_server <- function(id, values) {
       # plotly valide (jamais un renderPlot, qui serait invalide ici et laisserait
       # la zone vide). On convertit l'image en plotly minimal porteur d'un message.
       msg <- ggplot2::ggplot() +
-        ggplot2::annotate("text", x = 0, y = 0, size = 4.5, colour = "#7f8c8d",
+        ggplot2::annotate("text", x = 0, y = 0, size = 4.5, colour = "#5f6b7a",
           label = "Le graphique n'a pas pu être rendu en interactif.\nUtilisez le téléchargement pour l'image haute qualité.") +
         ggplot2::theme_void()
       suppressWarnings(suppressMessages(ggplotly(msg))) %>% layout(showlegend = FALSE)
@@ -8865,7 +8865,7 @@ mod_tests_server <- function(id, values) {
         p <- ggplot2::ggplot() +
           ggplot2::annotate("text", x = 0, y = 0,
             label = "Aucun graphique disponible.\nLancez l'analyse puis téléchargez.",
-            size = 6, colour = "#7f8c8d") +
+            size = 6, colour = "#5f6b7a") +
           ggplot2::theme_void()
       }
 

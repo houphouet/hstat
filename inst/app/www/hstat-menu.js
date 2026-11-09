@@ -42,19 +42,22 @@
       var minuterie = null;
       var ouvert = false;
 
-      $t.attr({ role: "button", tabindex: "0" });
+      // Le role de bouton se pose sur un <span> interieur : un <li> d'une
+      // liste ne peut pas en porter un autre que listitem.
+      $t.wrapInner('<span class="hstat-repli-btn" role="button" tabindex="0"></span>');
+      var $b = $t.children(".hstat-repli-btn");
       $items.addClass("hstat-repli-item");
 
       function afficher(anime) {
         if (ouvert) return;
         ouvert = true;
-        $t.addClass("hstat-ouvert").attr("aria-expanded", "true");
+        $t.addClass("hstat-ouvert"); $b.attr("aria-expanded", "true");
         if (anime) $items.stop(true, true).slideDown(DUREE); else $items.show();
       }
       function masquer(anime) {
         if (!ouvert || $t.hasClass("hstat-epingle")) return;
         ouvert = false;
-        $t.removeClass("hstat-ouvert").attr("aria-expanded", "false");
+        $t.removeClass("hstat-ouvert"); $b.attr("aria-expanded", "false");
         if (anime) $items.stop(true, true).slideUp(DUREE); else $items.hide();
       }
       function entrer() {
@@ -81,7 +84,7 @@
 
       $t.add($items).on("mouseenter", entrer).on("mouseleave", sortir);
       $t.on("click", function (e) { e.preventDefault(); basculer(); });
-      $t.on("keydown", function (e) {
+      $b.on("keydown", function (e) {
         if (e.key === "Enter" || e.key === " ") { e.preventDefault(); basculer(); }
       });
 
@@ -90,7 +93,7 @@
         ouvert = false;
         afficher(false);
       } else {
-        $t.attr("aria-expanded", "false");
+        $b.attr("aria-expanded", "false");
         $items.hide();
       }
       $t.addClass("hstat-repli-pret");

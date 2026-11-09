@@ -29,7 +29,7 @@
 # ---------------------------------------------------------------------------
 HSTAT_CODE_PALETTE <- c(
   "#e74c3c", "#2980b9", "#27ae60", "#e67e22", "#8e44ad",
-  "#16a085", "#c0392b", "#2c3e50", "#d4ac0d", "#7f8c8d",
+  "#16a085", "#c0392b", "#2c3e50", "#d4ac0d", "#5f6b7a",
   "#1abc9c", "#9b59b6", "#34495e", "#f1948a", "#5499c7"
 )
 
@@ -795,7 +795,7 @@ hstat_code_map_plot <- function(cooc, codebook, counts_df, min_weight = 1,
       data = edges,
       ggplot2::aes(x = .data$x, y = .data$y, xend = .data$xend, yend = .data$yend,
                    linewidth = .data$w, alpha = .data$w),
-      colour = "#7f8c8d", lineend = "round", show.legend = TRUE) +
+      colour = "#5f6b7a", lineend = "round", show.legend = TRUE) +
       ggplot2::scale_linewidth_continuous(range = c(0.3, 3), name = "Cooccurrences",
                                           breaks = .hstat_code_breaks3) +
       ggplot2::scale_alpha_continuous(range = c(0.25, 0.85), guide = "none")
@@ -836,7 +836,7 @@ hstat_code_map_plot <- function(cooc, codebook, counts_df, min_weight = 1,
     ggplot2::theme_void(base_size = 12) +
     ggplot2::theme(
       plot.title = ggplot2::element_text(face = "bold", hjust = 0.5, size = 16),
-      plot.subtitle = ggplot2::element_text(hjust = 0.5, colour = "#7f8c8d"),
+      plot.subtitle = ggplot2::element_text(hjust = 0.5, colour = "#5f6b7a"),
       plot.margin = grid::unit(c(10, 20, 10, 20), "pt"))
 }
 
@@ -1662,7 +1662,7 @@ mod_coding_ui <- function(id) {
           shiny::hr(style = "margin:10px 0;"),
           shiny::uiOutput(ns("move_code_ui")),
           shiny::hr(style = "margin:10px 0;"),
-          shiny::tags$small(style = "color:#7f8c8d;", shiny::icon("info-circle"),
+          shiny::tags$small(style = "color:#5f6b7a;", shiny::icon("info-circle"),
             " Déposez une sélection sur un code, ou cliquez dessus. Le ",
             shiny::tags$b("x"), " supprime le code ; ses sous-codes remontent ",
             "d'un niveau plutôt que d'être emportes avec lui."),
@@ -1893,7 +1893,7 @@ mod_coding_ui <- function(id) {
               shiny::column(5,
                 shiny::radioButtons(ns("ai_engine"), "Moteur",
                   choices = HSTAT_AI_ENGINES, selected = "auto"),
-                shiny::tags$small(style = "color:#7f8c8d;display:block;",
+                shiny::tags$small(style = "color:#5f6b7a;display:block;",
                   shiny::icon("circle-info"),
                   " La thématisation automatique ne demande aucune installation, ",
                   "aucune clé et aucune connexion : elle répond instantanément. ",
@@ -1913,7 +1913,7 @@ mod_coding_ui <- function(id) {
                       "Chaque thème arrive avec son ", shiny::tags$b("dictionnaire"),
                       " de mots-clés, éditable ci-dessous, qui sert ensuite au ",
                       "pré-codage de ", shiny::tags$b("tout"), " le corpus."))),
-                shiny::tags$small(style = "color:#7f8c8d;display:block;margin-top:6px;",
+                shiny::tags$small(style = "color:#5f6b7a;display:block;margin-top:6px;",
                   shiny::icon("lock"),
                   " Une clé saisie ici ne sert qu'a cette session : elle n'est ni ",
                   "enregistrée, ni exportée avec vos résultats."))),
@@ -1926,12 +1926,12 @@ mod_coding_ui <- function(id) {
               shiny::column(3,
                 shiny::sliderInput(ns("ai_minchar"), "Longueur min. des mots",
                                    min = 3, max = 8, value = 4, step = 1),
-                shiny::tags$small(style = "color:#7f8c8d;",
+                shiny::tags$small(style = "color:#5f6b7a;",
                                   "Thématisation automatique uniquement.")),
               shiny::column(3,
                 shiny::numericInput(ns("ai_maxdoc"), "Réponses envoyées au modèle (max.)",
                                     value = 60, min = 5, max = 300, step = 5),
-                shiny::tags$small(style = "color:#7f8c8d;",
+                shiny::tags$small(style = "color:#5f6b7a;",
                   "Sans effet sur la thématisation automatique et le dictionnaire, ",
                   "qui traitent tout le corpus.")),
               shiny::column(3,
@@ -2037,14 +2037,14 @@ mod_coding_ui <- function(id) {
             shiny::fluidRow(
               shiny::column(6,
                 shiny::tags$strong(shiny::icon("file-excel"), " Rapport complet"),
-                shiny::tags$p(style = "font-size:13px;color:#7f8c8d;",
+                shiny::tags$p(style = "font-size:13px;color:#5f6b7a;",
                   "Un classeur Excel réunissant le livre de codes, tous les segments ",
                   "codes, la matrice de croisement et la matrice de cooccurrences."),
                 shiny::downloadButton(ns("dl_report"), "Télécharger le rapport (Excel)",
                                       class = "btn-success btn-block")),
               shiny::column(6,
                 shiny::tags$strong(shiny::icon("floppy-disk"), " Projet de codage"),
-                shiny::tags$p(style = "font-size:13px;color:#7f8c8d;",
+                shiny::tags$p(style = "font-size:13px;color:#5f6b7a;",
                   "Sauvegarde du livre de codes et des segments au format RDS, pour ",
                   "reprendre le codage plus tard sur le même jeu de données."),
                 shiny::downloadButton(ns("dl_project"), "Enregistrer le projet (.rds)",
@@ -2180,7 +2180,7 @@ mod_coding_server <- function(id, values) {
 
     output$doc_header <- shiny::renderUI({
       dd <- docs(); d <- cur_doc()
-      shiny::div(style = "margin-bottom:6px;font-size:12px;color:#7f8c8d;",
+      shiny::div(style = "margin-bottom:6px;font-size:12px;color:#5f6b7a;",
         shiny::icon("hashtag"), trf(" Réponse %d / %d ", rv$cur, nrow(dd)),
         shiny::tags$b(trf("(ligne %d du jeu de données)", d$row)),
         trf(" - %d caractères", nchar(d$text)))
@@ -2202,7 +2202,7 @@ mod_coding_server <- function(id, values) {
       s <- rv$sel
       if (is.null(s) || is.null(s$text) || !nzchar(s$text))
         return(shiny::HTML(paste0(
-          "<span style='color:#7f8c8d;'>", as.character(shiny::icon("mouse-pointer")),
+          "<span style='color:#5f6b7a;'>", as.character(shiny::icon("mouse-pointer")),
           " Sélectionnez un passage du texte ci-dessus, puis déposez-le (ou cliquez) sur un code.</span>")))
       shiny::HTML(sprintf(
         "%s <b>Sélection</b> (%d caractères, positions %d-%d) : <i>&laquo;&nbsp;%s&nbsp;&raquo;</i>",
@@ -2354,7 +2354,7 @@ mod_coding_server <- function(id, values) {
         # l'utilisateur, on ne l'injecte pas tel quel dans la page.
         shiny::HTML(gsub("\n", "<br>", hstat_html_escape(m$texte[i]))),
         shiny::hr(style = "margin:10px 0;"),
-        shiny::tags$small(style = "color:#7f8c8d;",
+        shiny::tags$small(style = "color:#5f6b7a;",
           trf("Créé le %s, modifie le %s.", m$created[i], m$modified[i])),
         shiny::br(),
         shiny::actionButton(ns("memo_del"), "Supprimer ce mémo",
@@ -2372,7 +2372,7 @@ mod_coding_server <- function(id, values) {
     output$memo_resume <- shiny::renderUI({
       r <- hstat_memo_resume(rv$memos)
       if (!sum(r$Memos))
-        return(shiny::tags$small(style = "color:#7f8c8d;",
+        return(shiny::tags$small(style = "color:#5f6b7a;",
           shiny::icon("circle-info"), " Aucun mémo pour l'instant."))
       shiny::div(style = "font-size:12px;color:#566573;",
         shiny::tags$b("Mémos enregistres"), shiny::br(),
@@ -2387,7 +2387,7 @@ mod_coding_server <- function(id, values) {
     output$code_chips <- shiny::renderUI({
       cb <- rv$codebook
       if (nrow(cb) == 0)
-        return(shiny::div(style = "color:#7f8c8d;font-size:13px;font-style:italic;",
+        return(shiny::div(style = "color:#5f6b7a;font-size:13px;font-style:italic;",
           "Aucun code pour l'instant. Créez-en un ci-dessus, ou laissez ",
           "l'assistant IA vous en proposer."))
       cnt <- hstat_code_counts(cb, rv$segments)
@@ -2436,7 +2436,7 @@ mod_coding_server <- function(id, values) {
       arbre <- hstat_code_tree(cb)
       ch <- stats::setNames(arbre$code_id, arbre$chemin)
       shiny::tagList(
-        shiny::tags$small(style = "color:#7f8c8d;font-weight:bold;",
+        shiny::tags$small(style = "color:#5f6b7a;font-weight:bold;",
                           shiny::icon("sitemap"), " Déplacer un code"),
         shiny::selectInput(ns("move_code"), NULL, choices = ch),
         shiny::selectInput(ns("move_to"), "sous",
@@ -2512,7 +2512,7 @@ mod_coding_server <- function(id, values) {
       d <- cur_doc()
       s <- hstat_seg_for_doc(rv$segments, d$doc_id)
       if (nrow(s) == 0)
-        return(shiny::div(style = "color:#7f8c8d;font-size:13px;font-style:italic;",
+        return(shiny::div(style = "color:#5f6b7a;font-size:13px;font-style:italic;",
                           "Aucune étiquette sur cette réponse."))
       s <- s[order(s$start), , drop = FALSE]
       shiny::tagList(lapply(seq_len(nrow(s)), function(i) {
@@ -2765,7 +2765,7 @@ mod_coding_server <- function(id, values) {
           shiny::span(trf("Kappa de Cohen : %.3f - %s.", a$kappa, verdict))
         else shiny::span(a$message),
         shiny::br(),
-        shiny::tags$small(style = "color:#7f8c8d;",
+        shiny::tags$small(style = "color:#5f6b7a;",
           if (is.finite(a$kappa)) a$message else "",
           " L'unité comparée est le couple document x code : deux codeurs ne",
           " découpent jamais aux mêmes bornes, comparer des segments exigerait",
@@ -3044,7 +3044,7 @@ mod_coding_server <- function(id, values) {
         shiny::icon(if (isTRUE(st$ok)) "circle-check" else "triangle-exclamation"),
         " ", st$message,
         if (!isTRUE(st$ok) && !identical(o$engine, "auto"))
-          shiny::tags$small(style = "display:block;color:#7f8c8d;margin-top:4px;",
+          shiny::tags$small(style = "display:block;color:#5f6b7a;margin-top:4px;",
             "En attendant, le moteur « Thématisation automatique » fonctionne sans ",
             "rien installer, et tout le reste de l'atelier de codage est utilisable."))
     })

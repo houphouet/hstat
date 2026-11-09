@@ -26,7 +26,7 @@ mod_explore_ui <- function(id) {
                   collapsible = TRUE,
                   DT::DTOutput(ns("dataStructure")),
                   footer = shiny::div(
-                    style = "font-size: 12px; color: #7f8c8d;",
+                    style = "font-size: 12px; color: #5f6b7a;",
                     shiny::icon("info-circle"), 
                     " Visualisez les types de variables et leur structure"
                   )
@@ -40,7 +40,7 @@ mod_explore_ui <- function(id) {
                   shiny::div(style = "overflow-x:auto;",
                     shiny::verbatimTextOutput(ns("dataSummary"))),
                   footer = shiny::div(
-                    style = "font-size: 12px; color: #7f8c8d;",
+                    style = "font-size: 12px; color: #5f6b7a;",
                     shiny::icon("info-circle"), 
                     " Statistiques descriptives pour chaque variable"
                   )
@@ -132,7 +132,7 @@ mod_explore_ui <- function(id) {
                   ),
                   
                   footer = shiny::div(
-                    style = "font-size: 12px; color: #7f8c8d;",
+                    style = "font-size: 12px; color: #5f6b7a;",
                     shiny::icon("info-circle"), 
                     " Analysez la normalité et la dispersion de vos variables"
                   )
@@ -174,14 +174,14 @@ mod_explore_ui <- function(id) {
                           
                           shiny::fluidRow(
                             shiny::column(4,
-                                   shiny::h5(shiny::icon("text-height"), "Tailles", style = "color: #f39c12; font-weight: bold;"),
+                                   shiny::h5(shiny::icon("text-height"), "Tailles", style = "color: #a95600; font-weight: bold;"),
                                    shiny::sliderInput(ns("missingTitleSize"), "Taille titre :", 
                                                min = 8, max = 24, value = 14, ticks = FALSE),
                                    shiny::sliderInput(ns("missingAxisTitleSize"), "Taille titres axes :", 
                                                min = 8, max = 20, value = 12, ticks = FALSE)
                             ),
                             shiny::column(4,
-                                   shiny::h5(shiny::icon("palette"), "Affichage", style = "color: #f39c12; font-weight: bold;"),
+                                   shiny::h5(shiny::icon("palette"), "Affichage", style = "color: #a95600; font-weight: bold;"),
                                    shiny::sliderInput(ns("missingAxisTextSize"), "Taille texte axes :", 
                                                min = 6, max = 16, value = 10, ticks = FALSE),
                                    hstat_axe_titre_ui(ns, "miss"),
@@ -190,7 +190,7 @@ mod_explore_ui <- function(id) {
                                                  value = TRUE)
                             ),
                             shiny::column(4,
-                                   shiny::h5(shiny::icon("heading"), "Personnalisation", style = "color: #f39c12; font-weight: bold;"),
+                                   shiny::h5(shiny::icon("heading"), "Personnalisation", style = "color: #a95600; font-weight: bold;"),
                                    shiny::textInput(ns("missingTitle"), "Titre personnalisé :", 
                                              placeholder = "Laisser vide pour titre auto"),
                                    shiny::checkboxInput(ns("missingCenterTitle"), 
@@ -219,7 +219,7 @@ mod_explore_ui <- function(id) {
                   ),
                   
                   footer = shiny::div(
-                    style = "font-size: 12px; color: #7f8c8d;",
+                    style = "font-size: 12px; color: #5f6b7a;",
                     shiny::icon("info-circle"), 
                     " Identifiez les variables nécessitant un traitement"
                   )

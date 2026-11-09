@@ -706,7 +706,7 @@ hstat_malherbo_catalog <- function() {
                     "tardives et fréquentes sortiraient du cycle. Date et fréquence",
                     "sont donc confondues -- on compare des calendriers entiers, pas",
                     "les effets propres de l'une et de l'autre."),
-      couleur = "#7f8c8d"),
+      couleur = "#5f6b7a"),
 
     mh_paires = list(
       label = "Malherbologie : parcelles appariées (traite / témoin)",
@@ -1473,7 +1473,7 @@ hstat_design_analysis <- function(type, n_factors) {
       ggplot2::theme(panel.grid = ggplot2::element_blank(),
                      plot.title = ggplot2::element_text(face = "bold"),
                      plot.subtitle = ggplot2::element_text(size = font_axis - 2, color = "#5d6d7e"),
-                     plot.caption = ggplot2::element_text(size = font_axis - 3, color = "#7f8c8d", hjust = 0),
+                     plot.caption = ggplot2::element_text(size = font_axis - 3, color = "#5f6b7a", hjust = 0),
                      axis.title = ggplot2::element_text(face = "bold", color = "#34495e"),
                      axis.text.y = ggplot2::element_blank(),
                      axis.ticks.y = ggplot2::element_blank(),
@@ -1612,7 +1612,7 @@ hstat_design_analysis <- function(type, n_factors) {
       ggplot2::theme(panel.grid = ggplot2::element_blank(),
                      plot.title = ggplot2::element_text(face = "bold"),
                      plot.subtitle = ggplot2::element_text(size = font_axis - 2, color = "#5d6d7e"),
-                     plot.caption = ggplot2::element_text(size = font_axis - 3, color = "#7f8c8d", hjust = 0),
+                     plot.caption = ggplot2::element_text(size = font_axis - 3, color = "#5f6b7a", hjust = 0),
                      axis.title = ggplot2::element_text(face = "bold", color = "#34495e"),
                      axis.text.y = ggplot2::element_blank(),
                      axis.ticks.y = ggplot2::element_blank(),
@@ -1824,7 +1824,7 @@ hstat_design_analysis <- function(type, n_factors) {
     }
     f2_col <- if (exists("bnd_fill", inherits = FALSE)) .readable_col(bnd_fill)
               else "#1a5276"
-    sec_cols <- c(f2_col, rep("#7f8c8d", max(0, length(sec_factors) - 1)))
+    sec_cols <- c(f2_col, rep("#5f6b7a", max(0, length(sec_factors) - 1)))
     make_factor_panel <- function(fac_name, lev_col = "black") {
       levs <- .order_levels(b[[fac_name]])
       ldf <- data.frame(.y = factor(levs, levels = rev(levs)), .x = 1,
@@ -1903,7 +1903,7 @@ mod_design_ui <- function(id) {
                 choices = c("A priori : calculer la taille d'échantillon (n) requise" = "apriori",
                             "Post hoc : taille connue -> calculer la puissance (1-\u03b2)" = "posthoc",
                             "Sensibilité : taille connue -> calculer l'effet détectable" = "sensitivity")),
-              shiny::div(style = "font-size:12px;color:#7f8c8d;margin-top:-8px;margin-bottom:8px;",
+              shiny::div(style = "font-size:12px;color:#5f6b7a;margin-top:-8px;margin-bottom:8px;",
                   shiny::icon("info-circle"),
                   " Si vous connaissez déjà votre taille d'échantillon et vos modalités, ",
                   "choisissez Post hoc (pour la puissance) ou Sensibilité (pour l'effet détectable)."),
@@ -2017,7 +2017,7 @@ mod_design_ui <- function(id) {
                     shiny::column(6, shiny::sliderInput(ns("dsgObstacleSpan"), "Étendue (parcelles)",
                       min = 1, max = 10, value = 1, step = 1))),
                   shiny::selectInput(ns("dsgObstacleColor"), "Couleur",
-                    choices = c("Rouge hachuré" = "#e74c3c", "Gris" = "#7f8c8d",
+                    choices = c("Rouge hachuré" = "#e74c3c", "Gris" = "#5f6b7a",
                                 "Brun" = "#8d6e63", "Noir" = "#2c3e50"),
                     selected = "#e74c3c")),
                 shiny::checkboxInput(ns("dsgConstraintFactor"), "Ajouter un facteur de blocage supplémentaire", value = FALSE),
@@ -2237,7 +2237,7 @@ mod_design_ui <- function(id) {
               hstat_plot_extras_ui(ns, "dsgPl",
                                    familles = c("axe", "cles", "marges")),
               hstat_export_plot_ui(ns, "dsgPl", width = 11, height = 7),
-              footer = shiny::div(style = "font-size:12px;color:#7f8c8d;", shiny::icon("info-circle"),
+              footer = shiny::div(style = "font-size:12px;color:#5f6b7a;", shiny::icon("info-circle"),
                 " Chaque cellule = une unité expérimentale ; couleur = traitement randomise. ",
                 "Pour un CRD/factoriel, le placement minimise les voisins identiques."))
         )
@@ -2465,12 +2465,12 @@ mod_design_server <- function(id, values) {
       v <- hstat_pow_valeur(test, input$powEffect, input$powEffect2)
       cl <- if (!identical(input$powAnalysis, "sensitivity")) hstat_pow_classe(v, mes) else NA_character_
       classe <- if (!is.na(cl)) {
-        couleur <- switch(cl, negligeable = "#7f8c8d", petit = "#2f6f9f",
+        couleur <- switch(cl, negligeable = "#5f6b7a", petit = "#2f6f9f",
                           moyen = "#9a6a00", grand = "#b03a2e")
         shiny::div(style = paste0("font-weight:600;color:", couleur, ";"),
                    hstat_pow_classe_phrase(cl, v))
       }
-      shiny::div(style = "font-size:12px;color:#7f8c8d;margin-top:-8px;margin-bottom:8px;",
+      shiny::div(style = "font-size:12px;color:#5f6b7a;margin-top:-8px;margin-bottom:8px;",
           shiny::div("Mesure : ", shiny::tags$b(lab)), reperes, classe)
     })
 
@@ -2525,7 +2525,7 @@ mod_design_server <- function(id, values) {
     output$powAllocNote <- shiny::renderUI({
       r <- pow_res()
       shiny::tagList(
-        shiny::div(style = "font-size:12px;color:#7f8c8d;",
+        shiny::div(style = "font-size:12px;color:#5f6b7a;",
             "Répartition de la taille totale par groupe/traitement issue du calcul de puissance."),
         if (!is.null(r) && is.null(r$err) && !is.null(r$note))
           shiny::div(class = "callout callout-warning", style = "padding:6px 10px;font-size:12px;margin-top:6px;",
@@ -3395,8 +3395,8 @@ mod_design_server <- function(id, values) {
       r <- sv_res()
       shiny::validate(shiny::need(is.null(r$err), r$err %||% ""))
       shiny::div(
-        shiny::div(style = "font-size:42px;font-weight:700;color:#27ae60;", r$n_final),
-        shiny::div(style = "font-size:14px;color:#7f8c8d;",
+        shiny::div(style = "font-size:42px;font-weight:700;color:#1e8449;", r$n_final),
+        shiny::div(style = "font-size:14px;color:#5f6b7a;",
             "personnes à enquêter (taille finale, non-réponse incluse)"),
         if (!is.na(r$per_stratum))
           shiny::div(class = "callout callout-info", style = "margin-top:10px;",

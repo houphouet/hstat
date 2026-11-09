@@ -11574,3 +11574,50 @@ Quatre décisions, chacune testée :
 
 Ce qui ne peut pas se faire depuis le code : créer le compte GoatCounter au
 code `hstat`. Tant qu'il n'existe pas, les signaux sont simplement perdus.
+
+## Accessibilité : mesurée par axe-core, corrigée au point commun
+
+Demandé : optimiser l'accessibilité et l'ergonomie de toute l'application.
+L'audit passe **axe-core 4.10** sur les vingt-deux onglets de la page rendue.
+
+| | avant | après |
+|---|---|---|
+| contrastes insuffisants | 383 | 22 |
+| icônes avec `aria-label` interdit | 188 | 0 |
+| champs sans étiquette (selectize, couleur, curseur) | 113 | 2 |
+| sauts de niveau de titre | 17 | 9 |
+| zone défilante inaccessible au clavier | 1 | 0 |
+
+Le reste est une traîne de couleurs écrites à la main dans un seul module
+chacune ; les deux défauts de la barre latérale qui subsistent viennent de
+shinydashboard lui-même (le `div` qu'il range dans la liste du menu).
+
+**Une correction posée module par module oublie le module suivant.** D'où trois
+points communs :
+
+1. **`www/hstat-a11y.js`**, appliqué au DOM rendu et à tout ce que Shiny ajoute
+   ensuite (`MutationObserver`) : icônes décoratives cachées aux lecteurs
+   d'écran (`role="presentation"` interdit `aria-label`), nom accessible pour
+   un bouton qui n'a qu'une icône, champs selectize reliés à leur étiquette
+   (le `<select>` d'origine est caché, le champ visible est neuf), `tabindex`
+   sur une sortie de texte qui défile, état des boutons de repli de boîte,
+   `aria-current` sur l'entrée active du menu. Il ajoute un **lien
+   d'évitement** (premier arrêt de la touche Tab), un bouton **« Retour en
+   haut »** sur les pages longues, et remonte en haut à chaque changement
+   d'onglet — sinon le nouvel onglet s'ouvrait à la hauteur où l'on lisait
+   l'ancien.
+2. **La feuille de style** : en-têtes de boîte, encadrés, bandeau, bouton
+   « Réinitialiser » et curseurs à 4,5:1 sous texte blanc ; `--ink3` (texte
+   discret) passe à `#5f6b7a` ; le focus clavier est toujours visible (il était
+   effacé, `outline: none`, sur les titres de section) ; le mouvement est
+   réduit si le système le demande. Les gris `#7f8c8d` et `#8a93a3` écrits en
+   ligne dans les modules sont remplacés partout, **clés du dictionnaire
+   comprises** : une clé est le HTML de l'élément, la changer d'un côté seul
+   casserait la traduction.
+3. **`hstat_couleur_lisible()`** (`R/utils.R`) assombrit une couleur, teinte
+   gardée, jusqu'à 4,5:1 sur son fond ; `.hstat_opt_section()` l'applique au
+   titre de chaque carte d'options, devenu un `h4` (il suivait un `h3` en
+   sautant deux niveaux).
+
+Le rôle de bouton des titres de section du menu passe sur un `<span>`
+intérieur : un `<li>` de liste ne peut porter que `listitem`.

@@ -3123,7 +3123,7 @@ server <- function(input, output, session) {
         ggplot2::ggplot() +
           ggplot2::annotate("text", x = 0, y = 0,
                    label = "Lancez d'abord l'ACP puis la HCPC pour afficher la carte des clusters.",
-                   size = 5, colour = "#7f8c8d") +
+                   size = 5, colour = "#5f6b7a") +
           ggplot2::theme_void()
       )
     }
@@ -5450,7 +5450,7 @@ server <- function(input, output, session) {
   }
 
   mv_col <- function(st) switch(st,
-    ok = "#27ae60", warn = "#f39c12", err = "#e74c3c", info = "#2980b9", "#7f8c8d")
+    ok = "#27ae60", warn = "#f39c12", err = "#e74c3c", info = "#2980b9", "#5f6b7a")
   mv_ic <- function(st) switch(st,
     ok = "check-circle", warn = "exclamation-triangle", err = "times-circle",
     info = "info-circle", "circle")
@@ -6655,8 +6655,8 @@ server <- function(input, output, session) {
                      caption = trf("Flèches : saturations |x| >= %s ; épaisseur proportionnelle à |saturation| ; bleu = positive, rouge = négative.", format(thr, decimal.mark = ","))) +
                 ggplot2::theme_void(base_size = 13) +
                 ggplot2::theme(plot.title = ggplot2::element_text(face = "bold", size = 15),
-                      plot.subtitle = ggplot2::element_text(color = "#7f8c8d"),
-                      plot.caption = ggplot2::element_text(color = "#7f8c8d", size = 9),
+                      plot.subtitle = ggplot2::element_text(color = "#5f6b7a"),
+                      plot.caption = ggplot2::element_text(color = "#5f6b7a", size = 9),
                       legend.position = "bottom",
                       plot.margin = ggplot2::margin(10, 20, 10, 20))
               return(g)

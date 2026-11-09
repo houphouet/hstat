@@ -313,7 +313,7 @@ mod_diversity_server <- function(id, values,
     output$divVarsUI <- shiny::renderUI({
       df <- donnees()
       if (is.null(df) || !ncol(df))
-        return(shiny::tags$em(style = "color:#7f8c8d;",
+        return(shiny::tags$em(style = "color:#5f6b7a;",
           "Chargez d'abord un jeu de données dans l'onglet Chargement."))
       cols <- names(df)
       num  <- cols[vapply(df, is.numeric, logical(1))]
@@ -641,7 +641,7 @@ mod_diversity_server <- function(id, values,
           d$Rang <- seq_len(nrow(d))
           g <- ggplot2::ggplot(d, ggplot2::aes(x = .data[["Rang"]],
                                                y = .data[["Abondance"]])) +
-            ggplot2::geom_line(colour = "#7f8c8d", linewidth = HSTAT_GG_LINEWIDTH) +
+            ggplot2::geom_line(colour = "#5f6b7a", linewidth = HSTAT_GG_LINEWIDTH) +
             ggplot2::geom_point(size = HSTAT_GG_POINT_SIZE * 1.6, alpha = alpha,
                                 colour = "#16a085") +
             ggplot2::labs(x = "Rang de l'espèce", y = "Abondance")

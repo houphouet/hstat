@@ -31,7 +31,7 @@ mod_threshold_ui <- function(id) {
                       shiny::tagList(shiny::icon("database"), " Source des données"),
                       choiceNames = list(
                         shiny::HTML("<b>Jeu de données chargé</b>"),
-                        shiny::HTML("<b>Efficacités calculées</b> <small style='color:#7f8c8d;'>(onglet « Calcul depuis un témoin »)</small>")),
+                        shiny::HTML("<b>Efficacités calculées</b> <small style='color:#5f6b7a;'>(onglet « Calcul depuis un témoin »)</small>")),
                       choiceValues = list("donnees", "calcul"),
                       selected = "donnees"),
                     shiny::uiOutput(ns("thresholdSourceNote")),
@@ -39,7 +39,7 @@ mod_threshold_ui <- function(id) {
                     shiny::uiOutput(ns("thresholdXVarSelect")),
                     
                     shiny::h6(shiny::icon("chart-line"), " Variables Y (Efficacité)", 
-                       style = "font-weight: bold; color: #3c8dbc; margin-top: 15px;"),
+                       style = "font-weight: bold; color: #2b6f99; margin-top: 15px;"),
                     shiny::checkboxInput(ns("thresholdMultipleY"), 
                                   shiny::tagList(shiny::icon("layer-group"), " Activer la sélection multiple de Y"), 
                                   value = FALSE),
@@ -113,14 +113,14 @@ mod_threshold_ui <- function(id) {
                             shiny::column(6, shiny::selectInput(ns("thresholdLabelStyle"), "Style",
                                                   choices = HSTAT_FONT_STYLES,
                                                   selected = "bold"))),
-                          shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
+                          shiny::tags$small(style = "color:#5f6b7a;font-style:italic;",
                                      "L'étiquette reprend la couleur de la ligne de seuil."))),
                     
                     shiny::hr(style = "border-top: 2px solid #f39c12; margin: 20px 0;"),
                     
                     shiny::div(style = "background:#f4f4f4; border-left:3px solid #3c8dbc; padding:9px 12px; border-radius:0; margin-bottom:14px;",
                         shiny::h5(shiny::icon("filter"), " Filtrage des données", 
-                           style = "color: #d35400; font-weight: bold; margin: 0;")
+                           style = "color: #a04000; font-weight: bold; margin: 0;")
                     ),
                     
                     shiny::uiOutput(ns("thresholdFilterSelect")),
@@ -129,11 +129,11 @@ mod_threshold_ui <- function(id) {
                     
                     shiny::div(style = "background:#f4f4f4; border-left:3px solid #3c8dbc; padding:9px 12px; border-radius:0; margin-bottom:14px;",
                         shiny::h5(shiny::icon("tag"), " Personnalisation des labels X", 
-                           style = "color: #16a085; font-weight: bold; margin: 0;")
+                           style = "color: #117864; font-weight: bold; margin: 0;")
                     ),
                     
                     shiny::div(style = "background-color: #fff9e6; padding: 10px; border-radius: 6px; margin-bottom: 10px; border-left: 4px solid #f39c12;",
-                        shiny::icon("lightbulb", style = "color: #f39c12;"),
+                        shiny::icon("lightbulb", style = "color: #a95600;"),
                         shiny::em(" Astuce : Modifiez les étiquettes des traitements et appliquez des styles (gras/italique) pour une meilleure présentation.")
                     ),
                     
@@ -247,7 +247,7 @@ mod_threshold_ui <- function(id) {
                                                 selected = "dessus"))
                         ),
                         colourInput(ns("thresholdValueColor"), "Couleur", value = "#2c3e50"),
-                        shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
+                        shiny::tags$small(style = "color:#5f6b7a;font-style:italic;",
                                    "Une efficacité négative se lit sous l'axe : la position « au pied » la garde visible.")
                       )
                     ),
@@ -453,7 +453,7 @@ mod_threshold_ui <- function(id) {
                         shiny::numericInput(ns("thresholdYBreakStep"),
                                      shiny::tagList(shiny::icon("ruler-vertical"), " Pas des graduations Y"),
                                      value = NULL, min = 0.01, step = 5),
-                        shiny::tags$small(style = "color:#7f8c8d;font-style:italic;",
+                        shiny::tags$small(style = "color:#5f6b7a;font-style:italic;",
                                    "Laisser vide pour laisser ggplot choisir.")
                     ),
 
@@ -465,7 +465,7 @@ mod_threshold_ui <- function(id) {
                         shiny::div(style = "padding-top:14px;",
 
                           shiny::div(style = "background-color:#e8f5e9;padding:12px 14px;border-radius:6px;border-left:4px solid #27ae60;font-size:13px;",
-                              shiny::icon("flask", style = "color:#27ae60;"),
+                              shiny::icon("flask", style = "color:#1e8449;"),
                               shiny::strong(" Formule d'Abbott. "),
                               "L'efficacité de chaque modalité est calculée par rapport au témoin :",
                               shiny::tags$div(style = "text-align:center;margin:8px 0;font-family:monospace;font-size:14px;",
@@ -488,13 +488,13 @@ mod_threshold_ui <- function(id) {
                           shiny::radioButtons(ns("effMode"),
                             shiny::tagList(shiny::icon("layer-group"), " Traitement des répétitions"),
                             choiceNames = list(
-                              shiny::HTML("<b>Mettre les répétitions en commun</b> <small style='color:#7f8c8d;'>(une efficacité par modalité — le chiffre que l'on publie)</small>"),
-                              shiny::HTML("<b>Une efficacité par répétition</b> <small style='color:#7f8c8d;'>(autant de valeurs que de répétitions — analysable par ANOVA)</small>")),
+                              shiny::HTML("<b>Mettre les répétitions en commun</b> <small style='color:#5f6b7a;'>(une efficacité par modalité — le chiffre que l'on publie)</small>"),
+                              shiny::HTML("<b>Une efficacité par répétition</b> <small style='color:#5f6b7a;'>(autant de valeurs que de répétitions — analysable par ANOVA)</small>")),
                             choiceValues = list("cumul", "par_repetition"),
                             selected = "cumul"),
 
                           shiny::div(style = "background-color:#fff9e6;padding:10px 12px;border-radius:6px;border-left:4px solid #f39c12;font-size:12px;",
-                              shiny::icon("lightbulb", style = "color:#f39c12;"),
+                              shiny::icon("lightbulb", style = "color:#a95600;"),
                               shiny::em(" Les deux modes ne répondent pas à la même question. ",
                                  "En commun, la moyenne (ou la somme) de la modalité porte sur ",
                                  "toutes ses répétitions : c'est le chiffre du rapport. ",
@@ -595,8 +595,8 @@ mod_threshold_ui <- function(id) {
                     shiny::radioButtons(ns("effPresentation"),
                                  shiny::tagList(shiny::icon("table-columns"), " Présentation du tableau"),
                                  choiceNames = list(
-                                   shiny::HTML("<b>Une colonne par variable mesurée</b> <small style='color:#7f8c8d;'>(une ligne par modalité)</small>"),
-                                   shiny::HTML("<b>Détail</b> <small style='color:#7f8c8d;'>(une ligne par variable : effectif, témoin, valeur résumée)</small>")),
+                                   shiny::HTML("<b>Une colonne par variable mesurée</b> <small style='color:#5f6b7a;'>(une ligne par modalité)</small>"),
+                                   shiny::HTML("<b>Détail</b> <small style='color:#5f6b7a;'>(une ligne par variable : effectif, témoin, valeur résumée)</small>")),
                                  choiceValues = list("large", "long"),
                                  selected = "large", inline = TRUE),
                     DT::DTOutput(ns("effTable")),
@@ -730,7 +730,7 @@ mod_threshold_server <- function(id, values) {
                  shiny::icon("triangle-exclamation"),
                  " Aucune autre modalité à comparer au témoin."))
     shiny::div(style = "background-color:#eef7fb;padding:9px 12px;border-radius:6px;border-left:4px solid #3c8dbc;font-size:12px;margin-bottom:12px;",
-        shiny::icon("arrow-right-arrow-left", style = "color:#3c8dbc;"),
+        shiny::icon("arrow-right-arrow-left", style = "color:#2b6f99;"),
         trf(" %d modalité(s) seront comparées au témoin : ", length(autres)),
         shiny::tags$b(paste(autres, collapse = ", ")))
   })
@@ -1872,7 +1872,7 @@ mod_threshold_server <- function(id, values) {
               rownames = FALSE,
               class = 'cell-border stripe hover',
               caption = shiny::tags$caption(
-                style = 'caption-side: top; text-align: center; color: #3c8dbc; font-size: 16px; font-weight: bold;',
+                style = 'caption-side: top; text-align: center; color: #2b6f99; font-size: 16px; font-weight: bold;',
                 'Données utilisées pour le graphique'
               ))
   })

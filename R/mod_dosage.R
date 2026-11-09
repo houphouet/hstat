@@ -1148,8 +1148,8 @@ mod_dosage_ui <- function(id) {
             shiny::hr(),
             shiny::radioButtons(ns("doseSens"), "Ce que vous connaissez",
               choiceNames = list(
-                shiny::HTML("<b>La dose homologuée</b> <small style='color:#7f8c8d;'>(je cherche le grammage)</small>"),
-                shiny::HTML("<b>Le grammage visé</b> <small style='color:#7f8c8d;'>(je cherche la dose)</small>")),
+                shiny::HTML("<b>La dose homologuée</b> <small style='color:#5f6b7a;'>(je cherche le grammage)</small>"),
+                shiny::HTML("<b>Le grammage visé</b> <small style='color:#5f6b7a;'>(je cherche la dose)</small>")),
               choiceValues = list("dose", "grammage"), selected = "dose"),
 
             shiny::conditionalPanel(

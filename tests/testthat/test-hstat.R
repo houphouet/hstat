@@ -25311,3 +25311,51 @@ test_that("les statistiques de diffusion ne partent qu'avec un accord, sans rien
   # Sous testthat, rien ne part jamais.
   expect_false(.hstat_stats_envoyer(url = u, fichier = ""))
 })
+
+test_that("Accessibilité : contrastes AA, script commun et rôle de bouton du menu", {
+  # La couleur lisible garde sa teinte et atteint 4,5:1 sur son fond.
+  for (c in c("#16a085", "#f39c12", "#00c0ef", "#27ae60")) {
+    l <- hstat_couleur_lisible(c, "#ffffff")
+    expect_gte(hstat_contraste(l, "#ffffff"), 4.5)
+  }
+  # Une couleur déjà lisible ne bouge pas.
+  expect_identical(hstat_couleur_lisible("#161a20", "#ffffff"), "#161a20")
+  # Le titre d'une carte d'options est un h4 lisible, plus un h6.
+  html <- as.character(.hstat_opt_section("Axes", "ruler", "#16a085", "#e8f8f4"))
+  expect_true(grepl("<h4", html, fixed = TRUE))
+  col <- sub(".*color:(#[0-9a-f]{6}).*", "\\1", html)
+  expect_gte(hstat_contraste(col, "#e8f8f4"), 4.5)
+
+  root <- .hstat_repo_root()
+  css <- paste(readLines(file.path(root, "inst", "app", "www", "hstat-theme.css"),
+                         warn = FALSE), collapse = "\n")
+  # Le texte blanc des en-têtes de boîte pleins atteint 4,5:1.
+  for (cl in c("primary", "info", "success", "warning", "danger")) {
+    m <- regmatches(css, regexpr(sprintf("\\.box\\.box-solid\\.box-%s\\s*> \\.box-header \\{ background: (#[0-9a-f]{6})", cl), css))
+    expect_length(m, 1L)
+    fond <- sub(".*background: ", "", m)
+    expect_gte(hstat_contraste("#ffffff", fond), 4.5, label = cl)
+  }
+  # Le focus clavier n'est jamais effacé sans remplaçant.
+  expect_true(grepl(":focus-visible { outline: 3px solid", css, fixed = TRUE))
+  expect_false(grepl("li.header[data-hstat-repli]:focus-visible", css, fixed = TRUE))
+
+  ux <- paste(readLines(file.path(root, "inst", "app", "UX.R"), warn = FALSE,
+                        encoding = "UTF-8"), collapse = "\n")
+  expect_true(grepl('hstat_asset("hstat-a11y.js")', ux, fixed = TRUE))
+  js <- paste(readLines(file.path(root, "inst", "app", "www", "hstat-a11y.js"),
+                        warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  for (m in c("aria-hidden", "aria-labelledby", "Aller au contenu principal",
+              "Retour en haut de la page", "aria-current", "MutationObserver"))
+    expect_true(grepl(m, js, fixed = TRUE), label = m)
+  # Le <li> du titre de section ne porte pas lui-même le rôle de bouton.
+  menu <- paste(readLines(file.path(root, "inst", "app", "www", "hstat-menu.js"),
+                          warn = FALSE), collapse = "\n")
+  expect_false(grepl('$t.attr({ role: "button"', menu, fixed = TRUE))
+  expect_true(grepl('role="button" tabindex="0"', menu, fixed = TRUE))
+  # Les libellés posés par le script sont au dictionnaire.
+  dic <- hstat_i18n_load()
+  for (k in c("Aller au contenu principal", "Retour en haut de la page",
+              "Replier ou déplier la boîte", "Liste de choix"))
+    expect_true(k %in% dic$fr, label = k)
+})

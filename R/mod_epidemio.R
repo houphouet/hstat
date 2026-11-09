@@ -196,7 +196,7 @@ mod_epidemio_server <- function(id, values) {
     output$epiConfigUI <- shiny::renderUI({
       df <- donnees()
       if (is.null(df) || !ncol(df))
-        return(shiny::tags$em(style = "color:#7f8c8d;",
+        return(shiny::tags$em(style = "color:#5f6b7a;",
           tr("Chargez d'abord un jeu de données dans l'onglet Chargement.")))
       n <- cols_num(); a <- cols_tous()
       switch(input$epiAnalyse %||% "dlnm",
@@ -503,7 +503,7 @@ mod_epidemio_server <- function(id, values) {
     output$epiProxyUI <- shiny::renderUI({
       vs <- as.character(input$epiExpo %||% character(0))
       vs <- vs[nzchar(vs)]
-      if (!length(vs)) return(shiny::tags$em(style = "color:#7f8c8d;",
+      if (!length(vs)) return(shiny::tags$em(style = "color:#5f6b7a;",
         tr("Choisissez d'abord une variable d'influence.")))
       do.call(shiny::tagList, lapply(vs, function(v) shiny::fluidRow(
         shiny::column(6, shiny::numericInput(ns(paste0("epiPxA_", v)),
@@ -631,7 +631,7 @@ mod_epidemio_server <- function(id, values) {
     output$epiTablesUI <- shiny::renderUI({
       tb <- tables()
       if (is.null(tb) || !length(tb))
-        return(shiny::tags$em(style = "color:#7f8c8d;",
+        return(shiny::tags$em(style = "color:#5f6b7a;",
           tr("Lancez une analyse pour voir les résultats.")))
       n <- min(length(tb), epi_max_tables)
       els <- lapply(seq_len(n), function(k) shiny::tagList(

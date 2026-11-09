@@ -918,7 +918,7 @@ mod_viz_ui <- function(id) {
                           # seconde ou on le choisit.
                           shiny::helpText(shiny::icon("bolt"),
                                    " Le thème s'applique immédiatement.",
-                                   style = "margin-top:6px; color:#7f8c8d; font-size:12px;")
+                                   style = "margin-top:6px; color:#5f6b7a; font-size:12px;")
                         ),
                         
                         shiny::conditionalPanel(
@@ -2252,10 +2252,10 @@ mod_viz_server <- function(id, values) {
       shiny::div(
         shiny::div(
           style = "background:#f0f4ff; border-left:4px solid #3498db; padding:10px 14px; border-radius:4px; margin-bottom:14px;",
-          shiny::tags$b(style="color:#2980b9;", shiny::icon("info-circle"), " Variable : "),
+          shiny::tags$b(style="color:#21618c;", shiny::icon("info-circle"), " Variable : "),
           shiny::tags$span(style="color:#34495e; font-size:13px;", legend_var_name),
           shiny::tags$br(),
-          shiny::tags$small(style="color:#7f8c8d;",
+          shiny::tags$small(style="color:#5f6b7a;",
                      "Saisissez les nouveaux noms à afficher dans la légende. ",
                      "Laissez vide pour conserver l'original."
           )
@@ -2315,7 +2315,7 @@ mod_viz_server <- function(id, values) {
     }))
     if (n_custom == 0) return(NULL)
     shiny::tags$small(
-      style = "color: #e67e22; font-size: 11px; display: block; margin-top: 3px;",
+      style = "color: #a04000; font-size: 11px; display: block; margin-top: 3px;",
       shiny::icon("check-circle"), " ", n_custom, " label(s) personnalisé(s) actif(s)"
     )
   })

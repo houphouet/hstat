@@ -2255,8 +2255,8 @@ mod_qualitative_ui <- function(id) {
                 shiny::uiOutput(ns("gof_x_ui"))),
               shiny::radioButtons(ns("gof_method"), "Méthode",
                 choiceNames = list(
-                  shiny::HTML("<b>Chi² d'ajustement</b> <small style='color:#7f8c8d;'>(chisq.test)</small>"),
-                  shiny::HTML("<b>Multinomial exact</b> <small style='color:#7f8c8d;'>(petits effectifs)</small>")),
+                  shiny::HTML("<b>Chi² d'ajustement</b> <small style='color:#5f6b7a;'>(chisq.test)</small>"),
+                  shiny::HTML("<b>Multinomial exact</b> <small style='color:#5f6b7a;'>(petits effectifs)</small>")),
                 choiceValues = list("chisq", "multinomial"),
                 selected = "chisq"),
               shiny::radioButtons(ns("gof_props"), "Proportions attendues (H0)",
@@ -2274,7 +2274,7 @@ mod_qualitative_ui <- function(id) {
                             "BH (FDR)" = "BH", "BY" = "BY", "Hochberg" = "hochberg",
                             "Hommel" = "hommel", "Aucun" = "none"),
                 selected = "bonferroni"),
-              shiny::tags$small(style = "color:#7f8c8d;", shiny::icon("info-circle"),
+              shiny::tags$small(style = "color:#5f6b7a;", shiny::icon("info-circle"),
                 " Compare chaque paire de modalités (khi-deux 2x2) et regroupe en lettres : les modalités partageant une lettre ne diffèrent pas significativement.")),
             shiny::conditionalPanel(sprintf("input['%s'] == 'multi'", ns("nom_mode")),
               shiny::radioButtons(ns("multi_fmt"), "Format des choix multiples",
@@ -2314,7 +2314,7 @@ mod_qualitative_ui <- function(id) {
             shiny::sliderInput(ns("txt_minchar"), "Longueur min. des mots", min = 2, max = 6, value = 3, step = 1),
             shiny::checkboxInput(ns("txt_stem"),
               shiny::tagList(shiny::strong("Racinisation (stemming)"),
-                shiny::br(), shiny::tags$small(style = "color:#7f8c8d;",
+                shiny::br(), shiny::tags$small(style = "color:#5f6b7a;",
                   "Regroupe les formes fléchies d'un même mot (ex. moustiquaire / moustiquaires).")),
               value = TRUE),
             shiny::checkboxInput(ns("txt_nonum"), "Ignorer les chiffres", value = TRUE),
@@ -2361,7 +2361,7 @@ mod_qualitative_ui <- function(id) {
               shiny::checkboxInput(ns("orrr_all_pairs"),
                 shiny::tagList(shiny::strong("Prendre en compte toutes les modalités"),
                   shiny::br(),
-                  shiny::tags$small(style = "color:#7f8c8d;",
+                  shiny::tags$small(style = "color:#5f6b7a;",
                     "Croise chaque modalité de X (vs reste) avec chaque modalité de Y (vs reste). Les choix « exposé + » / « issue + » ci-dessus sont alors ignorés.")),
                 value = FALSE),
               shiny::sliderInput(ns("orrr_conf"), "Niveau de confiance", min = 0.80, max = 0.99, value = 0.95, step = 0.01))),
@@ -2509,14 +2509,14 @@ mod_qualitative_server <- function(id, values) {
         shiny::selectInput(ns("nom_poids"), "Colonne d'effectifs (facultatif)",
                            choices = c("(aucune : une ligne = un individu)" = "__aucun__", num),
                            selected = hstat_effectif_propose(d) %||% "__aucun__"),
-        shiny::tags$small(style = "color:#7f8c8d;",
+        shiny::tags$small(style = "color:#5f6b7a;",
           "Avec une colonne d'effectifs, la table se construit comme xtabs(Freq ~ Variable1 + Variable2) : chaque ligne compte pour sa valeur."))
     })
     output$gof_levels_hint <- shiny::renderUI({
       d <- get_data(); v <- input$nom_var1
       if (is.null(v) || !(v %in% names(d))) return(NULL)
       lv <- sort(unique(as.character(stats::na.omit(d[[v]]))))
-      shiny::tags$small(style = "color:#7f8c8d;",
+      shiny::tags$small(style = "color:#5f6b7a;",
         shiny::icon("info-circle"),
         trf(" Ordre des modalités : %s (%d proportions attendues).",
                 paste(lv, collapse = ", "), length(lv)))
@@ -2654,9 +2654,9 @@ mod_qualitative_server <- function(id, values) {
       if (is.null(v) || !(v %in% names(d))) return(NULL)
       tp <- hstat_q_detect_type(d[[v]])
       cols <- c(nominale = "#16a085", ordinale = "#8e44ad", textuelle = "#e67e22",
-                numerique = "#2980b9", binaire = "#7f8c8d")
+                numerique = "#2980b9", binaire = "#5f6b7a")
       shiny::div(style = sprintf("margin-top:8px;padding:8px 10px;border-radius:6px;background:%s;color:white;font-size:12px;",
-                                 cols[tp] %||% "#7f8c8d"),
+                                 cols[tp] %||% "#5f6b7a"),
         shiny::icon("magic"), trf(" Type détecté pour \"%s\" : %s", v, toupper(tp)))
     })
 
