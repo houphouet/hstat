@@ -11648,3 +11648,8 @@ au lieu de « Groups ».
 
 Vérifié sur `iris`, puis sur `iris` dont une espèce ne garde que deux
 individus : avant, aucune ellipse ; après, deux ellipses et trois couleurs.
+
+Le test qui garde ce correctif calcule ses coordonnées par `stats::prcomp()`,
+pas par FactoMineR : `R CMD check` ne l'installe pas, et la garde comme les
+ellipses ne dépendent que des coordonnées. Un test qui exige un paquet sans
+`skip_if_not_installed()` fait échouer le check sur l'environnement.

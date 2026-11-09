@@ -25365,8 +25365,8 @@ test_that("ACP : une modalité trop petite ne fait pas perdre les ellipses des a
   # d'ellipse, les trois autres si.
   d <- iris[c(1:50, 51:100, 101:102), ]
   g <- as.character(d$Species); g[101:102] <- "rare"
-  res <- FactoMineR::PCA(d[, 1:4], graph = FALSE)
-  cm <- res$ind$coord
+  # prcomp suffit : la garde et les ellipses ne dépendent que des coordonnées.
+  cm <- stats::prcomp(d[, 1:4], scale. = TRUE)$x
   ell <- hstat_ellipse_ok(g, cm[, 1], cm[, 2])
   expect_false(ell$ok)                      # la garde signale la modalité...
   expect_setequal(ell$groupes, c("setosa", "versicolor"))
@@ -25374,7 +25374,7 @@ test_that("ACP : une modalité trop petite ne fait pas perdre les ellipses des a
   expect_setequal(unique(e$groupe), c("setosa", "versicolor"))   # ...sans emporter les autres
   # Même ellipse que celle de factoextra (ellipse de confiance de la moyenne).
   skip_if_not_installed("ggpubr")
-  full <- FactoMineR::PCA(iris[, 1:4], graph = FALSE)$ind$coord
+  full <- stats::prcomp(iris[, 1:4], scale. = TRUE)$x
   nous <- hstat_ellipses_confiance(full[, 1], full[, 2], iris$Species)
   q <- ggplot2::ggplot(data.frame(x = full[, 1], y = full[, 2], g = iris$Species),
                        ggplot2::aes(x, y, group = g)) + ggpubr::stat_conf_ellipse(level = 0.95)
