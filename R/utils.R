@@ -13467,3 +13467,39 @@ hstat_ma_input <- function(id, label, selected = "", saisies = character(0),
                    maxOptions = 500, placeholder = placeholder %||% "",
                    render = I("{option_create: function(d, e) { return '<div class=\"create\">+ <strong>' + e(d.input) + '</strong></div>'; }}")))
 }
+
+# Statistiques de diffusion : le site, le choix memorise, et le compteur de la
+# page. Un refus (option ou choix memorise) retire le compteur de la page.
+HSTAT_STATS_SITE <- "https://hstatistique.goatcounter.com"
+
+.hstat_stats_fichier <- function(nom = "statistiques.txt") {
+  d <- tryCatch(tools::R_user_dir("HStat", "config"), error = function(e) "")
+  if (!is.character(d) || length(d) != 1L || !nzchar(d)) return("")
+  file.path(d, nom)
+}
+
+.hstat_stats_lire <- function(fichier) {
+  if (!nzchar(fichier) || !file.exists(fichier)) return(NA)
+  v <- tryCatch(trimws(readLines(fichier, n = 1L, warn = FALSE)),
+                error = function(e) character(0))
+  if (length(v) == 1L && v %in% c("oui", "non")) identical(v, "oui") else NA
+}
+
+# Le compteur GoatCounter de la page : une ouverture de l'application, sous le
+# chemin /application/<version>. allow_local : sans lui, le script ignore une
+# page servie depuis cette machine, le cas ordinaire.
+hstat_stats_script <- function(version = hstat_version(),
+                               site = getOption("hstat.statistiques.site", HSTAT_STATS_SITE),
+                               fichier = .hstat_stats_fichier()) {
+  if (isFALSE(getOption("hstat.statistiques"))) return(NULL)
+  if (isFALSE(.hstat_stats_lire(fichier))) return(NULL)
+  if (!is.character(site) || length(site) != 1L ||
+      !grepl("^https://[A-Za-z0-9.-]+$", site)) return(NULL)
+  version <- gsub("[^0-9.]", "", as.character(version))
+  shiny::tags$script(
+    `data-goatcounter` = paste0(site, "/count"),
+    `data-goatcounter-settings` = sprintf(
+      '{"allow_local": true, "path": "/application/%s", "title": "HStat %s", "referrer": ""}',
+      version, version),
+    async = NA, src = "https://gc.zgo.at/count.js")
+}

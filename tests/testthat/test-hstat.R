@@ -25269,7 +25269,7 @@ test_that("une seule écriture des p-values et une seule échelle de significati
 })
 
 test_that("les statistiques de diffusion partent sans question, sauf refus explicite", {
-  e <- new.env(parent = globalenv())
+  e <- new.env(parent = environment())
   assign("%||%", function(x, y) if (is.null(x) || length(x) == 0) y else x, envir = e)
   sys.source(file.path(.hstat_repo_root(), "R", "run_hstat.R"), envir = e, keep.source = FALSE)
   .hstat_stats_consentement <- e$.hstat_stats_consentement
@@ -25298,7 +25298,7 @@ test_that("les statistiques de diffusion partent sans question, sauf refus expli
   expect_false(.hstat_stats_consentement(fichier = f, informer = function() stop("note")))
   expect_true(suppressMessages(.hstat_stats_consentement(TRUE, fichier = f)))
   # Le site est celui du compte créé.
-  expect_identical(e$HSTAT_STATS_SITE, "https://hstatistique.goatcounter.com")
+  expect_identical(HSTAT_STATS_SITE, "https://hstatistique.goatcounter.com")
   # L'adresse ne porte que la version et le système.
   u <- .hstat_stats_url(version = "1.47.0", systeme = "linux")
   expect_match(u, "^https://hstatistique\\.goatcounter\\.com/count\\?p=%2Flancement%2F1\\.47\\.0%2Flinux&")
@@ -25306,8 +25306,35 @@ test_that("les statistiques de diffusion partent sans question, sauf refus expli
   expect_true(is.na(.hstat_stats_url(site = "http://exemple.org/x?y")))
   expect_identical(.hstat_stats_systeme("Windows"), "windows")
   expect_identical(.hstat_stats_systeme("Darwin"), "macos")
+  # L'installation a son propre chemin : c'est le compteur des téléchargements.
+  ui <- .hstat_stats_url(version = "1.50.0", systeme = "windows", genre = "installation")
+  expect_match(ui, "count\\?p=%2Finstallation%2F1\\.50\\.0%2Fwindows&")
+  expect_error(.hstat_stats_url(genre = "autre"))
+  # Une marque déjà posée (même version, même jour) n'envoie rien.
+  fm <- tempfile(); writeLines("1.50.0", fm); on.exit(unlink(fm), add = TRUE)
+  expect_false(e$.hstat_stats_signal(ui, fm, "1.50.0"))
+  expect_false(e$.hstat_stats_signal(NA_character_, fm, "1.51.0"))
   # Sous testthat, rien ne part jamais.
   expect_false(.hstat_stats_envoyer(url = u, fichier = ""))
+
+  # Le compteur de la page : chemin de la version, page locale comptée.
+  f2 <- tempfile(); on.exit(unlink(f2), add = TRUE)
+  h <- as.character(hstat_stats_script(version = "1.50.0", fichier = f2))
+  expect_true(grepl('data-goatcounter="https://hstatistique.goatcounter.com/count"', h, fixed = TRUE))
+  expect_true(grepl("https://gc.zgo.at/count.js", h, fixed = TRUE))
+  expect_true(grepl("allow_local", h, fixed = TRUE))
+  expect_true(grepl("/application/1.50.0", h, fixed = TRUE))
+  # Un refus, par option ou mémorisé, retire le compteur de la page.
+  writeLines("non", f2)
+  expect_null(hstat_stats_script(fichier = f2))
+  writeLines("oui", f2)
+  options(hstat.statistiques = FALSE)
+  expect_null(hstat_stats_script(fichier = f2))
+  options(hstat.statistiques = NULL)
+  expect_null(hstat_stats_script(site = "http://exemple.org/x", fichier = f2))
+  # La page le pose.
+  ux <- paste(readLines(file.path(.hstat_repo_root(), "inst", "app", "UX.R"), warn = FALSE), collapse = "\n")
+  expect_true(grepl("hstat_stats_script()", ux, fixed = TRUE))
 })
 
 test_that("Accessibilité : contrastes AA, script commun et rôle de bouton du menu", {

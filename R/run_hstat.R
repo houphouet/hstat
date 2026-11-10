@@ -203,21 +203,6 @@ HSTAT_OUVERTURES <- c(navigateur = "Navigateur web",
 # Un signal par machine et par jour au plus : version de HStat, famille du
 # systeme, version de R. Un refus explicite est toujours respecte.
 
-HSTAT_STATS_SITE <- "https://hstatistique.goatcounter.com"
-
-.hstat_stats_fichier <- function(nom = "statistiques.txt") {
-  d <- tryCatch(tools::R_user_dir("HStat", "config"), error = function(e) "")
-  if (!is.character(d) || length(d) != 1L || !nzchar(d)) return("")
-  file.path(d, nom)
-}
-
-.hstat_stats_lire <- function(fichier) {
-  if (!nzchar(fichier) || !file.exists(fichier)) return(NA)
-  v <- tryCatch(trimws(readLines(fichier, n = 1L, warn = FALSE)),
-                error = function(e) character(0))
-  if (length(v) == 1L && v %in% c("oui", "non")) identical(v, "oui") else NA
-}
-
 .hstat_stats_ecrire <- function(accord, fichier) {
   if (!nzchar(fichier)) return(FALSE)
   isTRUE(tryCatch({
@@ -228,8 +213,9 @@ HSTAT_STATS_SITE <- "https://hstatistique.goatcounter.com"
 }
 
 .hstat_stats_informer <- function() {
-  message("HStat envoie, au plus une fois par jour, un signal anonyme de ",
-          "lancement : version de HStat, syst\u00e8me et version de R. Le pays ",
+  message("HStat envoie des signaux anonymes d'installation, de lancement (au ",
+          "plus un par jour) et d'ouverture de la page : version de HStat, ",
+          "syst\u00e8me et version de R. Le pays ",
           "est d\u00e9duit par le service de statistiques, qui ne conserve pas ",
           "l'adresse. Aucune donn\u00e9e, aucun r\u00e9sultat, aucun identifiant. ",
           "Pour l'arr\u00eater : run_hstat(statistiques = FALSE)")
@@ -267,42 +253,38 @@ HSTAT_STATS_SITE <- "https://hstatistique.goatcounter.com"
 # L'adresse ne porte que des valeurs du paquet et du systeme : rien de saisi.
 .hstat_stats_url <- function(version = hstat_version(),
                              systeme = .hstat_stats_systeme(),
+                             genre = c("lancement", "installation"),
                              site = getOption("hstat.statistiques.site",
                                               HSTAT_STATS_SITE)) {
   if (!is.character(site) || length(site) != 1L ||
       !grepl("^https://[A-Za-z0-9.-]+$", site)) return(NA_character_)
   version <- gsub("[^0-9.]", "", as.character(version))
-  chemin <- sprintf("/lancement/%s/%s", version, systeme)
+  chemin <- sprintf("/%s/%s/%s", match.arg(genre), version, systeme)
   sprintf("%s/count?p=%s&t=%s&rnd=%s", site,
           utils::URLencode(chemin, reserved = TRUE),
           utils::URLencode(paste("HStat", version), reserved = TRUE),
           paste(sample(c(letters, 0:9), 8, TRUE), collapse = ""))
 }
 
-# Une fois par jour et par machine : relancer HStat dix fois ne fait pas dix
-# installations.
-.hstat_stats_envoyer <- function(jour = format(Sys.Date()),
-                                 fichier = .hstat_stats_fichier("statistiques_dernier.txt"),
-                                 url = .hstat_stats_url()) {
-  if (identical(Sys.getenv("TESTTHAT"), "true") || is.na(url) ||
-      nzchar(Sys.getenv("_R_CHECK_PACKAGE_NAME_")) ||
-      tolower(Sys.getenv("CI")) %in% c("true", "1")) return(invisible(FALSE))
-  if (!requireNamespace("curl", quietly = TRUE) ||
-      !requireNamespace("later", quietly = TRUE)) return(invisible(FALSE))
+# Un signal part en tache de fond ; sa marque n'est ecrite que s'il aboutit.
+# L'agent a la forme de celui d'un navigateur : le service ecarte les autres
+# comme des robots.
+.hstat_stats_signal <- function(url, fichier, marque) {
+  if (is.na(url)) return(invisible(FALSE))
   if (nzchar(fichier) && file.exists(fichier) &&
       identical(tryCatch(readLines(fichier, n = 1L, warn = FALSE),
-                         error = function(e) ""), jour)) return(invisible(FALSE))
+                         error = function(e) ""), marque)) return(invisible(FALSE))
   tryCatch({
     h <- curl::new_handle(timeout = 10, connecttimeout = 5, followlocation = FALSE,
-                          useragent = sprintf("HStat/%s (R %s; %s)",
-                                              hstat_version(),
+                          useragent = sprintf("Mozilla/5.0 (%s; R %s) HStat/%s",
+                                              .hstat_stats_systeme(),
                                               paste(R.version$major, R.version$minor, sep = "."),
-                                              .hstat_stats_systeme()))
+                                              hstat_version()))
     pool <- curl::new_pool()
     curl::curl_fetch_multi(url, handle = h, pool = pool,
       done = function(r) if (r$status_code < 400 && nzchar(fichier)) {
         dir.create(dirname(fichier), recursive = TRUE, showWarnings = FALSE)
-        try(writeLines(jour, fichier), silent = TRUE)
+        try(writeLines(marque, fichier), silent = TRUE)
       },
       fail = function(e) NULL)
     tours <- 0L
@@ -315,6 +297,24 @@ HSTAT_STATS_SITE <- "https://hstatistique.goatcounter.com"
     later::later(pousser, 0)
     invisible(TRUE)
   }, error = function(e) invisible(FALSE))
+}
+
+# Deux signaux : le lancement, une fois par jour et par machine ; l'installation,
+# une fois par machine et par version (premiere installation ou mise a jour).
+.hstat_stats_envoyer <- function(jour = format(Sys.Date()),
+                                 fichier = .hstat_stats_fichier("statistiques_dernier.txt"),
+                                 url = .hstat_stats_url(),
+                                 version = as.character(hstat_version()),
+                                 fichier_version = .hstat_stats_fichier("statistiques_version.txt"),
+                                 url_installation = .hstat_stats_url(genre = "installation")) {
+  if (identical(Sys.getenv("TESTTHAT"), "true") ||
+      nzchar(Sys.getenv("_R_CHECK_PACKAGE_NAME_")) ||
+      tolower(Sys.getenv("CI")) %in% c("true", "1")) return(invisible(FALSE))
+  if (!requireNamespace("curl", quietly = TRUE) ||
+      !requireNamespace("later", quietly = TRUE)) return(invisible(FALSE))
+  a <- .hstat_stats_signal(url_installation, fichier_version, version)
+  b <- .hstat_stats_signal(url, fichier, jour)
+  invisible(isTRUE(a) || isTRUE(b))
 }
 
 # Liste des dependances requises, lue depuis inst/app/Utils.R (source unique de
