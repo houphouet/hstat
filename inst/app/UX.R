@@ -226,6 +226,8 @@ ui <- shinydashboard::dashboardPage(
       shiny::tags$script(src = hstat_asset("hstat-menu.js")),
       # Accessibilite commune : icones, etiquettes, lien d'evitement, retour en haut.
       shiny::tags$script(src = hstat_asset("hstat-a11y.js")),
+      # Compteur anonyme d'ouvertures de l'application ; absent sur refus.
+      hstat_stats_script(),
       # Dictionnaire de traduction.
       hstat_i18n_script("en"),
       shiny::tags$script(src = hstat_asset("hstat-i18n.js")),

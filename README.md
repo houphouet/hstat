@@ -32,6 +32,9 @@ R version. No question is asked; a note says so on the first launch. The
 country is deduced by the receiving service
 ([GoatCounter](https://www.goatcounter.com)), which does not store the
 address. No identifier, data or result ever leaves your machine.
+Three anonymous counters are followed on GoatCounter: `/installation/<version>/<os>`
+(once per machine and per version: the download count), `/lancement/<version>/<os>`
+(once a day) and `/application/<version>` (each time the app page opens).
 `run_hstat(statistiques = FALSE)` turns it off for good, and
 `options(hstat.statistiques = FALSE)` turns it off for a session.
 No minimum R version is declared; CI runs the suite on the current release.
@@ -312,7 +315,7 @@ citation("HStat")
 Or use one of the following:
 
 **Text**
-> KOUADIO, Houphouet & Claude Code (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 1.49.0. https://github.com/houphouet/hstat
+> KOUADIO, Houphouet & Claude Code (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 1.50.0. https://github.com/houphouet/hstat
 
 **BibTeX**
 ```bibtex
@@ -320,7 +323,7 @@ Or use one of the following:
   title  = {HStat: Application Shiny interactive pour l'analyse statistique},
   author = {Houphouet KOUADIO and {Claude Code}},
   year   = {2026},
-  note   = {Version 1.49.0},
+  note   = {Version 1.50.0},
   url    = {https://github.com/houphouet/hstat},
 }
 ```

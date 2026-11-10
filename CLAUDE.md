@@ -11592,6 +11592,33 @@ une image est le seul compteur possible. GitHub sert les images par son
 mandataire, qui les met en cache : ce pixel compte des affichages approximatifs,
 pas des visiteurs.
 
+### Trois compteurs, dont celui des téléchargements (1.50.0)
+
+Signalé à l'écran : le tableau de bord GoatCounter restait sur « No data
+received », et la demande était de suivre les **téléchargements**. Trois
+chemins se lisent désormais dans le tableau de bord :
+
+| Chemin | Quand | Ce qu'il compte |
+|---|---|---|
+| `/installation/<version>/<système>` | une fois par machine et par version | les téléchargements : première installation ou mise à jour |
+| `/lancement/<version>/<système>` | une fois par jour et par machine | l'usage |
+| `/application/<version>` | à chaque ouverture de la page | les ouvertures, comptées par le navigateur |
+
+Le troisième est le script GoatCounter lui-même (`hstat_stats_script()`,
+`R/utils.R`, posé dans `UX.R`) : il part du navigateur, que le service ne
+prend pas pour un robot. `allow_local` est nécessaire — `count.js` ignore
+d'office une page servie depuis la machine, le cas ordinaire de HStat. Un
+refus (option ou choix mémorisé) retire le script de la page.
+
+Les signaux envoyés par R portent un agent de la forme d'un navigateur
+(`Mozilla/5.0 (…) HStat/<version>`) : GoatCounter écarte en silence les agents
+qu'il prend pour des robots. Non vérifié d'ici — le conteneur ne joint pas
+goatcounter.com.
+
+Un téléchargement depuis GitHub ne se compte pas autrement :
+`install_github()` n'exécute aucun code du paquet, et GitHub ne publie que les
+clones des quatorze derniers jours (Insights → Traffic).
+
 ## Accessibilité : mesurée par axe-core, corrigée au point commun
 
 Demandé : optimiser l'accessibilité et l'ergonomie de toute l'application.
