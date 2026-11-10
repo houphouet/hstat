@@ -25410,6 +25410,33 @@ test_that("ACP : une modalité trop petite ne fait pas perdre les ellipses des a
   # Le module ne retombe plus sur la coloration par contribution.
   src <- paste(readLines(file.path(.hstat_repo_root(), "inst", "app", "app_server.R"),
                          warn = FALSE, encoding = "UTF-8"), collapse = "\n")
-  expect_true(grepl("hstat_ellipses_confiance(gx, gy, grp, groupes = ell$groupes)", src, fixed = TRUE))
+  expect_true(grepl("hstat_ellipses_confiance(\n            gx, gy, grp, groupes = ell$groupes,", src, fixed = TRUE))
+
+  # Ellipse de DISPERSION : celle de stat_ellipse(type = "norm"), que trace
+  # factoextra sous ellipse.type = "norm" ; elle s'étend aux individus.
+  disp <- hstat_ellipses_confiance(full[, 1], full[, 2], iris$Species, type = "dispersion")
+  q2 <- ggplot2::ggplot(data.frame(x = full[, 1], y = full[, 2], g = iris$Species),
+                        ggplot2::aes(x, y, group = g)) +
+    ggplot2::stat_ellipse(type = "norm", level = 0.95, segments = 400)
+  ref2 <- ggplot2::ggplot_build(q2)$data[[1]]
+  expect_equal(range(disp$x), range(ref2$x), tolerance = 1e-3)
+  expect_equal(range(disp$y), range(ref2$y), tolerance = 1e-3)
+  # Elle est bien plus large que celle de la moyenne, et couvre l'essentiel du groupe.
+  se <- disp[disp$groupe == "setosa", ]
+  expect_gt(diff(range(se$x)), 3 * diff(range(nous$x[nous$groupe == "setosa"])))
+  i <- iris$Species == "setosa"
+  dedans <- full[i, 1] >= min(se$x) & full[i, 1] <= max(se$x) &
+            full[i, 2] >= min(se$y) & full[i, 2] <= max(se$y)
+  expect_gte(mean(dedans), 0.9)
+  # Le niveau agit, et un type inconnu retombe sur la confiance.
+  d80 <- hstat_ellipses_confiance(full[, 1], full[, 2], iris$Species, type = "dispersion", niveau = 0.8)
+  expect_lt(diff(range(d80$x)), diff(range(disp$x)))
+  expect_identical(hstat_ellipses_confiance(full[, 1], full[, 2], iris$Species, type = "zzz"), nous)
+  # Le module lit le type et le niveau, et la dispersion est le défaut de l'interface.
+  expect_true(grepl("type = input$pcaEllipseType", src, fixed = TRUE))
+  expect_true(grepl("hstat_borne_client(input$pcaEllipseLevel, 0.95, 0.5, 0.99)", src, fixed = TRUE))
+  ux <- paste(readLines(file.path(.hstat_repo_root(), "inst", "app", "UX.R"), warn = FALSE), collapse = "\n")
+  expect_true(grepl('choices = HSTAT_ELLIPSE_TYPES, selected = "dispersion"', ux, fixed = TRUE))
+  expect_identical(unname(HSTAT_ELLIPSE_TYPES), c("dispersion", "confiance"))
   expect_false(grepl("ellipse.type = \"confidence\", ellipse.level = 0.95,\n                            col.var", src, fixed = TRUE))
 })
