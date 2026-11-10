@@ -11698,6 +11698,24 @@ pas par FactoMineR : `R CMD check` ne l'installe pas, et la garde comme les
 ellipses ne dépendent que des coordonnées. Un test qui exige un paquet sans
 `skip_if_not_installed()` fait échouer le check sur l'environnement.
 
+### L'ellipse de dispersion s'étend aux individus (1.51.0)
+
+Demandé à l'écran : que les ellipses de l'ACP couvrent les individus du
+groupe, comme `fviz_pca_ind(..., ellipse.type = "norm")`. L'ellipse tracée
+jusque-là était celle de la **moyenne** : elle dit où se trouve le centre du
+groupe et rétrécit quand l'effectif monte, si bien qu'elle ne couvre presque
+aucun individu. `HSTAT_ELLIPSE_TYPES` déclare les deux, et
+`hstat_ellipses_confiance(type =)` trace l'une ou l'autre :
+
+| Type | Covariance | Rayon |
+|---|---|---|
+| `dispersion` (défaut de l'interface) | Σ | √(2 · F(niveau ; 2, n − 1)) — `stat_ellipse(type = "norm")` |
+| `confiance` | Σ / n | √χ²₂(niveau) |
+
+Le niveau se règle (0,5 à 0,99, borné côté serveur). Le test confronte la
+dispersion à `ggplot2::stat_ellipse` et exige qu'elle soit plus large que
+celle de la moyenne.
+
 ## Les commentaires : la règle, sans l'historique
 
 Demandé à l'écran (1.48.3) : retirer les commentaires en trop et tout

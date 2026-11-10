@@ -1041,7 +1041,13 @@ ui <- shinydashboard::dashboardPage(
                                                   shiny::fluidRow(
                                                     shiny::column(12, shiny::conditionalPanel(
                                                       condition = "input.pcaShowEllipses == true",
-                                                      shiny::uiOutput("pcaEllipseGroupSelect")))
+                                                      shiny::uiOutput("pcaEllipseGroupSelect"),
+                                                      shiny::fluidRow(
+                                                        shiny::column(6, shiny::selectInput("pcaEllipseType", "Type d'ellipse",
+                                                                             choices = HSTAT_ELLIPSE_TYPES, selected = "dispersion")),
+                                                        shiny::column(6, shiny::numericInput("pcaEllipseLevel", "Niveau de l'ellipse",
+                                                                             value = 0.95, min = 0.5, max = 0.99, step = 0.01))),
+                                                      shiny::helpText("La dispersion s'\u00e9tend aux individus du groupe (elle en couvre environ la part du niveau) ; la confiance entoure seulement sa moyenne.")))
                                                   )
                                                 ),
                                                 shiny::fluidRow(

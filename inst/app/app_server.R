@@ -1897,7 +1897,10 @@ server <- function(input, output, session) {
           } else {
             p_ell <- hstat_apply_label_sizes(p_ell, lbl_ind)
           }
-          contours <- hstat_ellipses_confiance(gx, gy, grp, groupes = ell$groupes)
+          contours <- hstat_ellipses_confiance(
+            gx, gy, grp, groupes = ell$groupes,
+            type = input$pcaEllipseType %||% "dispersion",
+            niveau = hstat_borne_client(input$pcaEllipseLevel, 0.95, 0.5, 0.99))
           if (nrow(contours)) {
             contours$groupe <- factor(contours$groupe, levels = levels(grp))
             p_ell <- p_ell + ggplot2::geom_polygon(
