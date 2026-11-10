@@ -25268,7 +25268,7 @@ test_that("une seule écriture des p-values et une seule échelle de significati
   expect_false(any(src %in% c("format.pval", "fmt_p", "chi2_interp_p")))
 })
 
-test_that("les statistiques de diffusion ne partent qu'avec un accord, sans rien d'identifiant", {
+test_that("les statistiques de diffusion partent sans question, sauf refus explicite", {
   e <- new.env(parent = globalenv())
   assign("%||%", function(x, y) if (is.null(x) || length(x) == 0) y else x, envir = e)
   sys.source(file.path(.hstat_repo_root(), "R", "run_hstat.R"), envir = e, keep.source = FALSE)
@@ -25280,30 +25280,28 @@ test_that("les statistiques de diffusion ne partent qu'avec un accord, sans rien
   on.exit(unlink(f), add = TRUE)
   withr_opt <- options(hstat.statistiques = NULL)
   on.exit(options(withr_opt), add = TRUE)
-  # Hors session interactive, sans réponse mémorisée : rien.
-  expect_false(.hstat_stats_consentement(interactif = FALSE, fichier = f,
-                                         demander = function() stop("pas de question")))
-  # Une question annulée ne vaut ni oui ni non : rien n'est écrit.
-  expect_false(.hstat_stats_consentement(interactif = TRUE, fichier = f,
-                                         demander = function() NA))
-  expect_false(file.exists(f))
-  # Un accord se mémorise, et la question ne revient pas.
-  expect_true(suppressMessages(.hstat_stats_consentement(
-    interactif = TRUE, fichier = f, demander = function() TRUE)))
-  expect_true(.hstat_stats_consentement(interactif = TRUE, fichier = f,
-                                        demander = function() stop("redemandé")))
+  # Aucune question n'existe plus.
+  expect_false("demander" %in% names(formals(.hstat_stats_consentement)))
+  expect_null(e$.hstat_stats_demander)
+  # Premier lancement : envoi, une note une seule fois.
+  notes <- 0L
+  informer <- function() notes <<- notes + 1L
+  expect_true(.hstat_stats_consentement(fichier = f, informer = informer))
+  expect_true(.hstat_stats_consentement(fichier = f, informer = informer))
+  expect_identical(notes, 1L)
   # L'option coupe tout, quelle que soit la réponse mémorisée.
   options(hstat.statistiques = FALSE)
-  expect_false(.hstat_stats_consentement(fichier = f))
+  expect_false(.hstat_stats_consentement(fichier = f, informer = informer))
   options(hstat.statistiques = NULL)
-  # Un refus explicite se mémorise.
+  # Un refus explicite se mémorise et l'emporte sur l'automatique.
   expect_false(suppressMessages(.hstat_stats_consentement(FALSE, fichier = f)))
-  expect_false(.hstat_stats_consentement(interactif = TRUE, fichier = f,
-                                         demander = function() stop("redemandé")))
+  expect_false(.hstat_stats_consentement(fichier = f, informer = function() stop("note")))
+  expect_true(suppressMessages(.hstat_stats_consentement(TRUE, fichier = f)))
+  # Le site est celui du compte créé.
+  expect_identical(e$HSTAT_STATS_SITE, "https://hstatistique.goatcounter.com")
   # L'adresse ne porte que la version et le système.
-  u <- .hstat_stats_url(version = "1.47.0", systeme = "linux",
-                        site = "https://hstat.goatcounter.com")
-  expect_match(u, "^https://hstat\\.goatcounter\\.com/count\\?p=%2Flancement%2F1\\.47\\.0%2Flinux&")
+  u <- .hstat_stats_url(version = "1.47.0", systeme = "linux")
+  expect_match(u, "^https://hstatistique\\.goatcounter\\.com/count\\?p=%2Flancement%2F1\\.47\\.0%2Flinux&")
   expect_false(grepl(Sys.info()[["user"]], u, fixed = TRUE))
   expect_true(is.na(.hstat_stats_url(site = "http://exemple.org/x?y")))
   expect_identical(.hstat_stats_systeme("Windows"), "windows")
