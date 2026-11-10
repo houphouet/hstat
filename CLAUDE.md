@@ -11575,6 +11575,23 @@ Quatre décisions, chacune testée :
 Ce qui ne peut pas se faire depuis le code : créer le compte GoatCounter au
 code `hstat`. Tant qu'il n'existe pas, les signaux sont simplement perdus.
 
+### Puis : automatique, sans question (1.49.0)
+
+Demandé à l'écran : plus de question au lancement. Le signal part d'office, au
+plus une fois par jour ; au premier lancement une **note** (pas une question)
+dit ce qui part et comment l'arrêter, puis le choix « oui » est mémorisé pour
+qu'elle ne revienne pas. Ce qui reste un refus l'emporte toujours : une réponse
+« non » déjà mémorisée, `run_hstat(statistiques = FALSE)` et
+`options(hstat.statistiques = FALSE)`. Rien ne part sous testthat, sous
+`R CMD check` (`_R_CHECK_PACKAGE_NAME_`) ni en intégration continue (`CI`).
+
+Le compte s'appelle `hstatistique` : `HSTAT_STATS_SITE` vaut
+`https://hstatistique.goatcounter.com`. Le README porte un pixel de comptage
+(`/count?p=/github`) : GitHub ne laisse aucun script s'exécuter dans un README,
+une image est le seul compteur possible. GitHub sert les images par son
+mandataire, qui les met en cache : ce pixel compte des affichages approximatifs,
+pas des visiteurs.
+
 ## Accessibilité : mesurée par axe-core, corrigée au point commun
 
 Demandé : optimiser l'accessibilité et l'ergonomie de toute l'application.

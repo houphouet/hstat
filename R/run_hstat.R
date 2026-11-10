@@ -14,8 +14,9 @@
 #' followed: the HStat version, the operating system family and the R version.
 #' The country is deduced by the receiving service (GoatCounter) from the
 #' connection, whose address is not stored. No identifier, file name, data or
-#' result ever leaves the machine. HStat asks once, in an interactive
-#' session; nothing is sent without that agreement, at most once a day.
+#' result ever leaves the machine. The signal is sent automatically, at most
+#' once a day; a note says so on the first launch, and it can be turned off at
+#' any time.
 #'
 #' @param ... Additional arguments passed to \code{\link[shiny]{runApp}}
 #'   (e.g. \code{port}). Passing \code{launch.browser} bypasses the choice
@@ -24,10 +25,10 @@
 #'   stored default, or asks when there is none. \code{"navigateur"} opens in
 #'   the web browser and \code{"shiny"} in the RStudio Shiny window, this time
 #'   only. \code{"demander"} forgets the stored default and asks again.
-#' @param statistiques \code{NULL} (default) uses the stored answer, or asks
-#'   once in an interactive session. \code{TRUE} or \code{FALSE} records a
-#'   new answer. \code{options(hstat.statistiques = FALSE)} turns the signal
-#'   off whatever the stored answer.
+#' @param statistiques \code{NULL} (default) sends the signal unless it was
+#'   turned off. \code{FALSE} turns it off for good, \code{TRUE} turns it back
+#'   on. \code{options(hstat.statistiques = FALSE)} turns it off whatever the
+#'   stored choice.
 #' @param install_missing Logical; if \code{TRUE} (default) missing package
 #'   dependencies are installed before the app is launched. Set to
 #'   \code{FALSE} to skip installation (e.g. on a managed server where
@@ -198,11 +199,11 @@ HSTAT_OUVERTURES <- c(navigateur = "Navigateur web",
     function(url) utils::browseURL(url)
 }
 
-# Statistiques de diffusion, anonymes et consenties
+# Statistiques de diffusion, anonymes et automatiques
 # Un signal par machine et par jour au plus : version de HStat, famille du
-# systeme, version de R.
+# systeme, version de R. Un refus explicite est toujours respecte.
 
-HSTAT_STATS_SITE <- "https://hstat.goatcounter.com"
+HSTAT_STATS_SITE <- "https://hstatistique.goatcounter.com"
 
 .hstat_stats_fichier <- function(nom = "statistiques.txt") {
   d <- tryCatch(tools::R_user_dir("HStat", "config"), error = function(e) "")
@@ -226,22 +227,18 @@ HSTAT_STATS_SITE <- "https://hstat.goatcounter.com"
   }, error = function(e) FALSE, warning = function(w) FALSE))
 }
 
-.hstat_stats_demander <- function(choix = utils::menu) {
-  message("HStat peut envoyer, au plus une fois par jour, un signal anonyme de ",
+.hstat_stats_informer <- function() {
+  message("HStat envoie, au plus une fois par jour, un signal anonyme de ",
           "lancement : version de HStat, syst\u00e8me et version de R. Le pays ",
           "est d\u00e9duit par le service de statistiques, qui ne conserve pas ",
-          "l'adresse. Aucune donn\u00e9e, aucun r\u00e9sultat, aucun identifiant.")
-  i <- choix(c("Oui, aider \u00e0 suivre la diffusion de HStat",
-               "Non, ne rien envoyer"),
-             title = "Statistiques anonymes de diffusion")
-  if (!is.numeric(i) || length(i) != 1L || is.na(i) || !i %in% 1:2) return(NA)
-  i == 1L
+          "l'adresse. Aucune donn\u00e9e, aucun r\u00e9sultat, aucun identifiant. ",
+          "Pour l'arr\u00eater : run_hstat(statistiques = FALSE)")
 }
 
-# Vrai seulement sur un accord explicite.
+# Vrai sauf refus explicite (option ou choix memorise). Aucune question n'est
+# posee : la premiere fois, une note dit ce qui part et comment l'arreter.
 .hstat_stats_consentement <- function(statistiques = NULL,
-                                      interactif = interactive(),
-                                      demander = .hstat_stats_demander,
+                                      informer = .hstat_stats_informer,
                                       fichier = .hstat_stats_fichier()) {
   opt <- getOption("hstat.statistiques")
   if (isFALSE(opt)) return(FALSE)
@@ -256,13 +253,9 @@ HSTAT_STATS_SITE <- "https://hstat.goatcounter.com"
   if (isTRUE(opt)) return(TRUE)
   m <- .hstat_stats_lire(fichier)
   if (!is.na(m)) return(m)
-  if (!isTRUE(interactif)) return(FALSE)
-  r <- demander()
-  if (is.na(r)) return(FALSE)
-  .hstat_stats_ecrire(r, fichier)
-  message("R\u00e9ponse m\u00e9moris\u00e9e. Pour changer : run_hstat(statistiques = ",
-          !r, ")")
-  r
+  informer()
+  .hstat_stats_ecrire(TRUE, fichier)
+  TRUE
 }
 
 .hstat_stats_systeme <- function(sys = Sys.info()[["sysname"]]) {
@@ -291,7 +284,9 @@ HSTAT_STATS_SITE <- "https://hstat.goatcounter.com"
 .hstat_stats_envoyer <- function(jour = format(Sys.Date()),
                                  fichier = .hstat_stats_fichier("statistiques_dernier.txt"),
                                  url = .hstat_stats_url()) {
-  if (identical(Sys.getenv("TESTTHAT"), "true") || is.na(url)) return(invisible(FALSE))
+  if (identical(Sys.getenv("TESTTHAT"), "true") || is.na(url) ||
+      nzchar(Sys.getenv("_R_CHECK_PACKAGE_NAME_")) ||
+      tolower(Sys.getenv("CI")) %in% c("true", "1")) return(invisible(FALSE))
   if (!requireNamespace("curl", quietly = TRUE) ||
       !requireNamespace("later", quietly = TRUE)) return(invisible(FALSE))
   if (nzchar(fichier) && file.exists(fichier) &&

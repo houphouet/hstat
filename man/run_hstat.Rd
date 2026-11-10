@@ -16,10 +16,10 @@ stored default, or asks when there is none. \code{"navigateur"} opens in
 the web browser and \code{"shiny"} in the RStudio Shiny window, this time
 only. \code{"demander"} forgets the stored default and asks again.}
 
-\item{statistiques}{\code{NULL} (default) uses the stored answer, or asks
-once in an interactive session. \code{TRUE} or \code{FALSE} records a
-new answer. \code{options(hstat.statistiques = FALSE)} turns the signal
-off whatever the stored answer.}
+\item{statistiques}{\code{NULL} (default) sends the signal unless it was
+turned off. \code{FALSE} turns it off for good, \code{TRUE} turns it back
+on. \code{options(hstat.statistiques = FALSE)} turns it off whatever the
+stored choice.}
 
 \item{install_missing}{Logical; if \code{TRUE} (default) missing package
 dependencies are installed before the app is launched. Set to \code{FALSE}
@@ -44,8 +44,9 @@ HStat can send an anonymous launch signal so that its spread can be
 followed: the HStat version, the operating system family and the R version.
 The country is deduced by the receiving service (GoatCounter) from the
 connection, whose address is not stored. No identifier, file name, data or
-result ever leaves the machine. HStat asks once, in an interactive
-session; nothing is sent without that agreement, at most once a day.
+result ever leaves the machine. The signal is sent automatically, at most
+once a day; a note says so on the first launch, and it can be turned off at
+any time.
 }
 \examples{
 if (interactive()) {
