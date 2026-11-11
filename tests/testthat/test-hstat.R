@@ -25410,7 +25410,7 @@ test_that("ACP : une modalité trop petite ne fait pas perdre les ellipses des a
   # Le module ne retombe plus sur la coloration par contribution.
   src <- paste(readLines(file.path(.hstat_repo_root(), "inst", "app", "app_server.R"),
                          warn = FALSE, encoding = "UTF-8"), collapse = "\n")
-  expect_true(grepl("hstat_ellipses_confiance(\n            gx, gy, grp, groupes = ell$groupes,", src, fixed = TRUE))
+  expect_true(grepl("mv_ellipse_couche(\n            res.pca, c(axis_x, axis_y), grp,", src, fixed = TRUE))
 
   # Ellipse de DISPERSION : celle de stat_ellipse(type = "norm"), que trace
   # factoextra sous ellipse.type = "norm" ; elle s'étend aux individus.
@@ -25439,4 +25439,110 @@ test_that("ACP : une modalité trop petite ne fait pas perdre les ellipses des a
   expect_true(grepl('choices = HSTAT_ELLIPSE_TYPES, selected = "dispersion"', ux, fixed = TRUE))
   expect_identical(unname(HSTAT_ELLIPSE_TYPES), c("dispersion", "confiance"))
   expect_false(grepl("ellipse.type = \"confidence\", ellipse.level = 0.95,\n                            col.var", src, fixed = TRUE))
+})
+
+test_that("ACM, AFDM et AFM : les ellipses de dispersion entourent les groupes, biplot compris", {
+  skip_if_not_installed("FactoMineR")
+  skip_if_not_installed("factoextra")
+  racine <- .hstat_repo_root()
+  src <- parse(file.path(racine, "inst", "app", "app_server.R"), keep.source = FALSE)
+  corps <- NULL
+  for (x in src) if (is.call(x) && identical(as.character(x[[2]]), "server")) corps <- body(eval(x[[3]]))
+  env <- new.env(parent = environment())
+  env$input <- list(mv_x_ellipse = TRUE, mv_x_plottype = "biplot",
+                    mv_x_ellipsevar = "Species", mv_x_groupvar = "__none__")
+  env$mv_gg_theme <- function() ggplot2::theme_grey()
+  for (nom in c("mv_color_value", "mv_factor_viz", "mv_valeurs_groupe", "mv_ellipse_reglages",
+                "mv_ellipse_couche", "mv_add_ind_ellipses")) {
+    for (x in as.list(corps))
+      if (is.call(x) && length(x) == 3 && identical(as.character(x[[2]]), nom)) eval(x, env)
+    expect_true(exists(nom, envir = env, inherits = FALSE), info = nom)
+  }
+  d <- iris; d$Taille <- cut(d$Sepal.Length, 3, labels = c("p", "m", "g"))
+  modeles <- list(
+    famd = FactoMineR::FAMD(d[, c(1:4, 6)], graph = FALSE),
+    mca  = FactoMineR::MCA(data.frame(lapply(d[, 1:4], function(v) cut(v, 3))), graph = FALSE),
+    mfa  = FactoMineR::MFA(d[, c(1:4, 6)], group = c(2, 2, 1), type = c("s", "s", "n"),
+                           graph = FALSE))
+  polygones <- function(p) Filter(function(l) inherits(l$geom, "GeomPolygon"), p$layers)
+  etendue <- function(p, lv) {
+    pd <- polygones(p)[[1]]$data
+    diff(range(pd$x[pd$groupe == lv]))
+  }
+  for (k in names(modeles)) for (pt in c("ind", "biplot")) {
+    info <- paste(k, pt)
+    trace <- function(type, niveau = 0.95)
+      suppressWarnings(env$mv_factor_viz(modeles[[k]], k, pt, "contrib", "t", "s",
+        group_values = as.character(d$Species),
+        ellipse = list(type = type, niveau = niveau), group_name = "Espèce"))
+    p <- trace("dispersion")
+    expect_s3_class(p, "ggplot")                       # le groupe colore bien les individus
+    expect_length(polygones(p), 1L)
+    expect_error(suppressWarnings(ggplot2::ggplot_build(p)), NA)
+    expect_identical(p$labels$colour, "Espèce")        # la légende nomme la variable
+    expect_setequal(as.character(unique(polygones(p)[[1]]$data$groupe)), levels(d$Species))
+    # La dispersion s'étend aux individus ; la confiance n'entoure que la moyenne.
+    expect_gt(etendue(p, "setosa"), 3 * etendue(trace("confiance"), "setosa"))
+    expect_gt(etendue(p, "setosa"), etendue(trace("dispersion", 0.5), "setosa"))
+    # Même ellipse que ggplot2::stat_ellipse(type = "norm") sur les mêmes axes.
+    cm <- hstat_coord_mat(modeles[[k]]$ind$coord)
+    i <- d$Species == "setosa"
+    ref <- ggplot2::ggplot_build(ggplot2::ggplot(data.frame(x = cm[i, 1], y = cm[i, 2]),
+             ggplot2::aes(x, y)) + ggplot2::stat_ellipse(type = "norm", level = 0.95,
+                                                         segments = 400))$data[[1]]
+    expect_equal(etendue(p, "setosa"), diff(range(ref$x)), tolerance = 1e-2)
+    # Case « Entourer les individus » : par une autre variable, l'échelle du
+    # graphique (continue) n'est pas touchée et chaque ellipse porte son nom.
+    env$input$mv_x_plottype <- pt
+    nu <- suppressWarnings(env$mv_factor_viz(modeles[[k]], k, pt, "contrib", "t", "s"))
+    p2 <- env$mv_add_ind_ellipses(nu, modeles[[k]], "mv_x", d, rep(TRUE, 150), integer(0), c(1, 2))
+    expect_length(polygones(p2), 1L)
+    expect_error(suppressWarnings(ggplot2::ggplot_build(p2)), NA)
+    textes <- Filter(function(l) inherits(l$geom, "GeomText") &&
+                       identical(sort(as.character(l$data$lab)), levels(d$Species)), p2$layers)
+    expect_length(textes, 1L)                          # chaque ellipse porte son nom
+  }
+  # Une modalité de deux individus ne porte pas d'ellipse, les autres si, et
+  # c'est dit ; une première valeur « none » garde ses couleurs par groupe.
+  g <- as.character(d$Species); g[1:2] <- "rare"
+  notes <- character(0)
+  pr <- suppressWarnings(testthat::with_mocked_bindings(
+    env$mv_factor_viz(modeles$famd, "famd", "biplot", "contrib", "t", "s", group_values = g),
+    showNotification = function(ui, ...) notes <<- c(notes, as.character(ui)), .package = "shiny"))
+  expect_setequal(as.character(unique(polygones(pr)[[1]]$data$groupe)), levels(d$Species))
+  expect_true(any(grepl("rare", notes, fixed = TRUE)))
+  g <- as.character(d$Species); g[g == "setosa"] <- "none"
+  pn <- suppressWarnings(env$mv_factor_viz(modeles$mca, "mca", "ind", "contrib", "t", "s",
+                                           group_values = g))
+  pts <- Filter(function(l) inherits(l$geom, "GeomPoint"), pn$layers)[[1]]
+  couleurs <- ggplot2::ggplot_build(pn)$data[[which(vapply(pn$layers, identical, TRUE, pts))[1]]]$colour
+  expect_gte(length(unique(couleurs)), 3L)
+  # Un axe illisible retombe sur le plan 1-2, comme le graphique.
+  env$input$mv_x_plottype <- "ind"
+  nu <- suppressWarnings(env$mv_factor_viz(modeles$mca, "mca", "ind", "contrib", "t", "s"))
+  expect_length(polygones(env$mv_add_ind_ellipses(nu, modeles$mca, "mv_x", d, rep(TRUE, 150),
+                                                 integer(0), c(NA, 2))), 1L)
+  # Sur le tracé des variables, aucune ellipse ; et la même variable que le
+  # groupe coloré n'est pas tracée deux fois.
+  env$input$mv_x_plottype <- "var"
+  nu <- suppressWarnings(env$mv_factor_viz(modeles$mca, "mca", "var", "contrib", "t", "s"))
+  expect_length(polygones(env$mv_add_ind_ellipses(nu, modeles$mca, "mv_x", d,
+                                                 rep(TRUE, 150), integer(0), c(1, 2))), 0L)
+  env$input$mv_x_plottype <- "ind"; env$input$mv_x_groupvar <- "Species"
+  nu <- suppressWarnings(env$mv_factor_viz(modeles$mca, "mca", "ind", "contrib", "t", "s"))
+  expect_length(polygones(env$mv_add_ind_ellipses(nu, modeles$mca, "mv_x", d,
+                                                 rep(TRUE, 150), integer(0), c(1, 2))), 0L)
+  expect_identical(levels(hstat_habillage(c("none", "a"))), c("a", "none "))
+  # Les axes choisis sont ceux de l'ellipse.
+  env$input$mv_x_groupvar <- "__none__"
+  p13 <- env$mv_add_ind_ellipses(nu, modeles$mca, "mv_x", d, rep(TRUE, 150), integer(0), c(1, 3))
+  p12 <- env$mv_add_ind_ellipses(nu, modeles$mca, "mv_x", d, rep(TRUE, 150), integer(0), c(1, 2))
+  expect_false(isTRUE(all.equal(polygones(p13)[[1]]$data$y, polygones(p12)[[1]]$data$y)))
+  # L'AFM appelle elle aussi la case d'ellipses, et le type se règle.
+  txt <- paste(readLines(file.path(racine, "inst", "app", "app_server.R"),
+                         warn = FALSE, encoding = "UTF-8"), collapse = "\n")
+  expect_true(grepl('mv_add_ind_ellipses(pp, mfa, "mv_mfa"', txt, fixed = TRUE))
+  expect_true(grepl('_ellipsetype"), "Type d\'ellipse"', txt, fixed = TRUE))
+  expect_true(grepl("input['%1$s_groupvar'] != '__none__'", txt, fixed = TRUE))
+  expect_false(grepl("addEllipses = use_ellipse", txt, fixed = TRUE))
 })

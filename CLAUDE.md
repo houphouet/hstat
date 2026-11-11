@@ -11716,6 +11716,49 @@ Le niveau se règle (0,5 à 0,99, borné côté serveur). Le test confronte la
 dispersion à `ggplot2::stat_ellipse` et exige qu'elle soit plus large que
 celle de la moyenne.
 
+### ACM, AFDM, AFM : les mêmes ellipses, biplot compris (1.52.0)
+
+Demandé à l'écran : appliquer l'ellipse de dispersion aux autres analyses
+multivariées, biplots compris. Les trois analyses factorielles du catalogue
+passent par `mv_ellipse_couche()` (`app_server.R`), qui lit
+`hstat_ellipse_ok()` puis `hstat_ellipses_confiance()` — la porte de l'ACP. Le
+type (`<préfixe>_ellipsetype`, dispersion par défaut) et le niveau valent pour
+les deux sources d'ellipses : les individus colorés par groupe, et la case
+« Entourer les individus ».
+
+Quatre défauts trouvés en construisant les figures, aucun ne levait :
+
+1. **Colorer les individus par groupe ne marchait sur aucune des trois.**
+   Sous factoextra 1.0.7, un facteur dans `col.ind` lève « the condition has
+   length > 1 » sur `fviz_famd_ind` et `fviz_mfa_ind`, et heurte le dégradé de
+   `gradient.cols` sur l'ACM (« Discrete value supplied to a continuous
+   scale »). L'erreur était avalée et la figure retombait sur le nuage nu. Le
+   groupe passe par `habillage`.
+2. **Le biplot n'avait pas d'ellipse** : `addEllipses` n'était posé que sur le
+   tracé des individus.
+3. **La case d'ellipses de l'AFM ne faisait rien** : `mv_add_ind_ellipses()`
+   n'y était pas appelée.
+4. **L'ellipse de la case suivait toujours les axes 1-2**, quel que soit le
+   plan affiché.
+
+Une ellipse par une variable **autre** que celle qui colore les individus ne
+mappe pas la couleur : l'échelle du graphique peut être continue (contribution,
+cos²), et un facteur la ferait lever. Chaque ellipse porte sa couleur et son
+nom. La même variable que le groupe coloré n'est pas tracée deux fois.
+
+PLS-DA et AFD traçaient déjà une ellipse de dispersion (`stat_ellipse`) ; les
+partitions (k-means, HCPC) gardent leur enveloppe convexe.
+
+Trois points relevés en revue, chacun testé. **Une première valeur « none »**
+vaut « pas de groupe » pour factoextra (`habillage[1] != "none"`) : tous les
+individus sortaient d'une seule couleur. `hstat_habillage()` (`R/utils.R`)
+renomme la modalité « none  » ; l'ACP passe par elle aussi. **La légende porte
+le nom de la variable**, pas « Groups ». **L'ellipse de la case ne relance pas
+`ggplot_build`** pour recentrer : elle porte son propre `expand_limits`
+symétrique, tiré de ses contours. L'ellipse d'ensemble et celles d'une autre
+variable gardent la palette par défaut de ggplot2, pas celle choisie pour les
+individus.
+
 ## Les commentaires : la règle, sans l'historique
 
 Demandé à l'écran (1.48.3) : retirer les commentaires en trop et tout

@@ -2626,6 +2626,14 @@ hstat_ellipse_ok <- function(groupes, x, y, min_n = 3L) {
                         paste(faibles, collapse = ", "), min_n))
 }
 
+# Groupe passe a factoextra par `habillage` : une premiere valeur "none" y
+# vaut « pas de groupe », la modalite garde donc son nom a un blanc pres.
+hstat_habillage <- function(x) {
+  g <- factor(as.character(x))
+  levels(g)[levels(g) == "none"] <- "none "
+  g
+}
+
 # Deux ellipses par groupe, qui ne disent pas la meme chose : celle de la
 # MOYENNE (ou se trouve le centre du groupe) et celle de la DISPERSION (ou se
 # trouvent ses individus : elle en couvre environ la part du niveau).
