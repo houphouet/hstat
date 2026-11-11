@@ -1864,15 +1864,9 @@ server <- function(input, output, session) {
     # Ellipses autour des groupes d'individus (si demande et variable choisie).
     if (isTRUE(input$pcaShowEllipses) && !is.null(input$pcaEllipseGroup) &&
         input$pcaPlotType %in% c("ind", "biplot")) {
-      grp <- tryCatch(as.factor(values$filteredData[[input$pcaEllipseGroup]]), error = function(e) NULL)
-      cm <- tryCatch(hstat_coord_mat(res.pca$ind$coord), error = function(e) NULL)
-      if (!is.null(grp) && !is.null(cm) && length(grp) == nrow(cm) &&
-          nlevels(droplevels(grp)) >= 2) {
-        gx <- cm[, min(axis_x, ncol(cm))]; gy <- cm[, min(axis_y, ncol(cm))]
-        ell <- hstat_ellipse_ok(grp, gx, gy)
-        if (!is.null(ell$motif))
-          shiny::showNotification(ell$motif, type = "warning", duration = 8,
-                                  id = "pcaEllipseImpossible")
+      grp <- tryCatch(hstat_habillage(values$filteredData[[input$pcaEllipseGroup]]),
+                      error = function(e) NULL)
+      if (!is.null(grp) && nlevels(droplevels(grp)) >= 2) {
         p_ell <- if (input$pcaPlotType == "biplot") {
           tryCatch(
             factoextra::fviz_pca_biplot(res.pca, axes = c(axis_x, axis_y),
@@ -1897,17 +1891,11 @@ server <- function(input, output, session) {
           } else {
             p_ell <- hstat_apply_label_sizes(p_ell, lbl_ind)
           }
-          contours <- hstat_ellipses_confiance(
-            gx, gy, grp, groupes = ell$groupes,
-            type = input$pcaEllipseType %||% "dispersion",
-            niveau = hstat_borne_client(input$pcaEllipseLevel, 0.95, 0.5, 0.99))
-          if (nrow(contours)) {
-            contours$groupe <- factor(contours$groupe, levels = levels(grp))
-            p_ell <- p_ell + ggplot2::geom_polygon(
-              data = contours,
-              ggplot2::aes(x = x, y = y, group = groupe, colour = groupe, fill = groupe),
-              inherit.aes = FALSE, alpha = 0.2, linewidth = 0.6, show.legend = FALSE)
-          }
+          p_ell <- p_ell + mv_ellipse_couche(
+            res.pca, c(axis_x, axis_y), grp,
+            list(type = input$pcaEllipseType %||% "dispersion",
+                 niveau = hstat_borne_client(input$pcaEllipseLevel, 0.95, 0.5, 0.99)),
+            "pcaEllipseImpossible", mapper = TRUE)
           p <- p_ell + labs(x = x_label, y = y_label, colour = input$pcaEllipseGroup,
                             fill = input$pcaEllipseGroup, shape = input$pcaEllipseGroup)
         }
@@ -5000,7 +4988,8 @@ server <- function(input, output, session) {
   mv_factor_viz <- function(model, kind, plottype, colorby, title, subtitle,
                             ptsz = 2, arrsz = 0.6, lblsz = 4, lblszvar = NULL,
                             show_lab = FALSE,
-                            axes = c(1, 2), group_values = NULL) {
+                            axes = c(1, 2), group_values = NULL,
+                            ellipse = NULL, group_name = NULL) {
     if (!requireNamespace("factoextra", quietly = TRUE)) return(NULL)
     axes <- as.integer(axes); if (length(axes) != 2 || any(is.na(axes))) axes <- c(1L, 2L)
     if (is.null(lblszvar)) lblszvar <- lblsz
@@ -5023,53 +5012,40 @@ server <- function(input, output, session) {
       gv <- as.character(group_values)
       if (!is.na(n_ind) && length(gv) == n_ind &&
           length(unique(stats::na.omit(gv))) >= 2) {
-        grp <- factor(gv)
+        grp <- hstat_habillage(gv)
       }
     }
-    # Quand on colore par groupe, on remplace la valeur de coloration des
-    # individus par le facteur de groupe (factoextra colore par modalite) et on
-    # active des ellipses de concentration.
-    cv_ind <- if (!is.null(grp)) grp else cv
-    # Ellipses automatiques par groupe uniquement sur le trace des individus
-    # (le biplot melange individus et variables : addEllipses y est moins
-    # fiable).
-    ell <- if (is.null(grp)) list(ok = FALSE, motif = NULL) else
-      tryCatch({
-        cm <- hstat_coord_mat(model$ind$coord)
-        hstat_ellipse_ok(grp, cm[, min(axes[1], ncol(cm))], cm[, min(axes[2], ncol(cm))])
-      }, error = function(e) list(ok = FALSE, motif = NULL))
-    if (!isTRUE(ell$ok) && !is.null(ell$motif))
-      shiny::showNotification(ell$motif, type = "warning", duration = 8,
-                       id = "mvEllipseImpossible")
-    use_ellipse <- isTRUE(ell$ok) && identical(plottype, "ind")
+    # Les ellipses des groupes sont posees ensuite par mv_ellipse_couche(), sur
+    # les individus comme sur le biplot.
+    # Le groupe passe par habillage : un facteur dans col.ind leve sous
+    # fviz_famd_ind et fviz_mfa_ind, et heurte le degrade de gradient.cols.
+    ind_plot <- function(f, ...) {
+      args <- utils::modifyList(
+        list(model, axes = axes, repel = TRUE, max.overlaps = Inf,
+             pointsize = ptsz, labelsize = lblsz, label = ind_lab, ggtheme = th),
+        list(...))
+      do.call(f, c(args, if (!is.null(grp)) list(habillage = grp)
+                         else list(col.ind = cv, gradient.cols = gc)))
+    }
     p <- tryCatch({
       if (kind == "mca") {
         switch(plottype,
           "var"    = factoextra::fviz_mca_var(model, axes = axes, col.var = cv, gradient.cols = gc,
                        repel = TRUE, max.overlaps = Inf, labelsize = lblszvar,
                        pointsize = ptsz, ggtheme = th),
-          "ind"    = factoextra::fviz_mca_ind(model, axes = axes, col.ind = cv_ind, gradient.cols = gc, addEllipses = use_ellipse, ellipse.type = "confidence",
-                       repel = TRUE, max.overlaps = Inf, pointsize = ptsz, labelsize = lblsz,
-                       label = ind_lab, ggtheme = th),
+          "ind"    = ind_plot(factoextra::fviz_mca_ind),
           # Biplot : individus colores + modalites en NOIR
-          factoextra::fviz_mca_biplot(model, axes = axes, col.var = "black", col.ind = cv_ind, addEllipses = use_ellipse,
-                       gradient.cols = gc, repel = TRUE, max.overlaps = Inf, pointsize = ptsz,
-                       labelsize = lblsz,
-                       label = if (isTRUE(show_lab)) "all" else "var",
-                       arrowsize = arrsz, ggtheme = th))
+          ind_plot(factoextra::fviz_mca_biplot, col.var = "black", arrowsize = arrsz,
+                   label = if (isTRUE(show_lab)) "all" else "var"))
       } else if (kind == "famd") {
         switch(plottype,
           "var"    = factoextra::fviz_famd_var(model, axes = axes, col.var = cv, gradient.cols = gc,
                        repel = TRUE, max.overlaps = Inf, labelsize = lblszvar,
                        pointsize = ptsz, ggtheme = th),
-          "ind"    = factoextra::fviz_famd_ind(model, axes = axes, col.ind = cv_ind, gradient.cols = gc, addEllipses = use_ellipse, ellipse.type = "confidence",
-                       repel = TRUE, max.overlaps = Inf, pointsize = ptsz, labelsize = lblsz,
-                       label = ind_lab, ggtheme = th),
+          "ind"    = ind_plot(factoextra::fviz_famd_ind),
           # Biplot AFDM : factoextra n'a pas de fviz_famd_biplot.
           {
-            pind <- factoextra::fviz_famd_ind(model, axes = axes, col.ind = cv_ind, gradient.cols = gc, addEllipses = use_ellipse, ellipse.type = "confidence",
-                       repel = TRUE, max.overlaps = Inf, pointsize = ptsz, labelsize = lblsz,
-                       label = ind_lab, ggtheme = th)
+            pind <- ind_plot(factoextra::fviz_famd_ind)
             qv <- tryCatch(as.data.frame(hstat_coord_mat(model$quanti.var$coord)),
                            error = function(e) NULL)
             # Le biplot superpose deux plans : il exige DEUX axes de chaque
@@ -5107,16 +5083,11 @@ server <- function(input, output, session) {
         switch(plottype,
           "var"    = factoextra::fviz_mfa_var(model, axes = axes, "group", repel = TRUE, max.overlaps = Inf,
                        labelsize = lblszvar, pointsize = ptsz, ggtheme = th),
-          "ind"    = factoextra::fviz_mfa_ind(model, axes = axes, col.ind = cv_ind, gradient.cols = gc, addEllipses = use_ellipse, ellipse.type = "confidence",
-                       repel = TRUE, max.overlaps = Inf, pointsize = ptsz, labelsize = lblsz,
-                       label = ind_lab, ggtheme = th),
+          "ind"    = ind_plot(factoextra::fviz_mfa_ind),
           # Biplot AFM : factoextra N'A PAS de `fviz_mfa_biplot` -- pas plus
           # que de `fviz_famd_biplot`, traite juste au-dessus.
           {
-            pind <- factoextra::fviz_mfa_ind(model, axes = axes, col.ind = cv_ind, gradient.cols = gc,
-                       addEllipses = use_ellipse, ellipse.type = "confidence",
-                       repel = TRUE, max.overlaps = Inf, pointsize = ptsz, labelsize = lblsz,
-                       label = ind_lab, ggtheme = th)
+            pind <- ind_plot(factoextra::fviz_mfa_ind)
             qv <- tryCatch(as.data.frame(hstat_coord_mat(model$quanti.var$coord)),
                            error = function(e) NULL)
             # Le biplot superpose deux plans : il exige DEUX axes de chaque cote.
@@ -5151,6 +5122,11 @@ server <- function(input, output, session) {
       }
     }, error = function(e) NULL)
     if (is.null(p)) return(NULL)
+    if (!is.null(grp) && plottype %in% c("ind", "biplot"))
+      p <- p + mv_ellipse_couche(model, axes, grp, ellipse, "mvEllipseImpossible",
+                                 mapper = TRUE)
+    if (!is.null(grp) && !is.null(group_name))
+      p <- p + ggplot2::labs(colour = group_name, fill = group_name, shape = group_name)
     p <- p + ggplot2::labs(title = title, subtitle = subtitle)
     # Labels lisibles (noir/gras) plutot que la couleur claire du degrade.
     p <- hstat_noircir_etiquettes(p)
@@ -5159,9 +5135,9 @@ server <- function(input, output, session) {
       hstat_apply_label_sizes(p, lblszvar)
     else
       hstat_apply_label_sizes(p, lblsz, lblszvar, n_var_m, n_ind_m)
-    # Centrage : on rend les axes symetriques autour de l'origine (0,0) pour
-    # que le nuage ne soit pas tasse d'un cote.
-    p <- tryCatch({
+    # Axes symetriques autour de l'origine (0, 0), pour que le nuage ne soit
+    # pas tasse d'un cote.
+    tryCatch({
       bld <- ggplot2::ggplot_build(p)
       xr <- bld$layout$panel_params[[1]]$x.range
       yr <- bld$layout$panel_params[[1]]$y.range
@@ -5170,50 +5146,83 @@ server <- function(input, output, session) {
         p + ggplot2::expand_limits(x = c(-xm, xm), y = c(-ym, ym))
       } else p
     }, error = function(e) p)
-    p
   }
 
-  # Superpose des ellipses de concentration autour des individus d'une analyse
-  # factorielle (ACM / AFDM).
-  mv_add_ind_ellipses <- function(p, model, prefix, group_values = NULL) {
-    if (is.null(p)) return(p)
-    if (!isTRUE(input[[paste0(prefix, "_ellipse")]])) return(p)
-    coord <- tryCatch(as.data.frame(
-                        hstat_coord_mat(model$ind$coord)[
-                          , 1:min(2, ncol(hstat_coord_mat(model$ind$coord))), drop = FALSE]),
-                      error = function(e) NULL)
-    if (is.null(coord) || ncol(coord) < 2 || nrow(coord) < 3) return(p)
-    names(coord)[1:2] <- c("Dim1", "Dim2")
-    lvl <- input[[paste0(prefix, "_ellipselevel")]] %||% 0.95
-    if (!is.null(group_values) && length(group_values) == nrow(coord) &&
-        length(unique(stats::na.omit(group_values))) >= 2) {
-      coord$.grp <- factor(group_values)
-      coord <- coord[!is.na(coord$.grp), , drop = FALSE]
-      # Les groupes qui ne peuvent pas porter d'ellipse sont ecartes du CALQUE
-      # plutot que de faire echouer le calcul pour tous les autres.
-      ell <- hstat_ellipse_ok(coord$.grp, coord$Dim1, coord$Dim2)
-      if (!length(ell$groupes)) {
-        if (!is.null(ell$motif))
-          shiny::showNotification(ell$motif, type = "warning", duration = 8,
-                           id = paste0(prefix, "_ellipse_ko"))
-        return(p)
-      }
-      if (length(ell$faibles))
-        shiny::showNotification(ell$motif, type = "warning", duration = 8,
-                         id = paste0(prefix, "_ellipse_partiel"))
-      coord <- coord[as.character(coord$.grp) %in% ell$groupes, , drop = FALSE]
-      coord$.grp <- droplevels(coord$.grp)
-      p <- p + ggplot2::stat_ellipse(data = coord,
-                 ggplot2::aes(x = Dim1, y = Dim2, group = .grp, color = .grp),
-                 inherit.aes = FALSE, type = "norm", level = lvl,
-                 linewidth = 0.8, show.legend = FALSE)
-    } else {
-      p <- p + ggplot2::stat_ellipse(data = coord,
-                 ggplot2::aes(x = Dim1, y = Dim2),
-                 inherit.aes = FALSE, type = "norm", level = lvl,
-                 linewidth = 0.8, color = "#7b3fa0")
+  # Reglages des ellipses d'une analyse factorielle (type et niveau).
+  mv_ellipse_reglages <- function(prefix) {
+    list(type = input[[paste0(prefix, "_ellipsetype")]] %||% "dispersion",
+         niveau = hstat_borne_client(input[[paste0(prefix, "_ellipselevel")]],
+                                     0.95, 0.5, 0.99))
+  }
+
+  # Couche d'ellipses autour des individus, sur les axes traces. `grp` NULL :
+  # une ellipse pour l'ensemble. `mapper` : la couleur suit l'echelle du
+  # graphique (individus deja colores par ce groupe) ; sinon chaque ellipse
+  # porte sa couleur et son nom, l'echelle du graphique pouvant etre continue.
+  mv_ellipse_couche <- function(model, axes, grp, reglages, id, mapper = FALSE) {
+    cm <- tryCatch(hstat_coord_mat(model$ind$coord), error = function(e) NULL)
+    if (is.null(cm) || nrow(cm) < 3 || ncol(cm) < 2) return(NULL)
+    axes <- as.integer(axes); if (length(axes) != 2 || any(is.na(axes))) axes <- c(1L, 2L)
+    reglages <- reglages %||% list(type = "dispersion", niveau = 0.95)
+    ensemble <- is.null(grp)
+    g <- if (ensemble) rep("ensemble", nrow(cm)) else as.character(grp)
+    if (length(g) != nrow(cm)) return(NULL)
+    gx <- cm[, min(axes[1], ncol(cm))]; gy <- cm[, min(axes[2], ncol(cm))]
+    ell <- hstat_ellipse_ok(g, gx, gy)
+    if (!is.null(ell$motif))
+      shiny::showNotification(ell$motif, type = "warning", duration = 8, id = id)
+    if (!length(ell$groupes)) return(NULL)
+    contours <- hstat_ellipses_confiance(gx, gy, g, groupes = ell$groupes,
+                                         type = reglages$type, niveau = reglages$niveau)
+    if (!nrow(contours)) return(NULL)
+    if (mapper) {
+      contours$groupe <- factor(contours$groupe, levels = levels(as.factor(grp)))
+      return(ggplot2::geom_polygon(data = contours,
+               ggplot2::aes(x = x, y = y, group = groupe, colour = groupe, fill = groupe),
+               inherit.aes = FALSE, alpha = 0.15, linewidth = 0.8, show.legend = FALSE))
     }
-    p
+    # Le graphique est deja centre : l'ellipse ajoutee garde l'origine au centre.
+    m <- c(max(abs(contours$x)), max(abs(contours$y)))
+    centre <- ggplot2::expand_limits(x = c(-m[1], m[1]), y = c(-m[2], m[2]))
+    cols <- stats::setNames(hstat_couleurs_series(length(ell$groupes)), ell$groupes)
+    centres <- data.frame(
+      x = vapply(ell$groupes, function(lv) mean(gx[g %in% lv], na.rm = TRUE), numeric(1)),
+      y = vapply(ell$groupes, function(lv) mean(gy[g %in% lv], na.rm = TRUE), numeric(1)),
+      lab = ell$groupes, stringsAsFactors = FALSE)
+    if (ensemble)
+      return(list(ggplot2::geom_polygon(data = contours, ggplot2::aes(x = x, y = y),
+               inherit.aes = FALSE, colour = "#7b3fa0", fill = "#7b3fa0",
+               alpha = 0.12, linewidth = 0.8), centre))
+    list(
+      centre,
+      ggplot2::geom_polygon(data = contours,
+        ggplot2::aes(x = x, y = y, group = groupe), inherit.aes = FALSE,
+        colour = cols[contours$groupe], fill = cols[contours$groupe],
+        alpha = 0.12, linewidth = 0.8),
+      ggplot2::geom_text(data = centres, ggplot2::aes(x = x, y = y, label = lab),
+        inherit.aes = FALSE, colour = cols[centres$lab], fontface = "bold", size = 3.5))
+  }
+
+  # Ellipses demandees par la case « Entourer les individus » : par la variable
+  # choisie, ou autour de l'ensemble. Rien si les individus sont deja colores
+  # et entoures par cette meme variable.
+  mv_add_ind_ellipses <- function(p, model, prefix, d, keep_rows, ind_sup, axes) {
+    if (is.null(p) || !isTRUE(input[[paste0(prefix, "_ellipse")]])) return(p)
+    if (!(input[[paste0(prefix, "_plottype")]] %||% "biplot") %in% c("ind", "biplot")) return(p)
+    nom <- input[[paste0(prefix, "_ellipsevar")]] %||% "__none__"
+    if (!identical(nom, "__none__") &&
+        identical(nom, input[[paste0(prefix, "_groupvar")]] %||% "__none__")) return(p)
+    gv <- mv_valeurs_groupe(d, nom, keep_rows, ind_sup)
+    if (!is.null(gv) && length(unique(stats::na.omit(gv))) < 2) gv <- NULL
+    p + mv_ellipse_couche(model, axes, gv, mv_ellipse_reglages(prefix),
+                          paste0(prefix, "_ellipse_ko"))
+  }
+
+  # Valeurs d'une variable de groupe sur les individus actifs de l'analyse.
+  mv_valeurs_groupe <- function(d, nom, keep_rows, ind_sup) {
+    if (identical(nom, "__none__") || !nom %in% names(d)) return(NULL)
+    v <- as.character(d[[nom]][keep_rows])
+    if (length(ind_sup)) v[-ind_sup] else v
   }
   # Boite "Options d'affichage des graphiques (optionnel)" COMPLETE et
   # autonome, repliable, presente dans CHAQUE methode factorielle (ACM / AFDM /
@@ -5252,7 +5261,7 @@ server <- function(input, output, session) {
                       stats::setNames(mv_cat_cols(), mv_cat_cols())),
           selected = "__none__"),
         shiny::tags$small(style = "color:#6b7280;", shiny::icon("info-circle"),
-          " Au choix d'un groupe, les individus sont colorés par modalité et entourés d'ellipses de concentration (exploration façon « explor »).")),
+          " Au choix d'un groupe, les individus sont colorés par modalité et entourés d'ellipses, sur le tracé des individus et sur le biplot.")),
       shiny::div(style = "background:#f4f6f8;border:1px solid #e3e8ec;border-radius:6px;padding:10px 14px;margin:6px 0;",
         shiny::tags$label(style = "color:#2c3e50;font-size:13px;font-weight:700;",
                    shiny::icon("palette"), " Palette de couleurs :"),
@@ -5277,16 +5286,24 @@ server <- function(input, output, session) {
           shiny::tagList(shiny::icon("font"), " Afficher les labels des individus / variables"), value = FALSE)),
       shiny::div(style = "background:#f4f0ff; border-left:3px solid #7b3fa0; padding:8px 12px; margin:6px 0; border-radius:0 4px 4px 0;",
         shiny::checkboxInput(paste0(prefix, "_ellipse"),
-          shiny::tagList(shiny::icon("draw-polygon"), " Entourer les individus d'ellipses de concentration"),
+          shiny::tagList(shiny::icon("draw-polygon"), " Entourer les individus d'ellipses"),
           value = FALSE),
         shiny::conditionalPanel(
           condition = sprintf("input['%s_ellipse'] == true", prefix),
           shiny::selectInput(paste0(prefix, "_ellipsevar"),
             shiny::tagList(shiny::icon("layer-group"), " Grouper les ellipses par (variable qualitative) :"),
             choices = c("Aucune (toutes les obs.)" = "__none__",
-                        stats::setNames(mv_cat_cols(), mv_cat_cols()))),
+                        stats::setNames(mv_cat_cols(), mv_cat_cols())))),
+        shiny::conditionalPanel(
+          condition = sprintf(
+            "(input['%1$s_ellipse'] == true || input['%1$s_groupvar'] != '__none__') && input['%1$s_plottype'] != 'var'",
+            prefix),
+          shiny::selectInput(paste0(prefix, "_ellipsetype"), "Type d'ellipse",
+                      choices = HSTAT_ELLIPSE_TYPES, selected = "dispersion"),
           shiny::sliderInput(paste0(prefix, "_ellipselevel"), "Niveau de l'ellipse",
-                      min = 0.5, max = 0.99, value = 0.95, step = 0.01))),
+                      min = 0.5, max = 0.99, value = 0.95, step = 0.01),
+          shiny::tags$small(style = "color:#5f6b7a;",
+            "Le type et le niveau valent aussi pour les ellipses des individus colorés par groupe, sur le tracé des individus comme sur le biplot."))),
       mv_forme_box(prefix))
   }
 
@@ -7329,11 +7346,8 @@ server <- function(input, output, session) {
             pt <- input$mv_mca_plottype %||% "biplot"
             # Coloration par groupe (variable qualitative) facon 'explor'
             gvar <- input$mv_mca_groupvar %||% "__none__"
-            grp_vals <- NULL
-            if (!identical(gvar, "__none__") && gvar %in% names(d)) {
-              grp_vals <- as.character(d[[gvar]][keep_rows])
-              if (length(ind_sup)) grp_vals <- grp_vals[-ind_sup]
-            }
+            grp_vals <- mv_valeurs_groupe(d, gvar, keep_rows, ind_sup)
+            axes_mca <- c(as.integer(input$mv_mca_axisx %||% 1), as.integer(input$mv_mca_axisy %||% 2))
             pp <- mv_factor_viz(mca, "mca", pt, input$mv_mca_colorby,
                                 "ACM -- analyse des correspondances multiples", sub_t,
                                 ptsz = input$mv_mca_ptsz %||% mv_pt_size(),
@@ -7341,19 +7355,11 @@ server <- function(input, output, session) {
                                 lblsz = hstat_lbl_pt2gg(input$mv_mca_lblsz %||% mv_lbl_pt_ind()),
                                 lblszvar = hstat_lbl_pt2gg(input$mv_mca_lblszvar %||% mv_lbl_pt_var()),
                                 show_lab = isTRUE(input$mv_mca_showlab),
-                                axes = c(as.integer(input$mv_mca_axisx %||% 1), as.integer(input$mv_mca_axisy %||% 2)),
-                                group_values = grp_vals)
+                                axes = axes_mca, group_values = grp_vals,
+                                ellipse = mv_ellipse_reglages("mv_mca"),
+                                group_name = gvar)
             if (!is.null(pp)) {
-              # Ellipses de concentration autour des individus (optionnel)
-              if (pt %in% c("ind", "biplot")) {
-                gv_name <- input$mv_mca_ellipsevar %||% "__none__"
-                gv <- NULL
-                if (!identical(gv_name, "__none__") && gv_name %in% names(d)) {
-                  gv <- as.character(d[[gv_name]][keep_rows])
-                  if (length(ind_sup)) gv <- gv[-ind_sup]
-                }
-                pp <- mv_add_ind_ellipses(pp, mca, "mv_mca", gv)
-              }
+              pp <- mv_add_ind_ellipses(pp, mca, "mv_mca", d, keep_rows, ind_sup, axes_mca)
               # Modalités supplémentaires en vert (sur var/biplot)
               if (!is.null(mca$quali.sup) && pt %in% c("var","biplot")) {
                 qs_co <- hstat_coord_mat(mca$quali.sup$coord)
@@ -7762,11 +7768,8 @@ server <- function(input, output, session) {
           plotfn = function() {
             sub_t <- paste0("Inertie axes 1-2 = ", round(dim12,1), " %")
             gvar <- input$mv_famd_groupvar %||% "__none__"
-            grp_vals <- NULL
-            if (!identical(gvar, "__none__") && gvar %in% names(d)) {
-              grp_vals <- as.character(d[[gvar]][keep_rows])
-              if (length(ind_sup)) grp_vals <- grp_vals[-ind_sup]
-            }
+            grp_vals <- mv_valeurs_groupe(d, gvar, keep_rows, ind_sup)
+            axes_famd <- c(as.integer(input$mv_famd_axisx %||% 1), as.integer(input$mv_famd_axisy %||% 2))
             pp <- mv_factor_viz(famd, "famd", input$mv_famd_plottype %||% "biplot",
                                 input$mv_famd_colorby, "AFDM -- données mixtes", sub_t,
                                 ptsz = input$mv_famd_ptsz %||% mv_pt_size(),
@@ -7774,21 +7777,11 @@ server <- function(input, output, session) {
                                 lblsz = hstat_lbl_pt2gg(input$mv_famd_lblsz %||% mv_lbl_pt_ind()),
                                 lblszvar = hstat_lbl_pt2gg(input$mv_famd_lblszvar %||% mv_lbl_pt_var()),
                                 show_lab = isTRUE(input$mv_famd_showlab),
-                                axes = c(as.integer(input$mv_famd_axisx %||% 1), as.integer(input$mv_famd_axisy %||% 2)),
-                                group_values = grp_vals)
-            if (!is.null(pp)) {
-              pt_famd <- input$mv_famd_plottype %||% "biplot"
-              if (pt_famd %in% c("ind", "biplot")) {
-                gv_name <- input$mv_famd_ellipsevar %||% "__none__"
-                gv <- NULL
-                if (!identical(gv_name, "__none__") && gv_name %in% names(d)) {
-                  gv <- as.character(d[[gv_name]][keep_rows])
-                  if (length(ind_sup)) gv <- gv[-ind_sup]
-                }
-                pp <- mv_add_ind_ellipses(pp, famd, "mv_famd", gv)
-              }
-              return(pp)
-            }
+                                axes = axes_famd, group_values = grp_vals,
+                                ellipse = mv_ellipse_reglages("mv_famd"),
+                                group_name = gvar)
+            if (!is.null(pp))
+              return(mv_add_ind_ellipses(pp, famd, "mv_famd", d, keep_rows, ind_sup, axes_famd))
             p <- ggplot2::ggplot(ic, ggplot2::aes(Dim1, Dim2)) +
               ggplot2::geom_hline(yintercept = 0, color = "#bbbbbb", linewidth = .4) +
               ggplot2::geom_vline(xintercept = 0, color = "#bbbbbb", linewidth = .4) +
@@ -7875,11 +7868,8 @@ server <- function(input, output, session) {
           plotfn = function() {
             sub_t <- paste0("Inertie axes 1-2 = ", round(dim12,1), " %")
             gvar <- input$mv_mfa_groupvar %||% "__none__"
-            grp_vals <- NULL
-            if (!identical(gvar, "__none__") && gvar %in% names(d)) {
-              grp_vals <- as.character(d[[gvar]][keep_rows])
-              if (length(ind_sup)) grp_vals <- grp_vals[-ind_sup]
-            }
+            grp_vals <- mv_valeurs_groupe(d, gvar, keep_rows, ind_sup)
+            axes_mfa <- c(as.integer(input$mv_mfa_axisx %||% 1), as.integer(input$mv_mfa_axisy %||% 2))
             pp <- mv_factor_viz(mfa, "mfa", input$mv_mfa_plottype %||% "biplot",
                                 input$mv_mfa_colorby, "AFM -- analyse factorielle multiple", sub_t,
                                 ptsz = input$mv_mfa_ptsz %||% mv_pt_size(),
@@ -7887,9 +7877,11 @@ server <- function(input, output, session) {
                                 lblsz = hstat_lbl_pt2gg(input$mv_mfa_lblsz %||% mv_lbl_pt_ind()),
                                 lblszvar = hstat_lbl_pt2gg(input$mv_mfa_lblszvar %||% mv_lbl_pt_var()),
                                 show_lab = isTRUE(input$mv_mfa_showlab),
-                                axes = c(as.integer(input$mv_mfa_axisx %||% 1), as.integer(input$mv_mfa_axisy %||% 2)),
-                                group_values = grp_vals)
-            if (!is.null(pp)) return(pp)
+                                axes = axes_mfa, group_values = grp_vals,
+                                ellipse = mv_ellipse_reglages("mv_mfa"),
+                                group_name = gvar)
+            if (!is.null(pp))
+              return(mv_add_ind_ellipses(pp, mfa, "mv_mfa", d, keep_rows, ind_sup, axes_mfa))
             p <- ggplot2::ggplot(ic, ggplot2::aes(Dim1, Dim2)) +
               ggplot2::geom_hline(yintercept = 0, color = "#bbbbbb", linewidth = .4) +
               ggplot2::geom_vline(xintercept = 0, color = "#bbbbbb", linewidth = .4) +
