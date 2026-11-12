@@ -1032,6 +1032,31 @@ hstat_ma_ajouter <- function(noms, fichier = hstat_ma_fichier()) {
                                         selected = unite)))
 }
 
+# La concentration de la mere, dans l'unite ou elle a ete obtenue : la saisie
+# de l'utilisateur pour un trempage ou un vial test, le µg/µl de l'application
+# topique. Une unite que la liste des dilutions ignore retombe sur le mg/ml.
+hstat_mere_conc_unite <- function(test, r, saisie = NULL) {
+  repli <- list(valeur = r$c_mere, unite = "mg/ml")
+  if (identical(test, "topique")) return(list(valeur = r$c_mere, unite = "µg/µl"))
+  if (is.null(saisie) || !isTRUE(is.finite(saisie$v)) || saisie$v <= 0) return(repli)
+  u <- .hstat_unite_cle(as.character(saisie$u %||% "")[1])
+  b <- hstat_unite_info(u)
+  if (is.null(b) || !identical(b$categorie, "concentration") ||
+      !u %in% unlist(hstat_unites_choix("concentration"))) return(repli)
+  list(valeur = saisie$v, unite = u)
+}
+
+# Le nom d'une solution saisie sans nom commercial : ses matieres actives, ou
+# « Solution mère » ; un nom deja pris recoit un numero.
+hstat_dilution_nom_defaut <- function(matieres, pris = character(0)) {
+  m <- trimws(as.character(matieres))
+  m <- m[nzchar(m)]
+  base <- if (length(m)) paste(m, collapse = " + ") else tr("Solution mère")
+  nom <- base; k <- 2L
+  while (nom %in% pris) { nom <- paste0(base, " (", k, ")"); k <- k + 1L }
+  nom
+}
+
 mod_dosage_ui <- function(id) {
   ns <- shiny::NS(id)
   shiny::tagList(
@@ -1217,7 +1242,7 @@ mod_dosage_ui <- function(id) {
                              " Utiliser cette solution mère dans « Solutions filles (dilutions) »"),
               class = "btn-primary"),
             shiny::helpText("La concentration calculée est reprise comme concentration",
-                            " mère d'une gamme de dilutions, en mg/ml.")))),
+                            " mère d'une gamme de dilutions, dans l'unité où elle a été obtenue.")))),
 
       shiny::tabPanel(
         shiny::tagList(shiny::icon("vials"), " Solutions filles (dilutions)"), value = "dilution",
@@ -1227,7 +1252,7 @@ mod_dosage_ui <- function(id) {
           shinydashboard::box(
             title = shiny::tagList(shiny::icon("bottle-droplet"), " La solution mère"),
             status = "primary", width = 5, solidHeader = TRUE,
-            shiny::textInput(ns("dilProduit"), "Nom commercial du produit",
+            shiny::textInput(ns("dilProduit"), "Nom commercial du produit (facultatif)",
                              placeholder = "ex : Lambdacal P 212 EC"),
             shiny::fluidRow(
               shiny::column(6, shiny::numericInput(ns("dilNbMa"),
@@ -1644,16 +1669,16 @@ mod_dosage_server <- function(id, values) {
 
     # -- Ajout du produit au tableau ---------------------------------------
     shiny::observeEvent(input$dilAjouter, {
-      nom <- trimws(input$dilProduit %||% "")
-      if (!nzchar(nom)) {
-        shiny::showNotification(
-          tr("Nommez le produit avant de l'ajouter : c'est le nom qui regroupe ses matières actives."),
-          type = "warning", duration = 6)
-        return()
-      }
+      nom <- hstat_texte_client(input$dilProduit)
       n <- max(1L, min(10L, as.integer(.hstat_num1(input$dilNbMa, 1))))
       mas <- vapply(seq_len(n), function(i)
         trimws(input[[paste0("dilMaNom", i)]] %||% ""), character(1))
+      # Le nom est facultatif : sans lui, la solution prend celui de ses
+      # matieres actives, et un nom neuf ne remplace pas un produit deja saisi.
+      if (!nzchar(nom)) {
+        noms_pris <- trimws(as.character(saisie()$Produit))
+        nom <- hstat_dilution_nom_defaut(mas, noms_pris)
+      }
       cnc <- vapply(seq_len(n), function(i)
         .hstat_num1(input[[paste0("dilMaConc", i)]], NA_real_), numeric(1))
       # Une matiere active sans nom se nomme d'elle-meme : « Matière active 2 »
@@ -1899,13 +1924,19 @@ mod_dosage_server <- function(id, values) {
           type = "warning", duration = 8)
         return()
       }
-      shiny::updateSelectInput(session, "dilUnite", selected = "mg/ml")
+      # La concentration part dans l'unite ou elle a ete obtenue.
+      cu <- hstat_mere_conc_unite(mere_test(), r,
+        saisie = switch(mere_test(),
+          disque = list(v = .hstat_num1(input$mereDisC, NA_real_), u = input$mereDisCUnite),
+          tube   = list(v = .hstat_num1(input$mereTubC, NA_real_), u = input$mereTubCUnite),
+          NULL))
+      shiny::updateSelectInput(session, "dilUnite", selected = cu$unite)
       shiny::updateNumericInput(session, "dilNbMa", value = 1)
-      shiny::updateNumericInput(session, "dilMaConc1", value = r$c_mere)
+      shiny::updateNumericInput(session, "dilMaConc1", value = cu$valeur)
       shiny::updateTabsetPanel(session, "dosageTabs", selected = "dilution")
       shiny::showNotification(
-        trf("Solution mère reprise dans « Solutions filles (dilutions) » : %s mg/ml.",
-            .fmt(r$c_mere)),
+        trf("Solution mère reprise dans « Solutions filles (dilutions) » : %s %s.",
+            .fmt(cu$valeur), cu$unite),
         type = "message", duration = 8)
     })
 

@@ -11275,6 +11275,21 @@ tous deux évités par construction :
    « unité molaire » est un `reactiveVal` qui ne change — et ne fait
    reconstruire — que si l'on passe du massique au molaire.
 
+### La mère reprise garde son unité, et le produit n'a plus à être nommé
+
+Demandé à l'écran : la concentration reprise de « Solution mère » arrivait
+toujours en mg/ml, et l'ajout aux solutions filles exigeait un nom commercial.
+`hstat_mere_conc_unite()` reprend la concentration dans l'unité où elle a été
+obtenue : µg/µl pour l'application topique, la saisie elle-même (valeur et
+unité) pour le trempage et le vial test — 40 mg/l reste 40 mg/l. Une unité que
+la liste des concentrations ignore retombe sur le mg/ml de `c_mere`.
+
+Le nom commercial est **facultatif** : sans lui, `hstat_dilution_nom_defaut()`
+nomme la solution d'après ses matières actives (« A + B »), ou « Solution
+mère ». Un nom déjà pris reçoit un numéro (« A (2) ») : sans cela, une seconde
+solution sans nom **remplacerait** la première, la règle qui regroupe les
+lignes d'un même produit.
+
 ### Une feuille par produit
 
 Le téléchargement des solutions filles porte **une feuille par produit**
