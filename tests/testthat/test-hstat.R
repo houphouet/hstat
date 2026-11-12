@@ -25546,3 +25546,104 @@ test_that("ACM, AFDM et AFM : les ellipses de dispersion entourent les groupes, 
   expect_true(grepl("input['%1$s_groupvar'] != '__none__'", txt, fixed = TRUE))
   expect_false(grepl("addEllipses = use_ellipse", txt, fixed = TRUE))
 })
+
+test_that("chi² d'adéquation : comparaisons multiples au-delà de deux modalités, et synthèse", {
+  skip_if_not_installed("multcompView")
+  # Le test global : celui de chisq.test sur les effectifs sommes.
+  mod <- rep(c("A", "B", "C", "D"), each = 2)
+  val <- c(30, 30, 25, 30, 10, 10, 5, 10)
+  r <- hstat_chi2_adequation(mod, val)
+  expect_true(r$ok)
+  expect_equal(r$observes, c(60, 55, 20, 15))
+  ref <- suppressWarnings(stats::chisq.test(c(60, 55, 20, 15)))
+  expect_equal(r$statistique, unname(ref$statistic))
+  expect_equal(r$p, ref$p.value)
+  expect_equal(r$ddl, 3L)
+
+  # Chaque paire : binomial exact conditionne a la somme de ses deux effectifs.
+  cmp <- hstat_chi2_comparaisons(r$modalites, r$observes, p_global = r$p)
+  expect_equal(nrow(cmp$paires), 6L)
+  pAC <- stats::binom.test(60, 80, 0.5)$p.value
+  ligne <- cmp$paires$Modalite_1 == "A" & cmp$paires$Modalite_2 == "C"
+  expect_equal(cmp$paires$p_brute[ligne], pAC)
+  expect_equal(cmp$paires$p_ajustee[ligne], min(1, pAC * 6))
+  expect_equal(unname(cmp$lettres), c("a", "a", "b", "b"))
+
+  # La plus representee prend « a », meme rangee en dernier.
+  inv <- hstat_chi2_comparaisons(c("D", "C", "B", "A"), c(15, 20, 55, 60), p_global = r$p)
+  expect_equal(unname(inv$lettres[c("A", "B", "C", "D")]), c("a", "a", "b", "b"))
+
+  # Le chi² de la paire, s'il est demande, est celui de chisq.test sur la paire.
+  cs <- hstat_chi2_comparaisons(r$modalites, r$observes, methode = "chisq",
+                                ajustement = "none", p_global = r$p)
+  t2 <- stats::chisq.test(c(60, 20))
+  expect_equal(cs$paires$Statistique[ligne], unname(t2$statistic))
+  expect_equal(cs$paires$p_ajustee[ligne], t2$p.value)
+
+  # Protection : un test global non significatif donne une seule lettre, et le dit.
+  pr <- hstat_chi2_comparaisons(r$modalites, r$observes, p_global = 0.4)
+  expect_true(all(pr$lettres == "a"))
+  expect_false(is.null(pr$message))
+  np <- hstat_chi2_comparaisons(r$modalites, r$observes, p_global = 0.4, proteger = FALSE)
+  expect_equal(unname(np$lettres), c("a", "a", "b", "b"))
+
+  # Sans valeur, les lignes sont comptees ; un effectif negatif est refuse.
+  expect_equal(hstat_chi2_adequation(rep(c("x", "y", "z"), c(5, 9, 30)))$observes, c(5, 9, 30))
+  expect_false(hstat_chi2_adequation(c("a", "b"), c(3, -1))$ok)
+  expect_false(hstat_chi2_adequation(c("a", "a"), c(3, 1))$ok)
+
+  # La synthese : une ligne par modalite, puis ddl, statistique, N et P.
+  r$facteur <- "Traitement"; r$variable <- "Insectes"; r$lettres <- cmp$lettres
+  r2 <- hstat_chi2_adequation(mod, rev(val))
+  r2$facteur <- "Traitement"; r2$variable <- "Larves"
+  r2$lettres <- hstat_chi2_comparaisons(r2$modalites, r2$observes, p_global = r2$p)$lettres
+  tabs <- hstat_chi2_synthese(list(r, r2))
+  expect_length(tabs, 1L)
+  t <- tabs[[1]]
+  expect_equal(names(t), c("Traitement", "Insectes", "Larves"))
+  expect_equal(t$Traitement, c("A", "B", "C", "D", tr("ddl"), "χ²", "N", "P"))
+  expect_equal(t$Insectes[1], "60 (40.0 %) a")
+  expect_equal(t$Insectes[8], "< 0.001")
+  expect_equal(attr(t, "n_stat"), 4L)
+  expect_equal(attr(t, "groupes")[, 1], c("a", "a", "b", "b"))
+  # Le rendu colore les quatre cases de modalite de chaque colonne, et rien dessous.
+  html <- as.character(hstat_synthese_html(tabs))
+  expect_equal(lengths(regmatches(html, gregexpr("hstat-synthese-groupe", html))), 8L)
+})
+
+test_that("chi² d'adéquation : le module boucle sur variables et facteurs, la synthèse s'affiche", {
+  skip_if_not_installed("shinydashboard")
+  skip_if_not_installed("DT")
+  skip_if_not_installed("multcompView")
+  suppressMessages(hstat_installer_replis_ui())
+  d <- data.frame(Trt = rep(c("T1", "T2", "T3", "T4"), each = 3),
+                  Bloc = rep(c("B1", "B2", "B3"), 4),
+                  Insectes = c(20, 22, 18, 21, 19, 20, 5, 6, 4, 3, 2, 4),
+                  Larves = c(8, 9, 7, 8, 9, 8, 7, 9, 8, 8, 7, 9))
+  vals <- shiny::reactiveValues(filteredData = d)
+  shiny::testServer(mod_tests_server, args = list(values = vals), {
+    session$setInputs(responseVar = c("Insectes", "Larves"), factorVar = c("Trt", "Bloc"),
+                      chiSqMethod = "chisq", chiSqPostHocMethode = "binom",
+                      chiSqPostHocAdj = "bonferroni", chiSqProteger = TRUE)
+    session$setInputs(runChiSqTest = 1)
+    expect_length(values$chiSqListe, 4L)
+    expect_identical(values$currentTestType, "chisq")
+    expect_equal(sum(grepl("Chi²", values$testResultsDF$Test)), 4L)
+    # Le detail suit l'analyse choisie.
+    expect_equal(values$chiSqFreqData$Groupe, c("a", "a", "b", "b"))
+    session$setInputs(chiSqChoix = "Larves × Trt")
+    expect_identical(values$chiSqCle, "Larves × Trt")
+    expect_true(all(values$chiSqFreqData$Groupe == "a"))
+    # Une cle forgee retombe sur la premiere analyse.
+    session$setInputs(chiSqChoix = "inconnue")
+    expect_identical(values$chiSqCle, names(values$chiSqListe)[1])
+    # Le recalcul applique la correction choisie a toutes les analyses.
+    session$setInputs(chiSqPostHocAdj = "none", runChiSqPostHoc = 1)
+    expect_true(all(vapply(values$chiSqListe, function(r) all(r$paires$Correction == "none"),
+                           logical(1))))
+    tabs <- .chi2_tables()
+    expect_equal(names(tabs), c("Trt", "Bloc"))
+    expect_equal(names(tabs$Trt), c("Trt", "Insectes", "Larves"))
+    expect_true(grepl("hstat-synthese", as.character(output$chiSqSynthese$html)))
+  })
+})

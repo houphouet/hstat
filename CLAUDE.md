@@ -2866,6 +2866,44 @@ Trois décisions, chacune testée :
    texte, « 10 » passait avant « 2 ».
 4. **Les lettres ne viennent que d'un test sur la moyenne** (voir plus haut).
 
+### Le chi² d'adéquation a ses comparaisons multiples et sa synthèse
+
+Demandé à l'écran : comparer plus de deux modalités et produire les tableaux de
+synthèse, comme dans les comparaisons post-hoc. Le bouton « Comparaisons deux à
+deux » lisait deux colonnes absentes du tableau (`Observes`, `Categorie`) : il
+annonçait « Trop peu de catégories » à chaque clic, et les lettres affichées
+venaient d'un regroupement glouton, faux dès qu'il n'est pas transitif.
+
+Le calcul passe au socle (`R/utils.R`) :
+
+| Fonction | Rôle |
+|---|---|
+| `hstat_chi2_adequation()` | effectifs sommés par modalité (ou lignes comptées sans variable réponse), chi² de Pearson ou test multinomial exact |
+| `hstat_chi2_comparaisons()` | toutes les paires, correction au choix, lettres par `multcompLetters` |
+| `hstat_chi2_synthese()` | une table par facteur, une colonne par variable, « n (p %) groupe », puis ddl, χ², N, P |
+
+Le module boucle sur **toutes** les variables réponse et **tous** les facteurs
+sélectionnés, comme le post-hoc ; « Analyse affichée » choisit celle que
+montrent les onglets de détail. L'onglet « Synthèse » et la feuille du même nom
+du classeur portent l'ensemble.
+
+Quatre décisions, chacune testée :
+
+1. **Une paire se juge sur ses deux effectifs, rapportés à leur somme** :
+   binomial exact de n_i sur n_i + n_j contre p_i / (p_i + p_j), ou le chi² de
+   la paire. Le tableau 2 × 2 « modalité contre reste » d'avant comparait des
+   cases qui ne sont pas indépendantes.
+2. **La plus représentée prend « a »** : les lettres sont posées sur les
+   modalités rangées par effectif décroissant, quel que soit l'ordre du fichier.
+3. **Les lettres sont protégées par le test global**, réglage décochable : un
+   chi² global non significatif donne une seule lettre, et la note le dit.
+4. **La synthèse n'a pas de ligne CV** : elle porte quatre lignes de test
+   (`attr(tab, "n_stat")`), que `hstat_synthese_html()` lit pour savoir où
+   s'arrêtent les cases colorées.
+
+Le test multinomial exact énumère choose(N + k − 1, k − 1) compositions ; au-delà
+de `HSTAT_CHI2_EXACT_MAX` (10⁶), la p est estimée par Monte-Carlo, et on le dit.
+
 ### Les deux tests de Welch, et l'application en exécutait un sous un faux nom
 
 `stats::t.test()` est **Welch par défaut** (`var.equal = FALSE`). Le bouton
