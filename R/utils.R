@@ -4503,7 +4503,7 @@ hstat_synthese_html <- function(tabs, couleurs = NULL) {
     couleurs <- hstat_groupes_couleurs(unlist(lapply(tabs, function(t)
       as.vector(attr(t, "groupes")))))
   shiny::tagList(lapply(tabs, function(t) {
-    n_niv <- nrow(t) - 5L
+    n_niv <- nrow(t) - (attr(t, "n_stat") %||% 5L)
     grp <- attr(t, "groupes")
     entete <- shiny::tags$tr(lapply(names(t), function(n) shiny::tags$th(n)))
     lignes <- lapply(seq_len(nrow(t)), function(i) {
@@ -4549,6 +4549,168 @@ hstat_posthoc_synthese_feuilles <- function(d, dec = NA_integer_) {
   list(Moyenne_ET_groupe = .hstat_synth_empiler_feuille(et),
        Moyenne_ES_groupe = .hstat_synth_empiler_feuille(es))
 }
+
+# CHI² D'ADEQUATION : le test global, les comparaisons multiples et la synthese.
+HSTAT_CHI2_COMPARAISONS <- c("Test binomial exact de la paire" = "binom",
+                             "Chi² de la paire" = "chisq")
+
+# Au-dela, l'enumeration exacte du test multinomial ne rend plus la main.
+HSTAT_CHI2_EXACT_MAX <- 1e6
+
+# Le test global sur les effectifs SOMMES par modalite.
+hstat_chi2_adequation <- function(modalites, valeurs = NULL,
+                                  methode = c("chisq", "multinomial"),
+                                  p_theo = NULL) {
+  methode <- match.arg(methode)
+  refus <- function(m) list(ok = FALSE, motif = m)
+  g <- .hstat_synth_niveaux(modalites)
+  v <- if (is.null(valeurs)) rep(1, length(g)) else suppressWarnings(as.numeric(valeurs))
+  if (length(v) != length(g)) return(refus(tr("Les modalités et les valeurs n'ont pas la même longueur.")))
+  ok <- !is.na(g) & is.finite(v)
+  notes <- character(0)
+  if (any(!ok)) notes <- c(notes, trf("%d ligne(s) sans modalité ou sans valeur écartée(s).", sum(!ok)))
+  if (any(v[ok] < 0)) return(refus(tr("Un effectif négatif ne peut pas entrer dans un chi² d'adéquation.")))
+  gg <- droplevels(g[ok])
+  niv <- levels(gg)
+  k <- length(niv)
+  if (k < 2L) return(refus(tr("Au moins deux modalités sont requises.")))
+  if (k > 100L) return(refus(trf("%d modalités distinctes : trop pour un test d'ajustement. Choisissez une variable catégorielle.", k)))
+  somme <- as.numeric(tapply(v[ok], gg, sum))
+  obs <- round(somme)
+  if (any(abs(somme - obs) > 1e-8))
+    notes <- c(notes, tr("Des effectifs non entiers ont été arrondis à l'unité."))
+  N <- sum(obs)
+  if (N <= 0) return(refus(tr("L'effectif total est nul.")))
+  p0 <- if (is.null(p_theo)) rep(1 / k, k) else suppressWarnings(as.numeric(p_theo))
+  if (length(p0) != k || any(!is.finite(p0)) || any(p0 <= 0))
+    return(refus(tr("Les proportions théoriques doivent être positives, une par modalité.")))
+  p0 <- p0 / sum(p0)
+  attendus <- N * p0
+  if (methode == "chisq") {
+    t <- suppressWarnings(stats::chisq.test(obs, p = p0))
+    if (any(attendus < 5))
+      notes <- c(notes, tr("Un effectif attendu est inférieur à 5 : le chi² est approché, le test multinomial exact est plus sûr."))
+    stat <- unname(t$statistic); p <- t$p.value
+    test <- tr("Chi² d'ajustement de Pearson"); symbole <- "χ²"
+  } else {
+    if (!requireNamespace("EMT", quietly = TRUE))
+      return(refus(hstat_pkg_manquant("EMT", tr("Test multinomial exact"))))
+    mc <- choose(N + k - 1, k - 1) > HSTAT_CHI2_EXACT_MAX
+    t <- tryCatch(suppressMessages(EMT::multinomial.test(obs, prob = p0,
+                    MonteCarlo = mc, ntrial = 1e5)),
+                  error = function(e) NULL)
+    if (is.null(t)) return(refus(tr("Le test multinomial exact n'a pas pu être calculé.")))
+    if (mc) notes <- c(notes, tr("Trop de compositions pour l'énumération exacte : p estimée par Monte-Carlo (100 000 tirages)."))
+    stat <- NA_real_; p <- t$p.value
+    test <- tr("Test multinomial exact"); symbole <- NA_character_
+  }
+  list(ok = TRUE, modalites = niv, observes = obs, valeurs = somme,
+       attendus = attendus, p_theo = p0, N = N, statistique = stat,
+       ddl = k - 1L, p = p, test = test, symbole = symbole,
+       methode = methode, notes = notes)
+}
+
+# Les comparaisons de toutes les paires de modalites : la paire est jugee sur
+# ses deux effectifs, conditionnellement a leur somme.
+hstat_chi2_comparaisons <- function(modalites, observes, p_theo = NULL,
+                                    methode = c("binom", "chisq"),
+                                    ajustement = "bonferroni", alpha = 0.05,
+                                    p_global = NA_real_, proteger = TRUE) {
+  methode <- match.arg(methode)
+  if (!ajustement %in% stats::p.adjust.methods) ajustement <- "bonferroni"
+  modalites <- as.character(modalites)
+  obs <- suppressWarnings(as.numeric(observes))
+  k <- length(obs)
+  p0 <- if (is.null(p_theo)) rep(1 / k, k) else as.numeric(p_theo)
+  if (k < 2L) return(list(paires = NULL, lettres = stats::setNames(rep("a", k), modalites),
+                          message = tr("Au moins deux modalités sont requises.")))
+  cb <- utils::combn(k, 2)
+  n_p <- ncol(cb)
+  stat <- p_brute <- rep(NA_real_, n_p)
+  for (m in seq_len(n_p)) {
+    i <- cb[1, m]; j <- cb[2, m]
+    ni <- obs[i]; nj <- obs[j]
+    if (!is.finite(ni) || !is.finite(nj) || ni + nj <= 0) next
+    q <- p0[i] / (p0[i] + p0[j])
+    if (methode == "binom") {
+      p_brute[m] <- stats::binom.test(ni, ni + nj, q)$p.value
+    } else {
+      t <- suppressWarnings(stats::chisq.test(c(ni, nj), p = c(q, 1 - q)))
+      stat[m] <- unname(t$statistic); p_brute[m] <- t$p.value
+    }
+  }
+  p_adj <- stats::p.adjust(p_brute, method = ajustement)
+  paires <- data.frame(
+    Modalite_1 = modalites[cb[1, ]], Modalite_2 = modalites[cb[2, ]],
+    Effectif_1 = obs[cb[1, ]], Effectif_2 = obs[cb[2, ]],
+    Statistique = stat, p_brute = p_brute, p_ajustee = p_adj,
+    Correction = ajustement,
+    Decision = ifelse(is.na(p_adj), tr("Non calculable"),
+                      ifelse(p_adj < alpha, tr("Différentes"), tr("Non différentes"))),
+    stringsAsFactors = FALSE, check.names = FALSE)
+  if (methode == "binom") paires$Statistique <- NULL
+  # Les lettres : la modalite la plus representee prend « a ».
+  pmat <- matrix(1, k, k, dimnames = list(modalites, modalites))
+  pa <- ifelse(is.na(p_adj), 1, p_adj)
+  pmat[cbind(cb[1, ], cb[2, ])] <- pa
+  pmat[cbind(cb[2, ], cb[1, ])] <- pa
+  ord <- order(-obs)
+  lettres <- tryCatch({
+    l <- multcompView::multcompLetters(pmat[ord, ord, drop = FALSE],
+                                       threshold = alpha)$Letters
+    l[modalites]
+  }, error = function(e) stats::setNames(rep(NA_character_, k), modalites))
+  message <- NULL
+  verdict <- hstat_p_verdict(p_global, alpha)
+  if (isTRUE(proteger) && verdict == "non significatif") {
+    lettres[] <- "a"
+    message <- tr("Le test global n'est pas significatif : toutes les modalités prennent la même lettre (protection par le test global).")
+  } else if (isTRUE(proteger) && verdict == "indeterminable") {
+    message <- tr("Le test global n'est pas calculable : les lettres ne sont pas protégées.")
+  }
+  list(paires = paires, lettres = lettres, message = message)
+}
+
+# La synthese : une ligne par modalite, une colonne par variable, « n (p %) »
+# et le groupe ; sous chaque colonne ddl, statistique, N et P.
+hstat_chi2_synthese <- function(liste, dec = 1L) {
+  liste <- Filter(function(r) is.list(r) && isTRUE(r$ok), liste)
+  if (!length(liste)) return(list())
+  dec <- if (is.na(suppressWarnings(as.integer(dec[1])))) 1L else max(0L, as.integer(dec[1]))
+  facteurs <- unique(vapply(liste, function(r) as.character(r$facteur), character(1)))
+  out <- list()
+  for (f in facteurs) {
+    sub <- Filter(function(r) identical(as.character(r$facteur), f), liste)
+    niv <- unique(unlist(lapply(sub, `[[`, "modalites")))
+    sym <- unique(stats::na.omit(vapply(sub, function(r) r$symbole %||% NA_character_, character(1))))
+    lab_stat <- if (length(sym) == 1L) sym else tr("Statistique")
+    tab <- data.frame(x = c(niv, tr("ddl"), lab_stat, "N", "P"),
+                      stringsAsFactors = FALSE, check.names = FALSE)
+    names(tab) <- f
+    groupes <- matrix("", length(niv), length(sub))
+    noms <- character(0)
+    for (k in seq_along(sub)) {
+      r <- sub[[k]]
+      pos <- match(niv, r$modalites)
+      n <- r$observes[pos]
+      pct <- n / r$N * 100
+      grp <- if (!is.null(r$lettres)) as.character(r$lettres[r$modalites])[pos] else rep(NA_character_, length(niv))
+      grp[is.na(grp)] <- ""
+      cell <- ifelse(is.na(n), "",
+                     trimws(paste0(format(n, trim = TRUE), " (",
+                                   formatC(pct, format = "f", digits = dec), " %) ", grp)))
+      groupes[, k] <- grp
+      st <- if (is.finite(r$statistique %||% NA)) formatC(round(r$statistique, 2), format = "f", digits = 2) else ""
+      v <- make.unique(c(names(tab), as.character(r$variable)))[ncol(tab) + 1L]
+      tab[[v]] <- c(cell, as.character(r$ddl), st, format(r$N), .hstat_synth_p(r$p))
+    }
+    attr(tab, "groupes") <- groupes
+    attr(tab, "n_stat") <- 4L
+    out[[f]] <- tab
+  }
+  out
+}
+
 
 round_numeric_df <- function(df, round_on, decimals = 2) {
   if (is.null(df) || !is.data.frame(df)) return(df)

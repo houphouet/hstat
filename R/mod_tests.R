@@ -178,7 +178,7 @@ mod_tests_ui <- function(id) {
                                    shiny::h4(shiny::tagList(shiny::icon("chart-simple"), " Chi² d'adéquation"),
                                       style = "color:#1565C0;"),
                                    shiny::div(style = "font-size:11px; color:#5f6b7a; margin:-4px 0 8px 0;",
-                                       "Compare la répartition observée des modalités du facteur à une répartition théorique."),
+                                       "Compare la répartition observée des modalités de chaque facteur à une répartition équiprobable, pour chaque variable réponse. Sans variable réponse, les lignes sont comptées."),
                                    shiny::radioButtons(ns("chiSqDataType"), "Nature de la variable réponse",
                                      choices = c("Effectifs (fréquences)" = "freq",
                                                  "Pourcentages" = "pct"),
@@ -191,13 +191,18 @@ mod_tests_ui <- function(id) {
                                                 class = "btn-block", icon = shiny::icon("chart-simple"),
                                                 style = "background:#1565C0; color:#fff; border-color:#0d47a1;"),
                                    shiny::br(),
+                                   shiny::selectInput(ns("chiSqPostHocMethode"),
+                                     "Comparaisons multiples des modalités",
+                                     choices = HSTAT_CHI2_COMPARAISONS, selected = "binom"),
                                    shiny::selectInput(ns("chiSqPostHocAdj"),
-                                     "Correction des comparaisons deux à deux",
+                                     "Correction des comparaisons multiples",
                                      choices = c("Bonferroni" = "bonferroni", "Holm" = "holm",
                                                  "Benjamini-Hochberg (FDR)" = "BH",
                                                  "Hochberg" = "hochberg", "Aucune" = "none"),
                                      selected = "bonferroni"),
-                                   shiny::actionButton(ns("runChiSqPostHoc"), "Comparaisons deux à deux",
+                                   shiny::checkboxInput(ns("chiSqProteger"),
+                                     "Protéger les lettres par le test global", value = TRUE),
+                                   shiny::actionButton(ns("runChiSqPostHoc"), "Recalculer les comparaisons multiples",
                                                 class = "btn-block", icon = shiny::icon("code-compare"),
                                                 style = "background:#1976D2; color:#fff; border-color:#1565C0;"))
                         ),
@@ -335,17 +340,27 @@ mod_tests_ui <- function(id) {
                                         " Détail du chi² d'adéquation"),
                         status = "primary", width = 12, solidHeader = TRUE,
                         collapsible = TRUE,
+                        shiny::selectInput(ns("chiSqChoix"), "Analyse affichée (variable × facteur)",
+                          choices = NULL, width = "100%"),
                         shiny::tabsetPanel(
                           id = ns("chiSqResultsTabs"), type = "tabs",
                           shiny::tabPanel("Résumé", value = "chiSq_résumé",
-                            shiny::br(), DT::DTOutput(ns("chiSqGlobalTable"))),
+                            shiny::br(), DT::DTOutput(ns("chiSqGlobalTable")),
+                            shiny::uiOutput(ns("chiSqNotes"))),
                           shiny::tabPanel("Modalités", value = "chiSq_modalités",
                             shiny::br(), DT::DTOutput(ns("chiSqFreqTable")),
                             shiny::br(),
                             shiny::downloadButton(ns("downloadChiSqCSV"),
                               "Télécharger les modalités (CSV)", class = "btn-info")),
-                          shiny::tabPanel("Comparaisons deux à deux", value = "chiSq_posthoc",
-                            shiny::br(), DT::DTOutput(ns("chiSqPostHocTable"))),
+                          shiny::tabPanel("Comparaisons multiples", value = "chiSq_posthoc",
+                            shiny::br(), shiny::uiOutput(ns("chiSqPostHocNote")),
+                            DT::DTOutput(ns("chiSqPostHocTable")),
+                            shiny::helpText("Chaque paire de modalités est jugée sur ses deux effectifs, rapportés à leur somme, contre la répartition équiprobable ; les p-values sont corrigées pour le nombre de paires. Les lettres : deux modalités qui ne partagent aucune lettre diffèrent ; la plus représentée prend « a ».")),
+                          shiny::tabPanel("Synthèse", value = "chiSq_synthese",
+                            shiny::br(),
+                            shiny::div(class = "hstat-table-scroll",
+                              shiny::uiOutput(ns("chiSqSynthese"))),
+                            shiny::helpText("Une table par facteur, une colonne par variable réponse. Chaque case : effectif (pourcentage) et groupe, la case colorée par son groupe. Sous chaque colonne : degrés de liberté, statistique du test global (χ² : chi² de Pearson), effectif N et probabilité P. La synthèse part aussi dans le classeur Excel.")),
                           shiny::tabPanel("Graphique", value = "chiSq_graphique",
                             shiny::br(),
                             shiny::fluidRow(
@@ -5029,40 +5044,6 @@ mod_tests_server <- function(id, values) {
     dt
   })
   
-  shiny::observeEvent(input$runChiSqPostHoc, {
-    shiny::req(values$chiSqFreqData)
-    chi_data   <- values$chiSqFreqData
-    obs        <- chi_data$Observes
-    cats       <- chi_data$Categorie
-    n          <- length(obs)
-    adj_method <- input$chiSqPostHocAdj %||% "bonferroni"
-    if (n < 2) { shiny::showNotification("Trop peu de catégories.", type="warning"); return() }
-    N_total <- sum(obs); p_raw <- c(); chi2_v <- c(); comps <- c()
-    for (i in 1:(n-1)) for (j in (i+1):n) {
-      m <- matrix(c(obs[i], obs[j], N_total-obs[i], N_total-obs[j]), 2)
-      tryCatch({ t2 <- stats::chisq.test(m, correct=(n==2))
-      p_raw <<- c(p_raw, t2$p.value); chi2_v <<- c(chi2_v, round(t2$statistic,4))
-      }, error = function(e) { p_raw <<- c(p_raw,NA); chi2_v <<- c(chi2_v,NA) })
-      comps <- c(comps, paste0(cats[i]," — ",cats[j]))
-    }
-    p_adj <- stats::p.adjust(p_raw, method = adj_method)
-    values$chiSqPostHocData <- data.frame(
-      Comparaison        = comps, Chi2 = chi2_v,
-      p_brut             = round(p_raw,6), p_ajuste = round(p_adj,6),
-      Significatif       = ifelse(!is.na(p_adj) & p_adj < 0.05,"OUI *","non"),
-      Methode_correction = adj_method, stringsAsFactors = FALSE)
-    p_mat <- matrix(1, n, n, dimnames = list(cats, cats)); k <- 1
-    for (i in 1:(n-1)) for (j in (i+1):n) {
-      p_mat[i,j] <- p_mat[j,i] <- p_adj[k]; k <- k+1 }
-    diag(p_mat) <- 1
-    tryCatch({
-      gl <- multcompView::multcompLetters(p_mat, threshold = 0.05)$Letters
-      chi_data$Groupes <- gl[match(cats, names(gl))]
-      values$chiSqFreqData <- chi_data
-    }, error = function(e) NULL)
-    shiny::showNotification(trf("Post-hoc chi² terminé (%s)", adj_method),type="message",duration=3)
-  })
-  
   # NB : les handlers downloadChiSqExcel / downloadChiSqCSV / downloadChiSqPlot
   # sont definis plus bas (versions completes avec mise en forme).
 
@@ -5658,196 +5639,163 @@ mod_tests_server <- function(id, values) {
     grDevices::colorRampPalette(cols)(n)
   }
   
-  # Attribuer lettres de groupes (Bonferroni pairwise)
-  chi2_group_letters <- function(modalites, observed, nb_paires, paires) {
-    n  <- length(modalites)
-    mat <- matrix(1, n, n, dimnames = list(modalites, modalites))
-    
-    res_paires <- data.frame()
-    for (k in seq_len(nb_paires)) {
-      i <- paires[1, k]; j <- paires[2, k]
-      oi <- observed[i]; oj <- observed[j]
-      if (is.na(oi) | is.na(oj) | oi < 0 | oj < 0 | (oi + oj) == 0) next
-      tt  <- tryCatch(stats::binom.test(oi, oi + oj, p = 0.5), error = function(e) NULL)
-      if (is.null(tt)) next
-      p_adj <- min(tt$p.value * nb_paires, 1)
-      res_paires <- rbind(res_paires, data.frame(
-        Groupe1      = modalites[i], Groupe2 = modalites[j],
-        p_brute      = tt$p.value,
-        p_Bonferroni = p_adj,
-        Decision     = ifelse(p_adj < 0.05, "Différent", "Similaire"),
-        stringsAsFactors = FALSE
-      ))
-      if (p_adj < 0.05) { mat[i, j] <- 0; mat[j, i] <- 0 }
-    }
-    
-    grp <- rep(NA_character_, n); grp[1] <- "a"; cpt <- 1
-    for (i in 2:n) {
-      ok <- FALSE
-      for (j in 1:(i-1)) {
-        if (mat[i, j] == 1) { grp[i] <- grp[j]; ok <- TRUE; break }
-      }
-      if (!ok) { cpt <- cpt + 1; grp[i] <- letters[cpt] }
-    }
-    list(groupes = grp, paires = res_paires)
+  # Chi² d'adequation : une analyse par variable reponse et par facteur, les
+  # comparaisons multiples et la synthese viennent du socle.
+  .chi2_resume <- function(r) {
+    res_std <- (r$observes - r$attendus) / sqrt(r$attendus)
+    d <- data.frame(
+      Modalite         = r$modalites,
+      Valeur_originale = r$valeurs,
+      Pct              = round(r$observes / r$N * 100, 2),
+      Valeur_test      = r$observes,
+      Valeur_attendue  = round(r$attendus, 2),
+      Residu_std       = round(res_std, 3),
+      Groupe           = unname(r$lettres[r$modalites]),
+      Type_donnee      = r$type_donnee,
+      stringsAsFactors = FALSE)
+    d$Statut <- ifelse(d$Residu_std > 1.96, "Sur-représenté",
+                       ifelse(d$Residu_std < -1.96, "Sous-représenté", "Conforme"))
+    d
   }
-  
+
+  .chi2_comparer <- function(r) {
+    cmp <- hstat_chi2_comparaisons(r$modalites, r$observes, r$p_theo,
+      methode    = if (identical(input$chiSqPostHocMethode, "chisq")) "chisq" else "binom",
+      ajustement = input$chiSqPostHocAdj %||% "bonferroni",
+      p_global   = r$p, proteger = !isFALSE(input$chiSqProteger))
+    r$lettres <- cmp$lettres
+    r$paires <- cmp$paires
+    r$message_cmp <- cmp$message
+    r
+  }
+
+  # Pose l'analyse choisie dans les champs que lisent les onglets du detail.
+  .chi2_poser <- function(cle) {
+    liste <- values$chiSqListe
+    if (!length(liste)) return(invisible(NULL))
+    if (is.null(cle) || !isTRUE(cle %in% names(liste))) cle <- names(liste)[1]
+    r <- liste[[cle]]
+    values$chiSqResults <- data.frame(
+      Test           = r$test,
+      Statistique    = if (is.finite(r$statistique))
+        paste0(r$symbole, " = ", round(r$statistique, 4)) else "—",
+      DL             = r$ddl,
+      p_value        = r$p,
+      Interpretation = hstat_p_niveau(r$p),
+      Variable_cat   = r$facteur,
+      Variable_num   = r$variable,
+      Type_donnee    = r$type_donnee,
+      stringsAsFactors = FALSE)
+    values$chiSqFreqData    <- .chi2_resume(r)
+    values$chiSqPostHocData <- r$paires
+    values$chiSqPGlobal     <- r$p
+    values$chiSqCle         <- cle
+    invisible(NULL)
+  }
+
   shiny::observeEvent(input$runChiSqTest, {
     df <- values$filteredData %||% values$cleanData %||% values$data
     shiny::req(df)
-    
-    if (is.null(input$factorVar) || length(input$factorVar) == 0 ||
-        is.null(input$responseVar) || length(input$responseVar) == 0) {
+    fvars <- intersect(input$factorVar, names(df))
+    if (!length(fvars)) {
       shiny::showNotification(
-        "Veuillez sélectionner une variable réponse (numérique) et un facteur (catégoriel) dans « Paramètres des tests ».",
-        type = "warning", duration = 6
-      )
+        tr("Choisissez au moins un facteur (variable catégorielle) dans « Paramètres des tests »."),
+        type = "warning", duration = 6)
       return()
     }
-    
-    col_cat  <- input$factorVar[1]
-    col_num  <- input$responseVar[1]
-    type_d   <- input$chiSqDataType  # "fréquences" ou "pourcentages"
-    methode  <- input$chiSqMethod    # "chisq" ou "multinomial"
-    
-    if (!col_cat %in% names(df) || !col_num %in% names(df)) {
-      shiny::showNotification("Variables introuvables dans les données.", type = "error"); return()
-    }
-    
-    modalites_brutes <- as.character(df[[col_cat]])
-    valeurs_brutes   <- as.numeric(df[[col_num]])
-    
-    ok_na <- !is.na(valeurs_brutes) & !is.na(modalites_brutes)
-    if (any(!ok_na)) {
-      shiny::showNotification("Valeurs manquantes détectées — ignorées.", type = "warning")
-    }
-    modalites_brutes <- modalites_brutes[ok_na]
-    valeurs_brutes   <- valeurs_brutes[ok_na]
-    
-    # Agreger par modalite : une seule valeur (somme) par categorie.
-    agg <- tapply(valeurs_brutes, modalites_brutes, sum)
-    modalites    <- names(agg)
-    valeurs_orig <- as.numeric(agg)
-    
-    n <- length(valeurs_orig)
-    if (n < 2) { shiny::showNotification("Au moins 2 modalités requises.", type = "error"); return() }
-    if (n > 100) {
-      shiny::showNotification(
-        trf("La variable '%s' a %d modalités distinctes -- trop pour un test d'ajustement. Vérifiez que vous avez bien choisi une variable catégorielle.", col_cat, n),
-        type = "error", duration = 8
-      )
-      return()
-    }
-    
-    if (type_d == "fréquences") {
-      observed  <- as.integer(round(valeurs_orig))
-      note_type <- "Fréquences (utilisées telles quelles)"
-    } else {
-      observed  <- as.integer(round(valeurs_orig))
-      note_type <- "Pourcentages (utilisés directement)"
-    }
-    
-    shiny::withProgress(message = "Test chi² en cours...", value = 0.3, {
-      
-      if (methode == "chisq") {
-        res_test <- tryCatch(
-          stats::chisq.test(observed, p = rep(1/n, n)),
-          warning = function(w) {
-            shiny::showNotification(hstat_err_fr(w, "Avertissement"), type = "warning", duration = 10)
-            suppressWarnings(stats::chisq.test(observed, p = rep(1/n, n)))
-          },
-          error = function(e) { shiny::showNotification(hstat_err_fr(e, "Erreur chi²"), type = "error"); NULL }
-        )
-        if (is.null(res_test)) return()
-        stat_name <- "Chi2"
-        stat_val  <- round(res_test$statistic, 4)
-        df_test   <- res_test$parameter
-        p_val     <- res_test$p.value
-        attendus  <- res_test$expected
-      } else {
-        res_test <- tryCatch(
-          EMT::multinomial.test(observed, p = rep(1/n, n)),
-          error = function(e) { shiny::showNotification(hstat_err_fr(e, "Erreur multinomial"), type = "error"); NULL }
-        )
-        if (is.null(res_test)) return()
-        stat_name <- "Multinomial"
-        stat_val  <- NA
-        df_test   <- n - 1
-        p_val     <- res_test$p.value
-        attendus  <- observed / sum(observed) * sum(observed)  # proportions égales
-      }
-      
-      shiny::incProgress(0.3)
-      
-      paires    <- utils::combn(n, 2)
-      nb_paires <- ncol(paires)
-      ph        <- chi2_group_letters(modalites, observed, nb_paires, paires)
-      
-      shiny::incProgress(0.3)
-      
-      resume <- data.frame(
-        Modalite         = modalites,
-        Valeur_originale = valeurs_orig,
-        Pct              = round(observed / sum(observed) * 100, 2),
-        Valeur_test      = observed,
-        Valeur_attendue  = round(attendus, 2),
-        Residu_std       = round((observed - attendus) / sqrt(attendus), 3),
-        Groupe           = ph$groupes,
-        Type_donnee      = note_type,
-        stringsAsFactors = FALSE
-      )
-      resume$Statut <- ifelse(resume$Residu_std > 1.96, "Sur-représenté",
-                              ifelse(resume$Residu_std < -1.96, "Sous-représenté", "Conforme"))
-      
-      global_df <- data.frame(
-        Test        = ifelse(methode == "chisq", "Chi² d'ajustement (chisq.test)", "Test multinomial exact (EMT)"),
-        Statistique = paste0(stat_name, " = ", ifelse(is.na(stat_val), "—", stat_val)),
-        DL          = df_test,
-        p_valeur    = p_val,
-        Interpretation = hstat_p_niveau(p_val),
-        Variable_cat = col_cat,
-        Variable_num = col_num,
-        Type_donnee  = note_type,
-        stringsAsFactors = FALSE
-      )
-      
-      values$chiSqResults    <- global_df
-      # LE TYPE DE TEST EST CE QUI DECIDE DE L'AFFICHAGE.
-      values$currentTestType <- "chisq"
-      values$chiSqFreqData   <- resume
-      values$chiSqPostHocData <- ph$paires
-      values$chiSqPGlobal     <- p_val
-      
-      # - Ajouter dans les Résultats des tests (tableau principal) -
-      chi_row <- data.frame(
-        Test           = global_df$Test[1],
-        Variable       = col_num,
-        Facteur        = col_cat,
-        Statistique    = ifelse(is.na(stat_val), NA_real_, as.numeric(stat_val)),
-        ddl            = df_test,
-        p_value        = p_val,
-        Interpretation = hstat_p_niveau(p_val),
-        stringsAsFactors = FALSE
-      )
-      prev <- values$testResultsDF
-      if (!is.null(prev) && nrow(prev) > 0) {
-        # Retirer les éventuelles lignes Chi²/Multinomial précédentes pour éviter les doublons
-        prev <- prev[!grepl("Chi²|Multinomial", prev$Test, ignore.case = TRUE), , drop = FALSE]
-        for (col in setdiff(names(prev), names(chi_row))) chi_row[[col]] <- NA
-        for (col in setdiff(names(chi_row), names(prev))) prev[[col]]    <- NA
-        values$testResultsDF <- rbind(prev, chi_row)
-      } else {
-        values$testResultsDF <- chi_row
+    vars <- setdiff(intersect(input$responseVar, names(df)), fvars)
+    compter <- !length(vars)
+    if (compter) vars <- tr("Effectif (lignes comptées)")
+    note_type <- if (compter) tr("Lignes comptées par modalité") else
+      if (identical(input$chiSqDataType, "pct")) tr("Pourcentages (utilisés directement)") else
+        tr("Effectifs (sommés par modalité)")
+    methode <- if (identical(input$chiSqMethod, "multinomial")) "multinomial" else "chisq"
+
+    liste <- list(); refus <- character(0); notes <- character(0)
+    shiny::withProgress(message = tr("Test chi² en cours..."), value = 0, {
+      for (f in fvars) for (v in vars) {
+        cle <- paste0(v, " × ", f)
+        r <- hstat_chi2_adequation(df[[f]], if (compter) NULL else df[[v]], methode)
+        shiny::incProgress(1 / (length(fvars) * length(vars)))
+        if (!isTRUE(r$ok)) { refus <- c(refus, paste0(cle, " : ", r$motif)); next }
+        r$facteur <- f; r$variable <- v; r$type_donnee <- note_type
+        if (length(r$notes)) notes <- c(notes, paste0(cle, " : ", r$notes))
+        liste[[cle]] <- .chi2_comparer(r)
       }
     })
-    
+    if (length(refus))
+      shiny::showNotification(paste(refus, collapse = "\n"), type = "warning", duration = 10)
+    if (!length(liste)) return()
+
+    values$chiSqListe <- liste
+    values$chiSqNotes <- notes
+    # LE TYPE DE TEST EST CE QUI DECIDE DE L'AFFICHAGE.
+    values$currentTestType <- "chisq"
+    .chi2_poser(names(liste)[1])
+    shiny::updateSelectInput(session, "chiSqChoix", choices = names(liste),
+                             selected = names(liste)[1])
+
+    lignes <- do.call(rbind, lapply(liste, function(r) data.frame(
+      Test = r$test, Variable = r$variable, Facteur = r$facteur,
+      Statistique = r$statistique, ddl = r$ddl, p_value = r$p,
+      Interpretation = hstat_p_niveau(r$p), stringsAsFactors = FALSE)))
+    rownames(lignes) <- NULL
+    prev <- values$testResultsDF
+    if (!is.null(prev) && nrow(prev) > 0) {
+      # Les lignes chi² d'un calcul precedent sont remplacees, pas empilees.
+      prev <- prev[!grepl("Chi²|Multinomial", prev$Test, ignore.case = TRUE), , drop = FALSE]
+      for (col in setdiff(names(prev), names(lignes))) lignes[[col]] <- NA
+      for (col in setdiff(names(lignes), names(prev))) prev[[col]]   <- NA
+      values$testResultsDF <- rbind(prev, lignes[, names(prev), drop = FALSE])
+    } else {
+      values$testResultsDF <- lignes
+    }
+
     shiny::showNotification(
-      trf("Test %s terminé -- p = %s", toupper(methode), hstat_p_txt(p_val)),
-      type = if (p_val < 0.05) "message" else "warning",
-      duration = 5
-    )
-    
+      trf("Chi² d'adéquation : %d analyse(s) terminée(s).", length(liste)),
+      type = "message", duration = 5)
     shiny::updateTabsetPanel(session, "chiSqResultsTabs", selected = "chiSq_résumé")
+  })
+
+  shiny::observeEvent(input$runChiSqPostHoc, {
+    liste <- values$chiSqListe
+    if (!length(liste)) {
+      shiny::showNotification(tr("Lancez d'abord le chi² d'adéquation."), type = "warning")
+      return()
+    }
+    values$chiSqListe <- lapply(liste, .chi2_comparer)
+    .chi2_poser(values$chiSqCle)
+    shiny::showNotification(trf("Comparaisons multiples recalculées (%s).",
+                                input$chiSqPostHocAdj %||% "bonferroni"),
+                            type = "message", duration = 3)
+    shiny::updateTabsetPanel(session, "chiSqResultsTabs", selected = "chiSq_posthoc")
+  })
+
+  shiny::observeEvent(input$chiSqChoix, .chi2_poser(input$chiSqChoix), ignoreInit = TRUE)
+
+  .chi2_tables <- shiny::reactive({
+    shiny::req(values$chiSqListe)
+    hstat_chi2_synthese(values$chiSqListe)
+  })
+
+  output$chiSqSynthese <- shiny::renderUI({
+    shiny::req(identical(values$currentTestType, "chisq"))
+    hstat_synthese_html(.chi2_tables())
+  })
+
+  output$chiSqNotes <- shiny::renderUI({
+    shiny::req(identical(values$currentTestType, "chisq"))
+    n <- values$chiSqNotes
+    if (!length(n)) return(NULL)
+    shiny::div(class = "alert alert-warning", style = "margin-top:10px;",
+               lapply(n, function(x) shiny::div(x)))
+  })
+
+  output$chiSqPostHocNote <- shiny::renderUI({
+    shiny::req(identical(values$currentTestType, "chisq"), values$chiSqListe)
+    r <- values$chiSqListe[[values$chiSqCle %||% 1L]]
+    if (is.null(r$message_cmp)) return(NULL)
+    shiny::div(class = "alert alert-info", style = "margin-bottom:10px;", r$message_cmp)
   })
   
   creer_graphique_chi2 <- shiny::reactive({
@@ -6041,6 +5989,10 @@ mod_tests_server <- function(id, values) {
   output$chiSqPostHocTable <- DT::renderDT({
     shiny::req(values$chiSqPostHocData, identical(values$currentTestType, "chisq"))
     d <- values$chiSqPostHocData
+    for (cc in intersect(c("p_brute", "p_ajustee"), names(d)))
+      d[[cc]] <- vapply(d[[cc]], function(p) if (is.na(p)) NA_character_ else hstat_p_txt(p),
+                        character(1))
+    if ("Statistique" %in% names(d)) d$Statistique <- round(d$Statistique, 3)
     DT::datatable(d, rownames = FALSE,
                   options = list(dom = "tp", scrollX = TRUE, pageLength = 15))
   })
@@ -6090,16 +6042,30 @@ mod_tests_server <- function(id, values) {
                                              cols = seq_len(ncol(values$chiSqFreqData)), gridExpand = TRUE)
       openxlsx::setColWidths(wb, "Modalités et groupes", cols = seq_len(ncol(values$chiSqFreqData)), widths = "auto")
       
-      if (!is.null(values$chiSqPostHocData) && nrow(values$chiSqPostHocData) > 0) {
+      # Les comparaisons de toutes les analyses, chacune nommee.
+      ph <- do.call(rbind, lapply(names(values$chiSqListe), function(k) {
+        p <- values$chiSqListe[[k]]$paires
+        if (NROW(p)) cbind(Analyse = k, p, stringsAsFactors = FALSE)
+      }))
+      if (NROW(ph) > 0) {
         openxlsx::addWorksheet(wb, "Comparaisons paires")
-        openxlsx::writeData(wb, "Comparaisons paires", hstat_decimale_classeur(values$chiSqPostHocData), headerStyle = h_style)
-        dr <- which(values$chiSqPostHocData$Decision == "Différent") + 1
-        mr <- which(values$chiSqPostHocData$Decision == "Similaire") + 1
+        openxlsx::writeData(wb, "Comparaisons paires", hstat_decimale_classeur(ph), headerStyle = h_style)
+        nc <- seq_len(ncol(ph))
+        dr <- which(ph$Decision == tr("Différentes")) + 1
+        mr <- which(ph$Decision == tr("Non différentes")) + 1
         if (length(dr) > 0) openxlsx::addStyle(wb, "Comparaisons paires", sig_s, rows = dr,
-                                               cols = 1:5, gridExpand = TRUE)
+                                               cols = nc, gridExpand = TRUE)
         if (length(mr) > 0) openxlsx::addStyle(wb, "Comparaisons paires", ns_s, rows = mr,
-                                               cols = 1:5, gridExpand = TRUE)
-        openxlsx::setColWidths(wb, "Comparaisons paires", cols = 1:5, widths = "auto")
+                                               cols = nc, gridExpand = TRUE)
+        openxlsx::setColWidths(wb, "Comparaisons paires", cols = nc, widths = "auto")
+      }
+
+      tabs <- tryCatch(.chi2_tables(), error = function(e) list())
+      if (length(tabs)) {
+        synth <- .hstat_synth_empiler_feuille(tabs)
+        openxlsx::addWorksheet(wb, "Synthèse")
+        openxlsx::writeData(wb, "Synthèse", hstat_decimale_classeur(synth), headerStyle = h_style)
+        openxlsx::setColWidths(wb, "Synthèse", cols = seq_len(ncol(synth)), widths = "auto")
       }
       
       openxlsx::saveWorkbook(wb, file, overwrite = TRUE)
