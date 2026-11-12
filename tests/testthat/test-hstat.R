@@ -24571,7 +24571,44 @@ test_that("Doses & dilutions : la mère avant les filles, et sa concentration y 
     ids <- vapply(envoyes, `[[`, "", "id")
     expect_true("dilMaConc1" %in% ids)
     expect_equal(as.numeric(envoyes[[match("dilMaConc1", ids)]]$msg$value), 0.05)
-    expect_identical(envoyes[[match("dilUnite", ids)]]$msg$value, "mg/ml")
+    # L'unite suit la concentration obtenue : µg/µl pour l'application topique.
+    expect_identical(envoyes[[match("dilUnite", ids)]]$msg$value, "\u00b5g/\u00b5l")
+    # Vial test : la concentration saisie, dans son unite (mg/l).
+    envoyes <- list()
+    session$setInputs(mereTest = "tube", mereTubC = 40, mereTubCUnite = "mg/l",
+                      mereTubVflacon = 1, mereTubV = 1000, mereTubP = 97.5)
+    session$setInputs(mereVersDilution = 2)
+    ids <- vapply(envoyes, `[[`, "", "id")
+    expect_equal(as.numeric(envoyes[[match("dilMaConc1", ids)]]$msg$value), 40)
+    expect_identical(envoyes[[match("dilUnite", ids)]]$msg$value, "mg/l")
+  })
+})
+
+test_that("Solutions filles : le nom commercial du produit est facultatif", {
+  # Unite reprise : celle de la saisie quand elle est une concentration connue,
+  # sinon le mg/ml de c_mere.
+  r <- list(c_mere = 0.04)
+  expect_identical(hstat_mere_conc_unite("tube", r, list(v = 40, u = "mg/L")),
+                   list(valeur = 40, unite = "mg/l"))
+  expect_identical(hstat_mere_conc_unite("tube", r, list(v = 40, u = "kg/ha")),
+                   list(valeur = 0.04, unite = "mg/ml"))
+  expect_identical(hstat_mere_conc_unite("disque", r, list(v = NA, u = "g/l"))$unite, "mg/ml")
+  # Sans nom, la solution prend celui de ses matieres actives, numerote si pris.
+  expect_identical(hstat_dilution_nom_defaut(c("Lambda", "")), "Lambda")
+  expect_identical(hstat_dilution_nom_defaut(c("A", "B")), "A + B")
+  expect_identical(hstat_dilution_nom_defaut("A", c("A", "A (2)")), "A (3)")
+  expect_identical(hstat_dilution_nom_defaut(""), tr("Solution m\u00e8re"))
+  vals <- shiny::reactiveValues(data = NULL, cleanData = NULL, filteredData = NULL,
+                                resetSignal = 0L)
+  shiny::testServer(mod_dosage_server, args = list(values = vals), {
+    session$setInputs(dilProduit = "", dilNbMa = 1, dilUnite = "mg/ml",
+                      dilMaNom1 = "Lambda", dilMaConc1 = 1, dilCoef = 10, dilNb = 3,
+                      dilVf = 100, dilVfUnite = "ml")
+    session$setInputs(dilAjouter = 1)
+    expect_identical(unique(saisie()$Produit), "Lambda")
+    # Une seconde solution sans nom ne remplace pas la premiere.
+    session$setInputs(dilMaConc1 = 2, dilAjouter = 2)
+    expect_identical(unique(saisie()$Produit), c("Lambda", "Lambda (2)"))
   })
 })
 
