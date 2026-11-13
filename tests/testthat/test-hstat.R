@@ -10443,7 +10443,8 @@ test_that("solution mere : les valeurs saisies dans une autre unite donnent la m
     # Le convertisseur suit la grandeur choisie.
     session$setInputs(convCategorie = "concentration", convUnite = "%", convValeur = 2)
     d <- conv_res()
-    expect_equal(d$Valeur[d$Unite == "g/l"], 20)
+    # Le tableau porte le libelle de l'unite, « m.a. » compris.
+    expect_equal(d$Valeur[d$Unite == "g m.a./l"], 20)
   })
 })
 
@@ -25683,4 +25684,27 @@ test_that("chi² d'adéquation : le module boucle sur variables et facteurs, la 
     expect_equal(names(tabs$Trt), c("Trt", "Insectes", "Larves"))
     expect_true(grepl("hstat-synthese", as.character(output$chiSqSynthese$html)))
   })
+})
+
+test_that("une concentration en masse porte « m.a. », et cette écriture se relit", {
+  lib <- stats::setNames(HSTAT_UNITES$libelle, HSTAT_UNITES$unite)
+  expect_identical(unname(lib["µg/g"]), "µg m.a./g")
+  expect_identical(unname(lib["µg/µl"]), "µg m.a./µl")
+  expect_identical(unname(lib["g/l"]), "g m.a./l")
+  # Ce qui n'a pas de masse au numerateur garde son libelle.
+  expect_identical(unname(lib["%"]), "% (m/v, g/100 ml)")
+  expect_identical(unname(lib["mol/l"]), "mol/l")
+  expect_identical(unname(lib["kg/ha"]), "kg/ha")
+  # La cle ne change pas : le libelle seul porte la matiere active.
+  expect_true("µg/g" %in% unlist(hstat_unites_choix("concentration")))
+  # « µg m.a./g » se lit « µg/g », sous toutes les ecritures courantes.
+  expect_identical(.hstat_unite_cle(c("µg m.a./g", "µg m.a/µl", "mg ma/L",
+                                      "g m. a./kg")),
+                   c("µg/g", "µg/µl", "mg/l", "g/kg"))
+  expect_equal(hstat_unite_convertir(0.12, "µg m.a./g", "mg/kg")[1], 0.12)
+  # Les libelles partent au dictionnaire.
+  d <- read.csv(file.path(.hstat_repo_root(), "inst/app/i18n/fr-en.csv"),
+                encoding = "UTF-8", check.names = FALSE)
+  ma <- grep("m.a.", HSTAT_UNITES$libelle, fixed = TRUE, value = TRUE)
+  expect_true(all(ma %in% d[[1]]))
 })
