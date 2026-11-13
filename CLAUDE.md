@@ -11290,6 +11290,16 @@ mère ». Un nom déjà pris reçoit un numéro (« A (2) ») : sans cela, une s
 solution sans nom **remplacerait** la première, la règle qui regroupe les
 lignes d'un même produit.
 
+### Une concentration en masse dit qu'elle porte sur la matière active
+
+Demandé à l'écran : « 0,12 µg m.a./g » doit être reconnu. Les concentrations
+dont le numérateur est une masse (m/v et m/m) s'affichent « µg m.a./g »,
+« g m.a./l »… (`.hstat_libelles_ma()`), comme le résultat de la solution mère ;
+la **clé** reste « µg/g », si bien qu'aucun calcul ni aucune valeur enregistrée
+ne change. `.hstat_unite_cle()` lit « µg m.a./g », « µg m.a/µl », « mg ma/L »
+comme leur clé : la mention de la matière active n'est pas une autre unité. Le
+pour-cent, le ppm et les unités molaires gardent leur libellé.
+
 ### Une feuille par produit
 
 Le téléchargement des solutions filles porte **une feuille par produit**

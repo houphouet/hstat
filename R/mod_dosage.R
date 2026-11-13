@@ -40,6 +40,16 @@
                     as.numeric(.HSTAT_U_SURFACE[srf]), paires)
 }
 
+# Une concentration en masse porte sur la matiere active : son libelle le dit
+# (« µg m.a./g »), la cle reste « µg/g ».
+.hstat_libelles_ma <- function(unites, libelles = NULL) {
+  num <- sub("/.*$", "", unites)
+  ma  <- grepl("/", unites, fixed = TRUE) & num %in% names(.HSTAT_U_MASSE)
+  lib <- stats::setNames(paste0(num[ma], " m.a./", sub("^[^/]*/", "", unites[ma])),
+                         unites[ma])
+  c(lib, libelles[setdiff(names(libelles), names(lib))])
+}
+
 HSTAT_UNITES <- rbind(
   .hstat_unites_bloc("masse", "g", "Masses", .HSTAT_U_MASSE,
                      c("q" = "q (quintal)", "t" = "t (tonne)")),
@@ -59,10 +69,13 @@ HSTAT_UNITES <- rbind(
       "kg/l" = 1e3, "g/m³" = 1e-3, "kg/m³" = 1, "ng/ml" = 1e-6, "µg/ml" = 1e-3,
       "mg/ml" = 1, "g/ml" = 1e3, "µg/µl" = 1, "mg/dl" = 1e-2, "%" = 10,
       "ppm" = 1e-3, "ppb" = 1e-6),
-    c("%" = "% (m/v, g/100 ml)", "ppm" = "ppm (mg/l)", "ppb" = "ppb (µg/l)")),
+    .hstat_libelles_ma(c("ng/l", "µg/l", "mg/l", "g/l", "g/hl", "kg/l", "g/m³", "kg/m³",
+                         "ng/ml", "µg/ml", "mg/ml", "g/ml", "µg/µl", "mg/dl"),
+      c("%" = "% (m/v, g/100 ml)", "ppm" = "ppm (mg/l)", "ppb" = "ppb (µg/l)"))),
   .hstat_unites_bloc("concentration", "g/kg", "Masse par masse (m/m)",
     c("ng/g" = 1e-6, "µg/kg" = 1e-6, "mg/kg" = 1e-3, "g/kg" = 1, "µg/g" = 1e-3,
-      "mg/g" = 1, "% m/m" = 10, "ppm m/m" = 1e-3, "ppb m/m" = 1e-6)),
+      "mg/g" = 1, "% m/m" = 10, "ppm m/m" = 1e-3, "ppb m/m" = 1e-6),
+    .hstat_libelles_ma(c("ng/g", "µg/kg", "mg/kg", "g/kg", "µg/g", "mg/g"))),
   .hstat_unites_bloc("concentration", "mol/l", "Molaire (quantité de matière par volume)",
     c("mol/l" = 1, "mmol/l" = 1e-3, "µmol/l" = 1e-6, "nmol/l" = 1e-9,
       "M" = 1, "mM" = 1e-3, "µM" = 1e-6, "nM" = 1e-9)))
@@ -111,6 +124,9 @@ hstat_unites_choix <- function(categorie, base = NULL) {
   u <- as.character(u)
   if (!length(u)) return(u)
   hors <- !is.na(u) & !(u %in% HSTAT_UNITES$unite)
+  # « µg m.a./g » se lit « µg/g » : la mention de la matiere active n'est pas
+  # une autre unite.
+  u[hors] <- sub("^\\s*(\\S+)\\s+m\\.?\\s*a\\.?\\s*/\\s*", "\\1/", u[hors], perl = TRUE)
   u[hors] <- gsub(.HSTAT_UNITE_L, "\\1l", u[hors], perl = TRUE)
   u
 }
