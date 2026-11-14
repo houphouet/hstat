@@ -11367,6 +11367,30 @@ même groupe aurait deux couleurs d'un onglet à l'autre. Les groupes propres au
 effets simples prennent un second arc-en-ciel, plus pâle, **après** la palette
 principale : les y mêler changerait la couleur d'un groupe déjà affiché.
 
+### Les groupes gardent leur couleur dans le classeur Excel
+
+Demandé à l'écran : distinguer les groupes d'un coup d'œil dans les fichiers
+téléchargés. `hstat_ecrire_classeur()` colore désormais chaque groupe, avec la
+teinte de l'écran (`hstat_groupes_couleurs()`), posée sur du blanc
+(`.hstat_couleur_opaque()`) : Excel n'a pas de transparence.
+
+- **Un tableau à colonne de lettres** (`HSTAT_GROUPES_COLONNES` : `groups`,
+  `Groupes`) : toute la ligne prend la couleur de son groupe. Une ligne sans
+  groupe et l'en-tête restent blancs.
+- **Une synthèse** : seules les cases des modalités sont colorées.
+  `.hstat_synth_empiler_feuille()` porte la matrice des groupes de la feuille
+  empilée (`attr(, "hstat_groupes")`), titres et lignes du test global compris
+  (vides).
+- **Une palette pour tout le classeur** (`hstat_classeur_couleurs()`) : un
+  groupe a la même couleur d'une feuille à l'autre, et les effets principaux,
+  écrits en premier, gardent les couleurs de l'écran.
+- **Le chi²** monte son propre classeur : la colonne `Groupe` des modalités et
+  sa synthèse passent par `hstat_classeur_colorer()`.
+
+**Un CSV ne peut pas porter de couleur** : c'est du texte brut, et un tableur
+qui l'ouvre n'y lit aucun style. Les lettres de groupes y restent écrites ;
+la couleur demande le classeur Excel.
+
 ### Solution mère : le grade technique se nomme
 
 Sous « Matière active technique (pureté en %) », la ligne « Produit à peser »
