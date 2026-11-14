@@ -24808,6 +24808,67 @@ test_that("Post-hoc : la synthese porte moyenne ± dispersion groupe, puis ddl, 
   expect_true(grepl('ns("syntheseEsTables")', src, fixed = TRUE))
 })
 
+test_that("le classeur Excel porte la couleur de chaque groupe, comme l'écran", {
+  skip_if_not_installed("openxlsx")
+  # La couleur de chaque case (ligne de la feuille, colonne) relue dans le fichier.
+  remplis <- function(f, feuille) {
+    wb <- openxlsx::loadWorkbook(f)
+    out <- character(0)
+    for (so in wb$styleObjects) {
+      if (!identical(so$sheet, feuille)) next
+      fg <- so$style$fill$fillFg
+      if (is.null(fg)) next
+      out[paste(so$rows, so$cols)] <- paste0("#", substr(unname(fg), 3, 8))
+    }
+    out
+  }
+  ecran <- function(g) .hstat_couleur_opaque(hstat_groupes_couleurs(g))
+  # UN TABLEAU A COLONNE DE LETTRES : toute la ligne prend la couleur du groupe.
+  d <- data.frame(Facteur = c("T1", "T2", "T3", "T4", "T5"), Moyenne = 1:5,
+                  groups = c("a", "a", "b", "ab", NA))
+  f <- tempfile(fileext = ".xlsx")
+  hstat_ecrire_classeur(f, list(R = d), dec = ".")
+  r <- remplis(f, "R")
+  coul <- ecran(d$groups)
+  expect_equal(unname(r[paste(2, 1:3)]), rep(coul[["a"]], 3))
+  expect_equal(unname(r[paste(3, 1:3)]), rep(coul[["a"]], 3))
+  expect_equal(unname(r[paste(4, 1:3)]), rep(coul[["b"]], 3))
+  expect_equal(unname(r[paste(5, 1:3)]), rep(coul[["ab"]], 3))
+  # Deux groupes differents ne partagent pas une couleur.
+  expect_equal(length(unique(coul)), 3L)
+  # L'en-tete et une ligne sans groupe restent sans couleur.
+  expect_false(any(paste(1, 1:3) %in% names(r)))
+  expect_false(any(paste(6, 1:3) %in% names(r)))
+  # LA SYNTHESE : seules les cases des modalites sont colorees, ni les noms de
+  # modalite, ni les intitules, ni les lignes du test global.
+  ligne <- function(v, dec) data.frame(A = c("A1", "A2", "A3"), Moyenne = c(1, 2, 3) + dec,
+    Ecart_type = 1, Erreur_type = 0.5, N = 4, groups = c("a", "b", "b"), Variable = v,
+    Facteur = "A", Type = "main", Test_global = "ANOVA", p_global = 0.01,
+    Statistique_globale = 5, ddl_global = "2, 9")
+  ds <- rbind(ligne("V1", 0), ligne("V2", 10))
+  se <- ds; se$Type <- "simple_effect"; se$Facteur <- "A | B=b1"
+  fe <- hstat_posthoc_synthese_feuilles(rbind(ds, se))
+  f2 <- tempfile(fileext = ".xlsx")
+  hstat_ecrire_classeur(f2, fe, dec = ".")
+  r2 <- remplis(f2, "Moyenne_ET_groupe")
+  et <- fe$Moyenne_ET_groupe
+  ca <- ecran(c("a", "b"))
+  ligne_a1 <- which(et[[1]] == "A1")
+  expect_length(ligne_a1, 2L)
+  for (i in ligne_a1) {
+    expect_equal(unname(r2[paste(i + 1, 2:3)]), rep(ca[["a"]], 2))
+    expect_equal(unname(r2[paste(i + 2, 2:3)]), rep(ca[["b"]], 2))
+    expect_false(paste(i + 1, 1) %in% names(r2))
+  }
+  test <- which(et[[1]] %in% c("CV (%)", "ddl", "F", "N", "P", "A", "A | B=b1")) + 1
+  expect_false(any(paste(rep(test, each = 3), 1:3) %in% names(r2)))
+  # Les memes couleurs dans la feuille de l'erreur-type.
+  expect_true(length(remplis(f2, "Moyenne_ES_groupe")) > 0)
+  # LE CHI² monte son propre classeur : il colore ses groupes aussi.
+  src <- paste(readLines(.hstat_module_path("mod_tests.R"), warn = FALSE), collapse = "\n")
+  expect_equal(lengths(regmatches(src, gregexpr("hstat_classeur_colorer(wb", src, fixed = TRUE))), 2L)
+})
+
 test_that("Synthese des tests a deux modalites, a une norme et apparies", {
   set.seed(2)
   df <- data.frame(G = rep(c("T1", "T2"), each = 6),

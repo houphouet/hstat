@@ -6041,6 +6041,17 @@ mod_tests_server <- function(id, values) {
       if (length(nr) > 0) openxlsx::addStyle(wb, "Modalités et groupes", ns_s, rows = nr,
                                              cols = seq_len(ncol(values$chiSqFreqData)), gridExpand = TRUE)
       openxlsx::setColWidths(wb, "Modalités et groupes", cols = seq_len(ncol(values$chiSqFreqData)), widths = "auto")
+      tabs <- tryCatch(.chi2_tables(), error = function(e) list())
+      synth <- if (length(tabs)) .hstat_synth_empiler_feuille(tabs) else NULL
+      fd <- values$chiSqFreqData
+      gfd <- matrix("", nrow(fd), ncol(fd))
+      if ("Groupe" %in% names(fd)) {
+        v <- trimws(as.character(fd$Groupe)); v[is.na(v)] <- ""
+        gfd[, match("Groupe", names(fd))] <- v
+      }
+      coul_chi2 <- hstat_groupes_couleurs(c(as.vector(gfd),
+        if (!is.null(synth)) as.vector(attr(synth, "hstat_groupes"))))
+      hstat_classeur_colorer(wb, "Modalités et groupes", fd, coul_chi2, gfd)
       
       # Les comparaisons de toutes les analyses, chacune nommee.
       ph <- do.call(rbind, lapply(names(values$chiSqListe), function(k) {
@@ -6060,11 +6071,10 @@ mod_tests_server <- function(id, values) {
         openxlsx::setColWidths(wb, "Comparaisons paires", cols = nc, widths = "auto")
       }
 
-      tabs <- tryCatch(.chi2_tables(), error = function(e) list())
-      if (length(tabs)) {
-        synth <- .hstat_synth_empiler_feuille(tabs)
+      if (!is.null(synth)) {
         openxlsx::addWorksheet(wb, "Synthèse")
         openxlsx::writeData(wb, "Synthèse", hstat_decimale_classeur(synth), headerStyle = h_style)
+        hstat_classeur_colorer(wb, "Synthèse", synth, coul_chi2)
         openxlsx::setColWidths(wb, "Synthèse", cols = seq_len(ncol(synth)), widths = "auto")
       }
       

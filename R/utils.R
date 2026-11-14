@@ -4496,6 +4496,57 @@ hstat_groupes_couleurs <- function(g, en_plus = NULL) {
   out
 }
 
+# COULEURS DES GROUPES DANS UN CLASSEUR : les memes qu'a l'ecran.
+# Colonnes qui portent des lettres de groupes : leur ligne prend la couleur.
+HSTAT_GROUPES_COLONNES <- c("groups", "Groupes")
+
+# Excel n'a pas de transparence : la couleur translucide de l'ecran est posee
+# sur du blanc, ce qui rend exactement la teinte affichee.
+.hstat_couleur_opaque <- function(x) {
+  m <- grDevices::col2rgb(x, alpha = TRUE)
+  a <- rep(m[4, ] / 255, each = 3)
+  v <- round(m[1:3, , drop = FALSE] * a + 255 * (1 - a))
+  stats::setNames(grDevices::rgb(v[1, ], v[2, ], v[3, ], maxColorValue = 255), names(x))
+}
+
+# Le groupe de chaque case d'un tableau ("" sans groupe) : la matrice posee par
+# la synthese, sinon la colonne de lettres etendue a toute la ligne.
+.hstat_classeur_groupes <- function(t) {
+  if (!is.data.frame(t) || !nrow(t)) return(NULL)
+  g <- attr(t, "hstat_groupes")
+  if (is.matrix(g) && identical(dim(g), dim(t))) return(g)
+  col <- intersect(HSTAT_GROUPES_COLONNES, names(t))
+  if (!length(col)) return(NULL)
+  v <- trimws(as.character(t[[col[1]]])); v[is.na(v)] <- ""
+  matrix(rep(v, ncol(t)), nrow(t), ncol(t))
+}
+
+# Une palette pour tout le classeur, dans l'ordre ou les groupes apparaissent :
+# le tableau des effets principaux d'abord, comme a l'ecran.
+hstat_classeur_couleurs <- function(tables) {
+  g <- unlist(lapply(tables, function(t) {
+    m <- .hstat_classeur_groupes(t)
+    if (is.null(m)) character(0) else as.vector(m)
+  }))
+  hstat_groupes_couleurs(g)
+}
+
+# Pose la couleur de chaque groupe sur ses cases (ligne 1 = en-tete).
+hstat_classeur_colorer <- function(wb, feuille, t, couleurs = NULL,
+                                   groupes = .hstat_classeur_groupes(t)) {
+  if (is.null(groupes) || !length(groupes)) return(invisible(0L))
+  if (is.null(couleurs)) couleurs <- hstat_groupes_couleurs(as.vector(groupes))
+  n <- 0L
+  for (k in intersect(names(couleurs), unique(as.vector(groupes)))) {
+    ij <- which(groupes == k, arr.ind = TRUE)
+    st <- openxlsx::createStyle(fgFill = .hstat_couleur_opaque(couleurs[[k]]))
+    openxlsx::addStyle(wb, feuille, st, rows = ij[, 1] + 1L, cols = ij[, 2],
+                       gridExpand = FALSE, stack = TRUE)
+    n <- n + nrow(ij)
+  }
+  invisible(n)
+}
+
 # Les tables de synthese en HTML statique.
 hstat_synthese_html <- function(tabs, couleurs = NULL) {
   if (!length(tabs)) return(shiny::helpText(tr("Aucun résultat à résumer.")))
@@ -4526,19 +4577,44 @@ hstat_synthese_html <- function(tabs, couleurs = NULL) {
 # Plusieurs tables dans UNE feuille : chacune sous une ligne qui porte son
 # intitule, separees d'une ligne vide.
 .hstat_synth_empiler_feuille <- function(tabs) {
-  if (length(tabs) == 1L) return(tabs[[1]])
+  if (length(tabs) == 1L) {
+    t <- tabs[[1]]
+    attr(t, "hstat_groupes") <- .hstat_synth_groupes_plein(t, names(t))
+    return(t)
+  }
   vars <- unique(unlist(lapply(tabs, function(t) names(t)[-1])))
   cols <- c(tr("Facteur / modalité"), vars)
   vide <- function(n) as.data.frame(matrix("", n, length(cols),
     dimnames = list(NULL, cols)), stringsAsFactors = FALSE, check.names = FALSE)
+  gvide <- function(n) matrix("", n, length(cols))
   blocs <- lapply(seq_along(tabs), function(i) {
     t <- tabs[[i]]
     titre <- vide(1L); titre[1, 1] <- names(t)[1]
     corps <- vide(nrow(t)); corps[, 1] <- t[[1]]
     for (v in names(t)[-1]) corps[[v]] <- t[[v]]
-    rbind(titre, corps, if (i < length(tabs)) vide(1L))
+    list(t = rbind(titre, corps, if (i < length(tabs)) vide(1L)),
+         g = rbind(gvide(1L), .hstat_synth_groupes_plein(t, cols),
+                   if (i < length(tabs)) gvide(1L)))
   })
-  do.call(rbind, blocs)
+  out <- do.call(rbind, lapply(blocs, `[[`, "t"))
+  attr(out, "hstat_groupes") <- do.call(rbind, lapply(blocs, `[[`, "g"))
+  out
+}
+
+# Le groupe de chaque case d'une table de synthese, sur les colonnes `cols` de
+# la feuille : la premiere colonne (les modalites) et les lignes de test n'en
+# portent pas.
+.hstat_synth_groupes_plein <- function(t, cols) {
+  g <- matrix("", nrow(t), length(cols))
+  grp <- attr(t, "groupes")
+  if (!is.matrix(grp) || !nrow(grp)) return(g)
+  for (j in seq_len(min(ncol(grp), ncol(t) - 1L))) {
+    k <- match(names(t)[j + 1L], cols)
+    if (is.na(k)) next
+    v <- trimws(as.character(grp[, j])); v[is.na(v)] <- ""
+    g[seq_len(min(nrow(grp), nrow(t))), k] <- v[seq_len(min(nrow(grp), nrow(t)))]
+  }
+  g
 }
 
 # Les feuilles du classeur : une par dispersion, toutes les tables dedans.
@@ -8822,7 +8898,8 @@ hstat_feuille_nom <- function(x, defaut = "Feuille") {
 }
 
 # Liste nommee de tableaux -> classeur d'une feuille par element.
-hstat_ecrire_classeur <- function(file, tables, dec = hstat_decimale_session()) {
+hstat_ecrire_classeur <- function(file, tables, dec = hstat_decimale_session(),
+                                  couleurs = hstat_classeur_couleurs(tables)) {
   wb <- openxlsx::createWorkbook()
   vus <- character(0)
   for (i in seq_along(tables)) {
@@ -8833,7 +8910,11 @@ hstat_ecrire_classeur <- function(file, tables, dec = hstat_decimale_session()) 
     vus <- c(vus, nm)
     openxlsx::addWorksheet(wb, nm)
     t <- as.data.frame(tables[[i]])
+    groupes <- .hstat_classeur_groupes(tables[[i]])
     openxlsx::writeData(wb, nm, hstat_decimale_classeur(t, dec))
+    # Chaque groupe garde sa couleur de l'ecran : les groupes se distinguent
+    # d'un coup d'oeil dans le classeur aussi.
+    hstat_classeur_colorer(wb, nm, t, couleurs, groupes)
     # Colonnes a la largeur de leur contenu : un extrait de texte code ou un
     # libelle long se lit sans avoir a elargir chaque colonne a la main.
     if (ncol(t)) openxlsx::setColWidths(wb, nm, cols = seq_len(ncol(t)), widths = "auto")
