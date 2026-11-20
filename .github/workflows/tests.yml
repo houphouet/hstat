@@ -170,12 +170,19 @@ jobs:
             libpng-dev libtiff5-dev libjpeg-dev \
             libglu1-mesa-dev libglpk-dev
 
+      - name: Version du systeme (cle du cache)
+        run: echo "OS_VERSION=$(. /etc/os-release && echo "${ID}${VERSION_ID}")" >> "$GITHUB_ENV"
+
       - name: Cache des paquets R
         uses: actions/cache@v4
         with:
           path: ${{ env.R_LIBS_USER }}
-          key: ${{ runner.os }}-rcheck-${{ hashFiles('DESCRIPTION') }}
-          restore-keys: ${{ runner.os }}-rcheck-
+          # L'image du systeme fait partie de la cle : des binaires compiles
+          # pour l'Ubuntu precedent se restaurent sans erreur et ne se chargent
+          # plus (constate au passage a Ubuntu 26.04 : openxlsx installe, mais
+          # absent pour requireNamespace).
+          key: ${{ runner.os }}-${{ env.OS_VERSION }}-rcheck-${{ hashFiles('DESCRIPTION') }}
+          restore-keys: ${{ runner.os }}-${{ env.OS_VERSION }}-rcheck-
 
       - name: Installer les Imports
         shell: Rscript {0}
@@ -197,6 +204,16 @@ jobs:
           # sur « Packages required but not available ».
           install.packages(c(a_poser, "testthat"))
           absents <- imp[!vapply(imp, requireNamespace, logical(1), quietly = TRUE)]
+          # Un paquet installe qui ne se charge pas a une dependance cassee :
+          # on la reinstalle avec lui, une fois, avant de renoncer.
+          if (length(absents)) {
+            dep <- unlist(tools::package_dependencies(absents, recursive = TRUE,
+                                                      which = c("Depends", "Imports", "LinkingTo")))
+            refaire <- setdiff(unique(c(absents, dep)), livres)
+            cat("Reinstallation :", paste(refaire, collapse = ", "), "\n")
+            install.packages(refaire)
+            absents <- imp[!vapply(imp, requireNamespace, logical(1), quietly = TRUE)]
+          }
           if (length(absents))
             stop("Imports absents, le check ne peut pas demarrer : ",
                  paste(absents, collapse = ", "))
@@ -254,12 +271,15 @@ jobs:
           # paquets R : c'est exactement le trou que ce workflow vient de
           # fermer ailleurs, sous une autre forme.
 
+      - name: Version du systeme (cle du cache)
+        run: echo "OS_VERSION=$(. /etc/os-release && echo "${ID}${VERSION_ID}")" >> "$GITHUB_ENV"
+
       - name: Cache des paquets R
         uses: actions/cache@v4
         with:
           path: ${{ env.R_LIBS_USER }}
-          key: ${{ runner.os }}-r-${{ hashFiles('.github/workflows/tests.yml') }}
-          restore-keys: ${{ runner.os }}-r-
+          key: ${{ runner.os }}-${{ env.OS_VERSION }}-r-${{ hashFiles('.github/workflows/tests.yml') }}
+          restore-keys: ${{ runner.os }}-${{ env.OS_VERSION }}-r-
 
       - name: Installer les paquets
         shell: Rscript {0}

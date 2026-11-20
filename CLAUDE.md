@@ -1273,6 +1273,13 @@ versions) puis `tests` (la suite testthat).
 Les paquets sont installés depuis une **liste explicite**, jamais depuis les 107
 `Imports` de `DESCRIPTION` : la suite ne source que quatre fichiers, et
 installer tout ferait durer la CI plus d'une heure sans rien tester de plus.
+**L'image du système fait partie de la clé du cache** (`OS_VERSION`, lu dans
+`/etc/os-release`). Au passage des exécuteurs à Ubuntu 26.04, le cache restauré
+par préfixe portait des binaires compilés pour l'Ubuntu précédent : `openxlsx`
+s'installait, et `requireNamespace()` le disait absent — le check s'arrêtait
+avant de commencer. Un Import qui ne se charge pas est en outre réinstallé avec
+ses dépendances, une fois, avant d'abandonner.
+
 La liste sépare l'indispensable (`testthat`, `shiny`, `shinydashboard` — sans
 eux la suite ne démarre pas) du souhaitable (dont l'absence transforme des tests
 réels en tests sautés, **en silence**). Un test qui exige un nouveau paquet doit
