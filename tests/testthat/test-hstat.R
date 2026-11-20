@@ -8979,6 +8979,9 @@ test_that("chaque graphique exportable offre un choix de theme", {
     # Un graphique de BASE R (diagnostics `plot(model)`) n'a pas de theme
     # ggplot : le lui offrir donnerait un reglage que l'image ignore.
     sans <- sans[!grepl('"diagExp"', sans, fixed = TRUE)]
+    # Une synthese en graphique (`hstat_synthese_figure()`) est un tableau
+    # dessine : son habillage est fixe, un theme n'y changerait que le fond.
+    sans <- sans[!grepl('"synthE[ts]P"|"genSP"', sans)]
     if (length(sans) && !any(grepl("hstat_plot_opts_ui\\(", l)))
       manquants <- c(manquants, sprintf("%s : %d bloc(s) sans theme et sans hstat_plot_opts_ui",
                                         basename(f), length(sans)))
@@ -25997,5 +26000,103 @@ test_that("Selection genetique : les figures du diallele se construisent", {
     }
     # Une figure indisponible dit pourquoi.
     expect_s3_class(hstat_gen_figure("ammi1", rv$res, "Y"), "hstat_gen_absent")
+  })
+})
+
+test_that("Comparaisons de genotypes : Tukey retrouve TukeyHSD, le meilleur porte « a »", {
+  skip_if_not_installed("multcompView")
+  set.seed(3)
+  d0 <- data.frame(G = rep(paste0("G", 1:5), each = 4), R = rep(1:4, 5))
+  d0$Y <- 10 + rep(c(0, 1, 4, 4.5, 8), each = 4) + rnorm(20, 0, 0.8)
+  pr <- hstat_gen_preparer(d0, "G", "Y", var_rep = "R")
+  cm <- hstat_gen_comparaisons(pr$data, "Y")
+  expect_true(cm$ok)
+  th <- stats::TukeyHSD(stats::aov(Y ~ factor(R) + G, d0), "G")$G
+  for (k in rownames(th)) {
+    ab <- strsplit(k, "-", fixed = TRUE)[[1]]
+    expect_equal(cm$pmat[ab[1], ab[2]], th[k, "p adj"], tolerance = 1e-6, info = k)
+  }
+  expect_identical(cm$table$Genotype[1], "G5")
+  expect_identical(substr(cm$table$groups[1], 1, 1), "a")
+  # A diminuer, le plus petit porte « a ».
+  cmd <- hstat_gen_comparaisons(pr$data, "Y", direction = "diminuer")
+  expect_identical(cmd$table$Genotype[1], "G1")
+  # Le bloc se lit par la synthese de l'application, avec ses groupes.
+  tabs <- hstat_posthoc_synthese(cm$bloc, "ecart_type", 1)
+  expect_length(tabs, 1L)
+  expect_identical(attr(tabs[[1]], "groupes")[, 1], cm$table$groups)
+})
+
+test_that("Une synthese en graphique colore chaque case par son groupe", {
+  skip_if_not_installed("ggplot2")
+  b <- .hstat_synth_bloc("Trait", c("A", "B", "C"), c(10, 5, 1), c(1, 1, 1), c(4, 4, 4),
+                         "Y", 12, "2, 9", 0.001, "F", lettres = FALSE)
+  b$groups <- c("a", "b", "b")
+  tabs <- hstat_posthoc_synthese(b, "ecart_type", 1)
+  coul <- hstat_groupes_couleurs(b$groups)
+  p <- hstat_synthese_figure(tabs, coul)
+  expect_s3_class(p, "ggplot")
+  bd <- ggplot2::ggplot_build(p)$data[[1]]
+  op <- .hstat_couleur_opaque(coul)
+  expect_true(op[["a"]] %in% bd$fill)
+  expect_true(op[["b"]] %in% bd$fill)
+  expect_identical(attr(p, "hstat_lignes"), nrow(tabs[[1]]) + 1L)
+  expect_null(hstat_synthese_figure(list()))
+})
+
+test_that("Chaque metrique genetique a sa classe et sa signification, des deux cotes du seuil", {
+  m <- HSTAT_GEN_METRIQUES
+  for (k in names(m)) {
+    expect_length(m[[k]]$classes, length(m[[k]]$bornes) + 1L)
+    expect_length(m[[k]]$sens, length(m[[k]]$classes))
+    expect_true(nzchar(m[[k]]$ref))
+  }
+  h <- m$H2_moyenne
+  expect_false(identical(.hstat_gen_classe_metrique(0.29, h), .hstat_gen_classe_metrique(0.31, h)))
+  expect_false(identical(.hstat_gen_classe_metrique(0.59, h), .hstat_gen_classe_metrique(0.61, h)))
+  expect_identical(.hstat_gen_classe_metrique(0.99, m$Precision_selective), tr(m$Precision_selective$classes[4]))
+  expect_identical(.hstat_gen_classe_metrique(0.65, m$baker), tr(m$baker$classes[2]))
+  expect_true(is.na(.hstat_gen_classe_metrique(NA_real_, h)))
+  cp <- data.frame(Caractere = "Y", H2_moyenne = 0.8, CVg_pct = 5, CVe_pct = 25,
+                   CVg_CVe = 0.2, Precision_selective = 0.89, Gain_genetique_pct = 25)
+  it <- hstat_gen_interpretation(cp)
+  expect_equal(nrow(it), 6L)
+  expect_true(all(nzchar(it$Signification_genetique)))
+  expect_identical(it$Classe[it$Metrique == tr(m$CVg_CVe$nom)], tr(m$CVg_CVe$classes[1]))
+  expect_gt(nrow(hstat_gen_grille_metriques()), 20L)
+})
+
+test_that("Selection genetique : les reglages du graphique agissent sur la figure", {
+  skip_if_not_installed("ggplot2")
+  df <- .hstat_test_met()
+  vals <- shiny::reactiveValues(data = df, resetSignal = 0)
+  shiny::testServer(mod_genetique_server, args = list(values = vals), {
+    session$setInputs(genGen = "Variete", genLoc = "Loc", genAnnee = "Annee", genRep = "Bloc",
+      genTraits = c("Rendement", "Fibre_pct"), genCov = character(0),
+      genMinimiser = character(0), genPrincipal = "Rendement", genSI = 20, genAlpha = "0.05",
+      genF = 1, genPoidsY = 50, genSvp = "symetrique", genEchelle = FALSE, genType = "",
+      genGroupe = "", genP1 = "", genP2 = "", genComparaison = "tukey")
+    session$setInputs(genCalculer = 1)
+    session$setInputs(genGraphique = "ammi1", genCoulGeno = "#FF0000", genOpacite = 0.4,
+                      genAxeTitreSize = 19, genGradSize = 14, genTitrePos = "0",
+                      genGrilleMaj = TRUE)
+    p <- graphique()
+    bd <- ggplot2::ggplot_build(p)$data
+    pts <- Filter(function(x) "colour" %in% names(x) && any(x$colour == "#FF0000"), bd)
+    expect_true(length(pts) >= 1L)
+    expect_true(any(vapply(pts, function(x) isTRUE(all(x$alpha == 0.4)), logical(1))))
+    th <- ggplot2::theme_get() + p$theme
+    expect_equal(p$theme$axis.title$size, 19)
+    expect_equal(p$theme$axis.text$size, 14)
+    expect_equal(p$theme$plot.title$hjust, 0)
+    expect_s3_class(p$theme$panel.grid.major, "element_blank")
+    # Une couleur forgee retombe sur le defaut.
+    session$setInputs(genCoulGeno = "javascript:alert(1)")
+    bd <- ggplot2::ggplot_build(graphique())$data
+    expect_true(any(vapply(bd, function(x) "colour" %in% names(x) &&
+      any(x$colour == HSTAT_GEN_COULEURS[["genotype"]]), logical(1))))
+    expect_false(is.null(rv$res$interpretation))
+    expect_true(all(c("Moyenne_ET_groupe", "Moyenne_ES_groupe", "Lecture_metriques") %in%
+                    names(tables_export())))
   })
 })

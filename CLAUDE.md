@@ -11938,3 +11938,42 @@ Décisions, chacune testée :
 8. **Une figure indisponible dit pourquoi** (`hstat_gen_pas_dispo()`, classe
    `hstat_gen_absent`) au lieu d'un cadre vide ; les dix-neuf figures passent
    `ggplot_build` sous `testServer()`.
+
+### Comparaisons de génotypes, synthèse en graphique, lecture des métriques
+
+Trois demandes à l'écran, faites ensemble.
+
+**Les moyennes de génotypes se comparent, et leurs groupes se colorent.**
+`hstat_gen_comparaisons()` : Tukey (défaut), Bonferroni ou LSD de Fisher, avec le
+carré moyen qui a testé l'effet génotype (G × E dans l'analyse combinée) — la
+variance d'une moyenne de génotype que porte `n_par_moyenne`. Les lettres sont
+posées sur les génotypes rangés selon le **sens d'amélioration** : le meilleur
+porte « a », qu'il soit le plus grand rendement ou la floraison la plus précoce.
+Le test retrouve `TukeyHSD()` au chiffre près. Le résultat sort au format des
+résultats post-hoc (`bloc`), si bien que `hstat_posthoc_synthese()`, la
+coloration et l'export du classeur s'appliquent sans une ligne de plus.
+
+**Une synthèse se présente en tableau ou en graphique.**
+`hstat_synthese_figure()` (`R/utils.R`) dessine la même table qu'à l'écran,
+chaque case de modalité colorée par son groupe (la couleur opaque du classeur),
+les lignes du test global en gris, plusieurs tables en facettes. Elle sert aux
+deux synthèses post-hoc (`mod_tests`) et à celle des génotypes ; le bloc
+d'export ne propose pas de thème (`theme = FALSE`) : un thème n'y changerait que
+le fond d'un tableau dessiné. La hauteur suit le nombre de lignes.
+
+**Chaque métrique porte ses seuils et sa signification génétique.**
+`HSTAT_GEN_METRIQUES` déclare, une fois, les bornes, la classe, ce que la classe
+dit au sélectionneur et la référence : H², CVg, CVe, CVg/CVe, précision
+sélective, gain génétique, ratio de Baker, degré de dominance, b et S²d.
+`hstat_gen_interpretation()` lit les valeurs de l'essai, `hstat_gen_grille_metriques()`
+rend la grille complète ; les deux partent au classeur. Le test vérifie chaque
+seuil des deux côtés de sa frontière.
+
+**Les réglages du graphique couvrent ceux de Visualisation** : tailles du
+sous-titre, des titres d'axes et des graduations, position du titre, épaisseur
+des traits, opacité, masquage des grilles, couleurs de chaque élément (génotypes,
+environnements, favorable, défavorable, sélection, non significatif), valeurs
+portées et leurs décimales, plus le kit complet des neuf familles. Une couleur
+qui n'est pas un code hexadécimal retombe sur le défaut. « Masquer la grille »
+retire ce que le thème pose ; ne rien cocher laisse le thème décider, sinon le
+choix d'un thème sans grille serait contredit.
