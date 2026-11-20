@@ -1136,8 +1136,17 @@ mod_posthoc_ui <- function(id) {
                                     shiny::conditionalPanel(
                                       ns = ns,
                                       condition = "output.showPosthocResults",
-                                      shiny::div(class = "hstat-table-scroll",
-                                          shiny::uiOutput(ns("syntheseEtTables"))),
+                                      shiny::radioButtons(ns("syntheseEtForme"), "Présentation",
+                                        choices = c("Tableau" = "tableau", "Graphique (cases colorées par groupe)" = "graphique"),
+                                        selected = "tableau", inline = TRUE),
+                                      shiny::conditionalPanel(ns = ns,
+                                        condition = "input.syntheseEtForme != 'graphique'",
+                                        shiny::div(class = "hstat-table-scroll",
+                                          shiny::uiOutput(ns("syntheseEtTables")))),
+                                      shiny::conditionalPanel(ns = ns,
+                                        condition = "input.syntheseEtForme == 'graphique'",
+                                        shiny::plotOutput(ns("syntheseEtPlot"), height = "auto"),
+                                        hstat_export_plot_ui(ns, "synthEtP", width = 10, height = 7, theme = FALSE)),
                                       shiny::helpText("Chaque case : moyenne ± dispersion et groupe, la case colorée par son groupe. Sous chaque variable : coefficient de variation, degrés de liberté, statistique du test global (F : ANOVA, W : ANOVA de Welch, H : Kruskal-Wallis), effectif N et probabilité P. Les effets simples suivent les effets principaux, une table par niveau du facteur fixé. Les deux synthèses partent aussi dans le classeur Excel, une feuille chacune.")
                                     )
                                   ),
@@ -1149,8 +1158,17 @@ mod_posthoc_ui <- function(id) {
                                     shiny::conditionalPanel(
                                       ns = ns,
                                       condition = "output.showPosthocResults",
-                                      shiny::div(class = "hstat-table-scroll",
-                                          shiny::uiOutput(ns("syntheseEsTables"))),
+                                      shiny::radioButtons(ns("syntheseEsForme"), "Présentation",
+                                        choices = c("Tableau" = "tableau", "Graphique (cases colorées par groupe)" = "graphique"),
+                                        selected = "tableau", inline = TRUE),
+                                      shiny::conditionalPanel(ns = ns,
+                                        condition = "input.syntheseEsForme != 'graphique'",
+                                        shiny::div(class = "hstat-table-scroll",
+                                          shiny::uiOutput(ns("syntheseEsTables")))),
+                                      shiny::conditionalPanel(ns = ns,
+                                        condition = "input.syntheseEsForme == 'graphique'",
+                                        shiny::plotOutput(ns("syntheseEsPlot"), height = "auto"),
+                                        hstat_export_plot_ui(ns, "synthEsP", width = 10, height = 7, theme = FALSE)),
                                       shiny::helpText("Chaque case : moyenne ± dispersion et groupe, la case colorée par son groupe. Sous chaque variable : coefficient de variation, degrés de liberté, statistique du test global (F : ANOVA, W : ANOVA de Welch, H : Kruskal-Wallis), effectif N et probabilité P. Les effets simples suivent les effets principaux, une table par niveau du facteur fixé. Les deux synthèses partent aussi dans le classeur Excel, une feuille chacune.")
                                     )
                                   ),
@@ -7431,6 +7449,35 @@ mod_tests_server <- function(id, values) {
   }
   output$syntheseEtTables <- shiny::renderUI(.synthese_ui("ecart_type"))
   output$syntheseEsTables <- shiny::renderUI(.synthese_ui("erreur_type"))
+
+  # La meme synthese en graphique : les cases colorees par leur groupe.
+  .synthese_fig <- function(dispersion) {
+    shiny::req(values$multiResultsMain)
+    d <- values$multiResultsMain
+    tabs <- hstat_posthoc_synthese(d, dispersion,
+      hstat_dec_affichage(input$multiRoundResults, input$multiDecimals))
+    shiny::validate(shiny::need(length(tabs), tr("Aucun résultat à résumer.")))
+    coul <- if ("groups" %in% names(d))
+      hstat_groupes_couleurs(d$groups[d$Type == "main"], d$groups) else NULL
+    hstat_synthese_figure(tabs, coul,
+      titre = if (dispersion == "ecart_type") tr("Moyenne ± écart-type et groupes")
+              else tr("Moyenne ± erreur-type et groupes"))
+  }
+  .synthese_hauteur <- function(fig) function() {
+    p <- tryCatch(fig(), error = function(e) NULL)
+    n <- if (is.null(p)) 8 else attr(p, "hstat_lignes") %||% 8
+    max(300, min(4000, 60 + 28 * n))
+  }
+  synthese_et_fig <- shiny::reactive(.synthese_fig("ecart_type"))
+  synthese_es_fig <- shiny::reactive(.synthese_fig("erreur_type"))
+  output$syntheseEtPlot <- shiny::renderPlot(synthese_et_fig(),
+                                             height = .synthese_hauteur(synthese_et_fig))
+  output$syntheseEsPlot <- shiny::renderPlot(synthese_es_fig(),
+                                             height = .synthese_hauteur(synthese_es_fig))
+  output$synthEtPDl <- hstat_export_plot_handler(input, "synthEtP",
+    function() synthese_et_fig(), fname = "synthese_ecart_type")
+  output$synthEsPDl <- hstat_export_plot_handler(input, "synthEsP",
+    function() synthese_es_fig(), fname = "synthese_erreur_type")
 
   output$simpleEffectsTable <- DT::renderDT({
     shiny::req(values$multiResultsMain)

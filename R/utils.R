@@ -4574,6 +4574,66 @@ hstat_synthese_html <- function(tabs, couleurs = NULL) {
   }))
 }
 
+# UNE SYNTHESE EN GRAPHIQUE : la meme table, chaque case de modalite coloree
+# par son groupe, les lignes du test global en gris. Plusieurs tables
+# s'empilent en facettes, chacune sous son intitule.
+hstat_synthese_figure <- function(tabs, couleurs = NULL, taille = 3.4,
+                                  titre = NULL, entete = "#1f3a5f") {
+  tabs <- Filter(function(t) is.data.frame(t) && nrow(t) && ncol(t) >= 2, tabs)
+  if (!length(tabs)) return(NULL)
+  if (is.null(couleurs))
+    couleurs <- hstat_groupes_couleurs(unlist(lapply(tabs, function(t)
+      as.vector(attr(t, "groupes")))))
+  coul <- .hstat_couleur_opaque(couleurs)
+  noms <- names(tabs) %||% vapply(tabs, function(t) names(t)[1], "")
+  noms[!nzchar(noms)] <- vapply(tabs[!nzchar(noms)], function(t) names(t)[1], "")
+  morceaux <- lapply(seq_along(tabs), function(k) {
+    t <- tabs[[k]]
+    n_niv <- nrow(t) - (attr(t, "n_stat") %||% 5L)
+    grp <- attr(t, "groupes")
+    cols <- names(t)
+    lignes <- lapply(seq_len(nrow(t)), function(i) lapply(seq_along(cols), function(j) {
+      g <- if (j > 1L && i <= n_niv && is.matrix(grp) && ncol(grp) >= j - 1L)
+        trimws(as.character(grp[i, j - 1L])) else ""
+      if (is.na(g)) g <- ""
+      fond <- if (j == 1L) "#eef2f7" else if (i > n_niv) "#f3f4f6" else
+        if (nzchar(g) && g %in% names(coul)) coul[[g]] else "#ffffff"
+      data.frame(Table = noms[k], Ligne = i, Colonne = cols[j], Rang_col = j,
+                 Texte = as.character(t[i, j]), Fond = fond,
+                 Gras = j == 1L || i > n_niv, stringsAsFactors = FALSE)
+    }))
+    d <- do.call(rbind, unlist(lignes, recursive = FALSE))
+    d$Texte[is.na(d$Texte)] <- ""
+    tete <- data.frame(Table = noms[k], Ligne = 0L, Colonne = cols, Rang_col = seq_along(cols),
+                       Texte = cols, Fond = entete, Gras = TRUE, stringsAsFactors = FALSE)
+    rbind(tete, d)
+  })
+  d <- do.call(rbind, morceaux)
+  d$Table <- factor(d$Table, levels = unique(noms))
+  d$x <- d$Rang_col; d$y <- -d$Ligne
+  d$Couleur_texte <- ifelse(d$Fond == entete, "#ffffff", "#111827")
+  p <- ggplot2::ggplot(d, ggplot2::aes(x = x, y = y)) +
+    ggplot2::geom_tile(ggplot2::aes(fill = Fond), colour = "#ffffff", linewidth = 0.8,
+                       width = 0.98, height = 0.94) +
+    ggplot2::geom_text(ggplot2::aes(label = Texte, colour = Couleur_texte,
+                                    fontface = ifelse(Gras, "bold", "plain")),
+                       size = taille) +
+    ggplot2::scale_fill_identity() + ggplot2::scale_colour_identity() +
+    ggplot2::scale_x_continuous(expand = ggplot2::expansion(add = 0.02)) +
+    ggplot2::scale_y_continuous(expand = ggplot2::expansion(add = 0.02)) +
+    ggplot2::theme_void(base_size = 11) +
+    ggplot2::theme(strip.text = ggplot2::element_text(face = "bold", hjust = 0,
+                                                     margin = ggplot2::margin(4, 0, 4, 2)),
+                   plot.title = ggplot2::element_text(face = "bold", hjust = 0.5),
+                   legend.position = "none")
+  if (length(tabs) > 1L)
+    p <- p + ggplot2::facet_wrap(~Table, ncol = 1, scales = "free")
+  if (!is.null(titre)) p <- p + ggplot2::ggtitle(titre)
+  attr(p, "hstat_lignes") <- sum(vapply(tabs, nrow, integer(1)) + 1L)
+  attr(p, "hstat_colonnes") <- max(vapply(tabs, ncol, integer(1)))
+  p
+}
+
 # Plusieurs tables dans UNE feuille : chacune sous une ligne qui porte son
 # intitule, separees d'une ligne vide.
 .hstat_synth_empiler_feuille <- function(tabs) {

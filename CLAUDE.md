@@ -224,7 +224,7 @@ Le code vit dans `R/` — c'est le code du **paquet**. `inst/app/` ne garde que 
 qui **agit** au démarrage :
 
 - `R/utils.R` — le socle : fonctions de calcul et utilitaires partagés
-- `R/mod_*.R` — les **18 modules** Shiny (tests, visualisation, ML, DL,
+- `R/mod_*.R` — les **19 modules** Shiny (tests, visualisation, ML, DL,
   qualitatif, diversité écologique, etc.), UI et serveur
 - `inst/app/Utils.R` — le pont : charge le socle, puis effets de bord de
   démarrage (locale, installation des paquets, aiguillages d'interface)
@@ -1273,6 +1273,13 @@ versions) puis `tests` (la suite testthat).
 Les paquets sont installés depuis une **liste explicite**, jamais depuis les 107
 `Imports` de `DESCRIPTION` : la suite ne source que quatre fichiers, et
 installer tout ferait durer la CI plus d'une heure sans rien tester de plus.
+**L'image du système fait partie de la clé du cache** (`OS_VERSION`, lu dans
+`/etc/os-release`). Au passage des exécuteurs à Ubuntu 26.04, le cache restauré
+par préfixe portait des binaires compilés pour l'Ubuntu précédent : `openxlsx`
+s'installait, et `requireNamespace()` le disait absent — le check s'arrêtait
+avant de commencer. Un Import qui ne se charge pas est en outre réinstallé avec
+ses dépendances, une fois, avant d'abandonner.
+
 La liste sépare l'indispensable (`testthat`, `shiny`, `shinydashboard` — sans
 eux la suite ne démarre pas) du souhaitable (dont l'absence transforme des tests
 réels en tests sautés, **en silence**). Un test qui exige un nouveau paquet doit
@@ -11877,3 +11884,96 @@ abréviation : dix-sept titres réduits à `# 1.` ont retrouvé leur intitulé, 
 légendes de paramètres (`# prob.`, `# C.`, `# D : dose cible (µg/g) ; x.`) leur
 texte entier. Une légende de paramètres n'est pas une phrase de récit : elle se
 garde entière. Vérifié de même : jetons et chaînes identiques à la version d'avant.
+
+## Sélection génétique : une analyse, toutes les méthodes du sélectionneur
+
+Demandé à l'écran : un module de sélection des variétés et des races qui couvre
+le matériel (variétés, lignées, parents, croisements, hybrides, espèces ou
+races), le dispositif (localités × années × répétitions), tous les caractères
+et les variables environnementales, et qui dise **à la fin** ce qui améliore le
+caractère recherché et ce qui le déprécie. `R/mod_genetique.R` (19ᵉ module) ;
+le calcul vit dans des fonctions de premier niveau (`hstat_gen_*`), testables,
+et le serveur ne fait que lire, afficher et exporter.
+
+| Famille | Fonction | Référence |
+|---|---|---|
+| composantes de variance, H², CVg/CVe, précision sélective, gain génétique | `hstat_gen_anova()` | Johnson et al. (1955), Resende & Duarte (2007) |
+| diallèle : AGC, ASC, réciproques, σ²A, σ²D, ratio de Baker, hétérosis | `hstat_gen_griffing()` | Griffing (1956), méthodes 1 à 4 ; Baker (1978) |
+| classement multicritère des croisements | `hstat_gen_classement_croisements()` | ASC standardisées, signe selon le sens |
+| AMMI, ASV, YSI, WAAS | `hstat_gen_ammi()` | Gollob (1968), Purchase (2000), Olivoto (2019) |
+| GGE biplot : qui gagne où, moyenne × stabilité, environnements | `hstat_gen_gge()` | Yan et al. (2000) |
+| stabilité : b et S²d, Wricke, Shukla, Lin-Binns | `hstat_gen_stabilite()` | Finlay & Wilkinson, Eberhart & Russell |
+| MGIDI, MTSI, GYT biplot | `hstat_gen_mgidi()`, `_mtsi()`, `_gyt()` | Olivoto & Nardino (2021), Yan & Frégeau-Reid (2018) |
+| covariables, régression factorielle | `hstat_gen_covariables()`, `_regression_factorielle()` | Denis (1988) |
+| corrélations génotypiques, pistes | `hstat_gen_correlations()`, `_pistes()` | Dewey & Lu (1959) |
+| synthèse des facteurs, consensus des classements | `hstat_gen_synthese_facteurs()`, `_consensus()` | — |
+
+Décisions, chacune testée :
+
+1. **Le génotype se teste contre l'interaction G × E**, pas contre l'erreur,
+   dans l'analyse combinée : c'est le modèle à génotypes aléatoires, et l'erreur
+   seule rendrait des génotypes « significatifs » qui ne le sont que dans un
+   environnement.
+2. **Griffing par moindres carrés, AGC de somme nulle**, retrouvé au chiffre
+   près contre les formules publiées des méthodes 2 et 4 (AGC et somme des
+   carrés). Une variance négative est ramenée à zéro **et dite**.
+3. **Le sens d'amélioration est un réglage par caractère** (`genMinimiser`),
+   proposé d'après le nom de la colonne : un rendement s'augmente, une durée de
+   cycle ou des dégâts se diminuent. Tout en dépend — ASV et YSI, gagnant GGE,
+   rééchelle 0-100 du MGIDI (`.hstat_gen_reechelle`), GYT (un caractère à
+   diminuer entre en rendement / caractère), effet favorable ou défavorable.
+4. **Une covariable se juge au niveau où elle varie.** Constante dans chaque
+   environnement (pluie, sol), elle se teste sur les environnements : la tester
+   sur les parcelles compterait plusieurs fois le même environnement. Variable
+   d'une parcelle à l'autre (pression des ravageurs, pratique), elle se teste
+   sur les parcelles, à génotype et environnement fixés.
+5. **AMMI, GGE et la stabilité refusent un tableau incomplet** et nomment la
+   première case vide : imputer une case changerait l'interaction qu'on mesure.
+6. **Le génotype recommandé est un consensus** : sept classements (valeur
+   génétique, MGIDI, MTSI, YSI, GGE, GYT, Lin-Binns) et les génotypes retenus par
+   au moins la moitié.
+7. **Une classe se lit en phrase entière** (« Moyenne (H² de 0,3 à 0,6) »,
+   « AGC faible × AGC élevée ») : « moyenne » ou « faible » seuls n'entrent pas
+   au dictionnaire.
+8. **Une figure indisponible dit pourquoi** (`hstat_gen_pas_dispo()`, classe
+   `hstat_gen_absent`) au lieu d'un cadre vide ; les dix-neuf figures passent
+   `ggplot_build` sous `testServer()`.
+
+### Comparaisons de génotypes, synthèse en graphique, lecture des métriques
+
+Trois demandes à l'écran, faites ensemble.
+
+**Les moyennes de génotypes se comparent, et leurs groupes se colorent.**
+`hstat_gen_comparaisons()` : Tukey (défaut), Bonferroni ou LSD de Fisher, avec le
+carré moyen qui a testé l'effet génotype (G × E dans l'analyse combinée) — la
+variance d'une moyenne de génotype que porte `n_par_moyenne`. Les lettres sont
+posées sur les génotypes rangés selon le **sens d'amélioration** : le meilleur
+porte « a », qu'il soit le plus grand rendement ou la floraison la plus précoce.
+Le test retrouve `TukeyHSD()` au chiffre près. Le résultat sort au format des
+résultats post-hoc (`bloc`), si bien que `hstat_posthoc_synthese()`, la
+coloration et l'export du classeur s'appliquent sans une ligne de plus.
+
+**Une synthèse se présente en tableau ou en graphique.**
+`hstat_synthese_figure()` (`R/utils.R`) dessine la même table qu'à l'écran,
+chaque case de modalité colorée par son groupe (la couleur opaque du classeur),
+les lignes du test global en gris, plusieurs tables en facettes. Elle sert aux
+deux synthèses post-hoc (`mod_tests`) et à celle des génotypes ; le bloc
+d'export ne propose pas de thème (`theme = FALSE`) : un thème n'y changerait que
+le fond d'un tableau dessiné. La hauteur suit le nombre de lignes.
+
+**Chaque métrique porte ses seuils et sa signification génétique.**
+`HSTAT_GEN_METRIQUES` déclare, une fois, les bornes, la classe, ce que la classe
+dit au sélectionneur et la référence : H², CVg, CVe, CVg/CVe, précision
+sélective, gain génétique, ratio de Baker, degré de dominance, b et S²d.
+`hstat_gen_interpretation()` lit les valeurs de l'essai, `hstat_gen_grille_metriques()`
+rend la grille complète ; les deux partent au classeur. Le test vérifie chaque
+seuil des deux côtés de sa frontière.
+
+**Les réglages du graphique couvrent ceux de Visualisation** : tailles du
+sous-titre, des titres d'axes et des graduations, position du titre, épaisseur
+des traits, opacité, masquage des grilles, couleurs de chaque élément (génotypes,
+environnements, favorable, défavorable, sélection, non significatif), valeurs
+portées et leurs décimales, plus le kit complet des neuf familles. Une couleur
+qui n'est pas un code hexadécimal retombe sur le défaut. « Masquer la grille »
+retire ce que le thème pose ; ne rien cocher laisse le thème décider, sinon le
+choix d'un thème sans grille serait contredit.
