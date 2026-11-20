@@ -10107,9 +10107,14 @@ test_that("une colonne creee et une colonne lue portent le meme nom", {
   # `.data[["Sensibilite"]]`.
   # « µl » est le microlitre (Doses & dilutions) : le symbole `ul` qu'il
   # rencontre est la balise HTML `tags$ul`, pas une colonne.
+  # « Génotype », « Sélectionné » et « H² » viennent de la sélection
+  # génétique : les colonnes s'appellent `Genotype`, `Selectionne` et
+  # `H2_moyenne`, les chaines accentuees sont des titres de légende et d'axe
+  # passes a `tr()`. Verifie : aucune lecture accentuee n'existe dans le depot.
   connus <- c("Observé", "Prédit", "Modalité", "Résidu", "Thème", "Fréquence",
               "Méthode", "Interprétation", "Métrique", "Unité", "Répétition",
-              "Espèce", "Relevé", "Sensibilité", "Spécificité", "µl")
+              "Espèce", "Relevé", "Sensibilité", "Spécificité", "µl",
+              "Génotype", "Sélectionné", "H²")
   fautifs <- fautifs[!grepl(paste0("chaine (", paste(connus, collapse = "|"),
                                    ") "), fautifs)]
   expect_equal(fautifs, character(0))
@@ -25768,4 +25773,229 @@ test_that("une concentration en masse porte « m.a. », et cette écriture se re
                 encoding = "UTF-8", check.names = FALSE)
   ma <- grep("m.a.", HSTAT_UNITES$libelle, fixed = TRUE, value = TRUE)
   expect_true(all(ma %in% d[[1]]))
+})
+
+# SELECTION GENETIQUE ---------------------------------------------------------
+
+.hstat_test_met <- function(seed = 42) {
+  set.seed(seed)
+  G <- paste0("V", 1:10); L <- c("L1", "L2", "L3", "L4"); A <- c(2024, 2025)
+  env <- expand.grid(L = L, A = A, stringsAsFactors = FALSE)
+  env$Pluvio <- runif(nrow(env), 700, 1400); env$Temp <- runif(nrow(env), 24, 32)
+  ge <- rnorm(10, 0, 300); sens <- rnorm(10, 0, 1)
+  rows <- list()
+  for (k in seq_len(nrow(env))) for (i in 1:10) for (r in 1:3) {
+    pr <- runif(1, 0, 10)
+    rows[[length(rows) + 1]] <- data.frame(
+      Variete = G[i], Loc = env$L[k], Annee = env$A[k], Bloc = r,
+      Pluvio = env$Pluvio[k], Temp = env$Temp[k], Pression = pr,
+      Rendement = 2000 + ge[i] + 1.2 * (env$Pluvio[k] - 1000) +
+        sens[i] * 50 * (env$Temp[k] - 28) - 30 * pr + rnorm(1, 0, 150),
+      Jours_floraison = 60 + i * 0.5 + rnorm(1, 0, 1.5),
+      Degats_pct = 20 - ge[i] / 50 + pr + rnorm(1, 0, 2),
+      Fibre_pct = 42 + rnorm(1, 0, 1) + i * 0.1)
+  }
+  do.call(rbind, rows)
+}
+
+.hstat_test_diallele <- function(avec_parents = TRUE) {
+  set.seed(1)
+  p <- 6; P <- LETTERS[1:p]; gi <- stats::setNames(rnorm(p, 0, 2), P)
+  rows <- list()
+  for (i in 1:p) for (j in i:p) for (r in 1:3) {
+    if (!avec_parents && i == j) next
+    rows[[length(rows) + 1]] <- data.frame(P1 = P[i], P2 = P[j], R = r,
+      Y = 50 + gi[i] + gi[j] + rnorm(1, 0, 1) + (i == j) * (-5))
+  }
+  d <- do.call(rbind, rows); d$G <- paste(d$P1, d$P2)
+  d
+}
+
+test_that("Griffing : AGC et somme des carres retrouvent les formules publiees (methodes 2 et 4)", {
+  P <- LETTERS[1:6]; p <- 6
+  for (avec in c(TRUE, FALSE)) {
+    df <- .hstat_test_diallele(avec)
+    pr <- hstat_gen_preparer(df, "G", "Y", var_rep = "R", var_p1 = "P1", var_p2 = "P2")
+    expect_true(pr$ok)
+    g <- hstat_gen_griffing(pr$data, "Y")
+    expect_true(g$ok)
+    expect_identical(g$methode, if (avec) "2" else "4")
+    m <- matrix(NA, p, p, dimnames = list(P, P))
+    mm <- stats::aggregate(Y ~ P1 + P2, df, mean)
+    for (k in seq_len(nrow(mm))) { m[mm$P1[k], mm$P2[k]] <- mm$Y[k]; m[mm$P2[k], mm$P1[k]] <- mm$Y[k] }
+    if (avec) {
+      Xi <- rowSums(m); xii <- diag(m); X <- sum(m[upper.tri(m, diag = TRUE)])
+      attendu <- ((Xi + xii) - (2 / p) * X) / (p + 2)
+      ss <- (sum((Xi + xii)^2) - (4 / p) * X^2) / (p + 2)
+    } else {
+      diag(m) <- 0; Xi <- rowSums(m); X <- sum(m[upper.tri(m)])
+      attendu <- (p * Xi - 2 * X) / (p * (p - 2))
+      ss <- sum(Xi^2) / (p - 2) - 4 * X^2 / (p * (p - 2))
+    }
+    expect_equal(g$agc$AGC[match(P, g$agc$Parent)], unname(attendu), tolerance = 1e-8)
+    # La somme des carres d'AGC du tableau est celle de Griffing, sur les moyennes.
+    expect_equal(g$anova$SC[1], ss, tolerance = 1e-8)
+    expect_true(is.finite(g$baker) && g$baker >= 0 && g$baker <= 1)
+    expect_true(nzchar(g$action))
+  }
+})
+
+test_that("Griffing : sans parents identifiables, le diallele est refuse et nomme", {
+  df <- .hstat_test_diallele(TRUE)
+  df$P2 <- NA
+  pr <- hstat_gen_preparer(df, "G", "Y", var_rep = "R", var_p1 = "P1", var_p2 = "P2")
+  g <- hstat_gen_griffing(pr$data, "Y")
+  expect_false(isTRUE(g$ok))
+  expect_true(nzchar(g$motif))
+})
+
+test_that("Composantes de variance : H2, CV et precision coherents, G teste contre G x E", {
+  d <- hstat_gen_preparer(.hstat_test_met(), "Variete", c("Rendement", "Fibre_pct"),
+                          var_loc = "Loc", var_annee = "Annee", var_rep = "Bloc")$data
+  a <- hstat_gen_anova(d, "Rendement")
+  expect_true(a$ok)
+  cp <- a$composantes
+  expect_equal(cp$Environnements, 8L)
+  expect_true(cp$H2_moyenne > 0 && cp$H2_moyenne <= 1)
+  expect_equal(cp$Precision_selective, sqrt(cp$H2_moyenne), tolerance = 1e-8)
+  expect_equal(cp$Var_phenotypique,
+               cp$Var_genetique + cp$Var_interaction_GE / 8 + cp$Var_erreur / 24, tolerance = 1e-6)
+  # Le genotype se teste contre l'interaction, pas contre l'erreur.
+  i <- which(a$anova$Source == tr("Génotypes"))
+  j <- which(a$anova$Source == tr("Interaction G × E"))
+  expect_equal(a$anova$F[i], a$anova$CM[i] / a$anova$CM[j], tolerance = 1e-8)
+  lc <- hstat_gen_lecture_composantes(cp)
+  expect_true(all(c("Classe_H2", "Classe_gain", "Classe_precision") %in% names(lc)))
+})
+
+test_that("AMMI : les axes epuisent l'interaction, ASV et YSI se classent", {
+  d <- hstat_gen_preparer(.hstat_test_met(), "Variete", "Rendement",
+                          var_loc = "Loc", var_annee = "Annee", var_rep = "Bloc")$data
+  am <- hstat_gen_ammi(d, "Rendement")
+  expect_true(am$ok)
+  expect_equal(sum(am$axes$SC), am$ss_ge, tolerance = 1e-6)
+  expect_equal(tail(am$axes$Pct_cumule, 1), 100, tolerance = 1e-6)
+  st <- am$stabilite
+  expect_equal(st$YSI, st$Rang_moyenne + st$Rang_ASV)
+  expect_false(is.unsorted(st$YSI))
+  expect_identical(rownames(am$scores_g), rownames(am$Y))
+  # Moins de trois environnements : refus nomme.
+  d2 <- d[d$E %in% unique(d$E)[1:2], ]
+  expect_false(hstat_gen_ammi(d2, "Rendement")$ok)
+})
+
+test_that("GGE : le gagnant de chaque environnement a le plus grand produit scalaire", {
+  d <- hstat_gen_preparer(.hstat_test_met(), "Variete", "Rendement",
+                          var_loc = "Loc", var_annee = "Annee", var_rep = "Bloc")$data
+  Y <- hstat_gen_ammi(d, "Rendement")$Y
+  gg <- hstat_gen_gge(Y)
+  expect_true(gg$ok)
+  pr <- gg$G %*% t(gg$E)
+  gag <- rownames(gg$G)[apply(pr, 2, which.max)]
+  expect_setequal(unique(gag), gg$mega$Genotype_gagnant)
+  # Le premier axe porte la moyenne dans le sens positif.
+  expect_gt(stats::cor(gg$G[, 1], rowMeans(Y)), 0)
+  # Un caractere a diminuer inverse le gagnant.
+  gm <- hstat_gen_gge(Y, direction = "diminuer")
+  gag2 <- rownames(gm$G)[apply(gm$G %*% t(gm$E), 2, which.min)]
+  expect_setequal(unique(gag2), gm$mega$Genotype_gagnant)
+})
+
+test_that("MGIDI : un caractere a diminuer est remis a l'echelle a l'envers", {
+  d <- hstat_gen_preparer(.hstat_test_met(), "Variete",
+                          c("Rendement", "Jours_floraison", "Degats_pct", "Fibre_pct"),
+                          var_loc = "Loc", var_annee = "Annee", var_rep = "Bloc")$data
+  mo <- hstat_gen_moyennes(d, c("Rendement", "Jours_floraison", "Degats_pct", "Fibre_pct"))
+  expect_equal(.hstat_gen_reechelle(c(1, 2, 3), "augmenter"), c(0, 50, 100))
+  expect_equal(.hstat_gen_reechelle(c(1, 2, 3), "diminuer"), c(100, 50, 0))
+  dirs <- c(Rendement = "augmenter", Jours_floraison = "diminuer",
+            Degats_pct = "diminuer", Fibre_pct = "augmenter")
+  mg <- hstat_gen_mgidi(mo, names(dirs), dirs, si = 20)
+  expect_true(mg$ok)
+  expect_length(mg$selection, 2L)
+  expect_identical(mg$selection, mg$table$Genotype[1:2])
+  g <- mg$gains
+  expect_identical(g$Gain_desire[g$Caractere == "Rendement"], tr("Oui"))
+  # Des degats en hausse ne sont jamais le sens desire.
+  expect_true(all(g$Differentiel[g$Caractere == "Degats_pct"] < 0))
+})
+
+test_that("GYT : un caractere a diminuer entre en rendement / caractere", {
+  mo <- data.frame(Genotype = paste0("G", 1:5), Y = c(10, 12, 9, 11, 14),
+                   T1 = c(2, 2, 3, 1, 4), T2 = c(5, 4, 6, 3, 2))
+  gy <- hstat_gen_gyt(mo, "Y", c("Y", "T1", "T2"), c(Y = "augmenter", T1 = "augmenter", T2 = "diminuer"))
+  expect_true(gy$ok)
+  expect_true(all(c("Y*T1", "Y/T2") %in% colnames(gy$Z)))
+  i <- which.max(rowMeans(gy$Z))
+  expect_identical(gy$table$Genotype[1], rownames(gy$Z)[i])
+})
+
+test_that("Covariables : constante par environnement jugee sur les environnements, sinon sur les parcelles", {
+  d <- hstat_gen_preparer(.hstat_test_met(), "Variete", "Rendement",
+                          var_loc = "Loc", var_annee = "Annee", var_rep = "Bloc",
+                          covariables = c("Pluvio", "Pression"))$data
+  cv <- hstat_gen_covariables(d, "Rendement", c("Pluvio", "Pression"))
+  expect_identical(cv$n[cv$Variable == "Pluvio"], 8L)
+  expect_gt(cv$n[cv$Variable == "Pression"], 100)
+  expect_identical(cv$Effet[cv$Variable == "Pluvio"], tr("Favorable"))
+  expect_identical(cv$Effet[cv$Variable == "Pression"], tr("Défavorable"))
+  # Pour un caractere a diminuer, le meme effet change de sens.
+  cvd <- hstat_gen_covariables(d, "Rendement", "Pression", direction = "diminuer")
+  expect_identical(cvd$Effet, tr("Favorable"))
+})
+
+test_that("Selection genetique : le module calcule tout et chaque figure se construit", {
+  skip_if_not_installed("ggplot2")
+  df <- .hstat_test_met()
+  vals <- shiny::reactiveValues(data = df, resetSignal = 0)
+  shiny::testServer(mod_genetique_server, args = list(values = vals), {
+    session$setInputs(genGen = "Variete", genLoc = "Loc", genAnnee = "Annee", genRep = "Bloc",
+      genTraits = c("Rendement", "Jours_floraison", "Degats_pct", "Fibre_pct"),
+      genCov = c("Pluvio", "Temp", "Pression"),
+      genMinimiser = c("Jours_floraison", "Degats_pct"), genPrincipal = "Rendement",
+      genSI = 20, genAlpha = "0.05", genF = 1, genPoidsY = 50, genSvp = "symetrique",
+      genEchelle = FALSE, genType = "", genGroupe = "", genP1 = "", genP2 = "",
+      genEtiquettes = TRUE, genEtiqSize = 3, genPointSize = 2.5, genTitreSize = 15)
+    session$setInputs(genCalculer = 1)
+    r <- rv$res
+    expect_false(is.null(r))
+    expect_true(isTRUE(r$mgidi$ok) && isTRUE(r$mtsi$ok) && isTRUE(r$gyt$ok))
+    f <- r$facteurs
+    expect_true("Pluvio" %in% f$Element[f$Effet == tr("Favorable")])
+    expect_true("Pression" %in% f$Element[f$Effet == tr("Défavorable")])
+    expect_false(is.null(r$consensus))
+    for (q in setdiff(unname(HSTAT_GEN_GRAPHIQUES), c("agc", "asc", "mgidi_forces"))) {
+      session$setInputs(genGraphique = q)
+      p <- graphique()
+      expect_s3_class(p, "ggplot")
+      expect_silent(ggplot2::ggplot_build(p))
+    }
+    tb <- tables_export()
+    expect_true(all(c("Synthese_facteurs", "Composantes_variance", "ASV_YSI_WAAS",
+                      "MGIDI", "MTSI", "GYT", "Covariables") %in% names(tb)))
+    # Une valeur forgee pour l'intensite de selection est bornee.
+    session$setInputs(genSI = 1e9, genCalculer = 2)
+    expect_equal(rv$res$si, 50)
+  })
+})
+
+test_that("Selection genetique : les figures du diallele se construisent", {
+  skip_if_not_installed("ggplot2")
+  df <- .hstat_test_diallele(TRUE)
+  vals <- shiny::reactiveValues(data = df, resetSignal = 0)
+  shiny::testServer(mod_genetique_server, args = list(values = vals), {
+    session$setInputs(genGen = "G", genLoc = "", genAnnee = "", genRep = "R", genTraits = "Y",
+      genCov = character(0), genMinimiser = character(0), genPrincipal = "Y",
+      genSI = 15, genAlpha = "0.05", genF = 1, genPoidsY = 50, genSvp = "symetrique",
+      genEchelle = FALSE, genType = "", genGroupe = "", genP1 = "P1", genP2 = "P2",
+      genEtiquettes = TRUE, genEtiqSize = 3, genPointSize = 2.5, genTitreSize = 15)
+    session$setInputs(genCalculer = 1)
+    expect_true(isTRUE(rv$res$par_trait$Y$griffing$ok))
+    for (q in c("agc", "asc", "heritabilite")) {
+      session$setInputs(genGraphique = q)
+      expect_silent(ggplot2::ggplot_build(graphique()))
+    }
+    # Une figure indisponible dit pourquoi.
+    expect_s3_class(hstat_gen_figure("ammi1", rv$res, "Y"), "hstat_gen_absent")
+  })
 })

@@ -58,6 +58,7 @@ No minimum R version is declared; CI runs the suite on the current release.
 | **Plan** | Experimental designs, sample size and statistical power |
 | **Dose** | Product dose and active-ingredient rate per hectare, spray mix, tank loads, and serial dilutions (working solutions) |
 | **DL50 / CL50** | Dose-mortality probit regression (Henry line), natural mortality by Abbott or EM, lethal doses with standard error and tolerance standard deviation, Fieller intervals, potency ratio (resistance ratio), trial comparison and merging, native WIN DL file import/export |
+| **Genetic selection** | Varieties, lines, parents, crosses, hybrids and breeds across sites and years: variance components and heritabilities, genetic advance and selective accuracy, Griffing diallel (GCA/SCA, Baker ratio, heterosis), multi-trait ranking of crosses, AMMI (ASV, YSI, WAAS), GGE biplot (which-won-where, mean vs stability, environments), Eberhart-Russell, Wricke, Shukla and Lin-Binns stability, MGIDI, MTSI and GYT biplot, environmental covariates and factorial regression, genotypic correlations and path analysis, and a final list of what improves or depreciates the target trait |
 
 Every analysis states its **assumptions**, gives an **interpretation in plain
 language**, and exports its tables (CSV, Excel) and its figures (PNG, JPEG,
@@ -283,6 +284,7 @@ consistency check, then the full suite.
 │   ├── mod_epidemio.R              # épidémiologie : DLNM, taux, risque, survie, SMR, ROC
 │   ├── mod_explore.R
 │   ├── mod_filter.R
+│   ├── mod_genetique.R             # sélection génétique : Griffing, AMMI, GGE, MGIDI, MTSI, GYT
 │   ├── mod_ml.R
 │   ├── mod_qualitative.R
 │   ├── mod_tests.R
@@ -315,7 +317,7 @@ citation("HStat")
 Or use one of the following:
 
 **Text**
-> KOUADIO, Houphouet & Claude Code (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 1.54.0. https://github.com/houphouet/hstat
+> KOUADIO, Houphouet & Claude Code (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 1.55.0. https://github.com/houphouet/hstat
 
 **BibTeX**
 ```bibtex
@@ -323,7 +325,7 @@ Or use one of the following:
   title  = {HStat: Application Shiny interactive pour l'analyse statistique},
   author = {Houphouet KOUADIO and {Claude Code}},
   year   = {2026},
-  note   = {Version 1.54.0},
+  note   = {Version 1.55.0},
   url    = {https://github.com/houphouet/hstat},
 }
 ```

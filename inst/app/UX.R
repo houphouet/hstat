@@ -184,6 +184,7 @@ ui <- shinydashboard::dashboardPage(
       shinydashboard::menuItem("Diversité écologique", tabName = "diversity", icon = shiny::icon("leaf")),
       shinydashboard::menuItem("Épidémiologie", tabName = "epidemio", icon = shiny::icon("virus-covid")),
       shinydashboard::menuItem("DL50 / CL50", tabName = "dl50", icon = shiny::icon("skull-crossbones")),
+      shinydashboard::menuItem("Sélection génétique", tabName = "genetique", icon = shiny::icon("dna")),
       shiny::tags$li(class = "header", `data-hstat-repli` = "1", "4. Modélisation & prédiction"),
       shinydashboard::menuItem("Séries temporelles", tabName = "timeseries", icon = shiny::icon("clock")),
       shinydashboard::menuItem("Machine Learning", tabName = "ml", icon = shiny::icon("robot")),
@@ -1980,6 +1981,9 @@ ui <- shinydashboard::dashboardPage(
 
       shinydashboard::tabItem(tabName = "dl50",
               mod_dl50_ui("dl50")
+      ),
+      shinydashboard::tabItem(tabName = "genetique",
+              mod_genetique_ui("genetique")
       ),
 
       # Citer HStat

@@ -7986,6 +7986,7 @@ server <- function(input, output, session) {
                        shiny::reactive(input$globalSeed))
   mod_epidemio_server("epidemio", values)
   mod_dl50_server("dl50", values)
+  mod_genetique_server("genetique", values)
 
   # Citer HStat
   cite_text <- shiny::reactive({
