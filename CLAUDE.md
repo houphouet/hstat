@@ -12107,3 +12107,13 @@ trois ou quatre génotypes par type, l'ellipse de dispersion à 95 % (F(2, 2)
 **Les barres sont cerclées de noir**, et la barre d'erreur des AGC ne garde
 que sa **moitié extérieure** : de l'extrémité de la barre en s'éloignant de
 zéro, vers le haut pour une barre positive, vers le bas pour une négative.
+
+### Le Wilcoxon au-delà du plafond se vérifie par un compte (1.58.1)
+
+Le test « le Wilcoxon à un échantillon renonce à son intervalle » chronométrait
+l'appel et exigeait moins d'une seconde. Le « R CMD check » de la CI l'a fait
+échouer à 1,26 s, sur un code inchangé : la règle déjà écrite pour le DLNM —
+un test de performance mesure un compte, jamais une durée — n'y était pas
+appliquée. Il compte désormais, par `trace()` sur `wilcox.test.default`, les
+appels qui demandent l'intervalle : zéro au-delà du plafond, au moins un en
+deçà, sans quoi le traceur pourrait ne rien voir et passer quand même.

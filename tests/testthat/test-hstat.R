@@ -23276,9 +23276,16 @@ test_that("le Wilcoxon a un echantillon renonce a son intervalle au-dela du plaf
   petit <- hstat_ref_test(rnorm(200, 0.3), method = "wilcoxon")
   expect_true(all(is.finite(c(petit$conf.low, petit$conf.high))))
   x <- rnorm(HSTAT_WILCOX_IC_MAX + 1L, 0.3)
-  t0 <- proc.time()[["elapsed"]]
+  # Un compte, jamais une duree : l'intervalle n'est pas demande au-dela du
+  # plafond (un chronometre echoue sur un executeur lent, pas sur le code).
+  e <- new.env(); e$n <- 0L
+  suppressMessages(trace("wilcox.test.default", where = asNamespace("stats"), print = FALSE,
+    tracer = bquote(if (isTRUE(conf.int)) assign("n", get("n", envir = .(e)) + 1L, envir = .(e)))))
+  on.exit(suppressMessages(untrace("wilcox.test.default", where = asNamespace("stats"))), add = TRUE)
   grand <- hstat_ref_test(x, method = "wilcoxon")
-  expect_lt(proc.time()[["elapsed"]] - t0, 1)
+  expect_identical(e$n, 0L)
+  invisible(hstat_ref_test(rnorm(50), method = "wilcoxon"))
+  expect_gt(e$n, 0L)
   expect_true(is.na(grand$conf.low) && is.na(grand$conf.high))
   # La p-value porte toujours sur toutes les valeurs.
   expect_equal(grand$p.value, stats::wilcox.test(x, exact = FALSE)$p.value)
