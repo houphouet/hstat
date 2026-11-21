@@ -274,6 +274,21 @@ hstat_gen_lecture_composantes <- function(cp) {
   cp
 }
 
+# L'heritabilite au sens strict demande la variance additive, que seul le
+# diallele estime : elle s'ajoute au caractere qui en a un, NA ailleurs.
+hstat_gen_composantes_h2 <- function(cp, griffing = NULL) {
+  if (is.null(cp) || !nrow(cp)) return(cp)
+  h <- vapply(as.character(cp$Caractere), function(t) {
+    g <- if (is.list(griffing)) griffing[[t]]
+    if (isTRUE(g$ok) && is.finite(g$h2_strict %||% NA_real_)) g$h2_strict else NA_real_
+  }, numeric(1))
+  i <- match("H2_parcelle", names(cp))
+  cp <- cbind(cp[seq_len(i)], h2_strict = unname(h), cp[-seq_len(i)])
+  cp$Classe_h2 <- vapply(cp$h2_strict, .hstat_gen_classe_metrique, "",
+                         m = HSTAT_GEN_METRIQUES$h2_strict)
+  cp
+}
+
 # Tableau genotypes x environnements des moyennes d'un caractere.
 hstat_gen_table_ge <- function(d, trait) {
   y <- d[[trait]]
@@ -545,24 +560,26 @@ hstat_gen_griffing <- function(d, trait, F_consanguinite = 1, direction = "augme
   tc <- tc[order(-sgn * tc$ASC), , drop = FALSE]
   rownames(tc) <- NULL
 
+  h2_strict <- if (tot > 0) s2A / tot else NA_real_
+  h2_large <- if (tot > 0) (s2A + s2D) / tot else NA_real_
   var_tab <- data.frame(
     Parametre = c(tr("Variance d'AGC (σ²agc)"), tr("Variance d'ASC (σ²asc)"),
                   tr("Variance additive (σ²A)"), tr("Variance de dominance (σ²D)"),
                   tr("Variance d'erreur (σ²e, parcelle)"),
                   tr("Ratio de Baker 2σ²agc / (2σ²agc + σ²asc)"),
                   tr("Rapport σ²agc / σ²asc"),
-                  tr("Héritabilité au sens étroit (h²)"),
+                  tr("Héritabilité au sens strict (h²)"),
                   tr("Héritabilité au sens large (H²)"),
                   tr("Degré moyen de dominance √(2σ²D / σ²A)")),
     Valeur = c(s2gca, s2sca, s2A, s2D, s2e_parcelle, baker,
                if (s2sca > 0) s2gca / s2sca else NA_real_,
-               if (tot > 0) s2A / tot else NA_real_,
-               if (tot > 0) (s2A + s2D) / tot else NA_real_,
+               h2_strict, h2_large,
                if (s2A > 0) sqrt(2 * s2D / s2A) else NA_real_),
     stringsAsFactors = FALSE)
   list(ok = TRUE, methode = methode, parents = parents, p = p, anova = anova_tab,
        agc = agc, croisements = tc, reciproques = rec, variances = var_tab,
-       baker = baker, consanguinite = Fc, notes = notes,
+       baker = baker, h2_strict = h2_strict, h2_large = h2_large,
+       consanguinite = Fc, notes = notes,
        action = .hstat_gen_action_genique(baker))
 }
 
@@ -1469,6 +1486,7 @@ mod_genetique_ui <- function(id) {
                   shiny::selectInput(ns("genStyle"), "Rendu des figures", choices = HSTAT_GEN_STYLES),
                   shiny::selectInput(ns("genPalette"), "Palette", choices = hstat_palettes_choix()),
                   shiny::checkboxInput(ns("genEtiquettes"), "Nommer les points", value = TRUE),
+                  shiny::checkboxInput(ns("genEllipses"), "Entourer chaque type de matériel", value = TRUE),
                   shiny::selectInput(ns("genLegendePos"), "Position de la légende",
                     choices = c("Droite" = "right", "Bas" = "bottom", "Haut" = "top",
                                 "Gauche" = "left", "Aucune" = "none"),
@@ -1570,6 +1588,13 @@ HSTAT_GEN_METRIQUES <- list(
              "Part génétique et part environnementale comparables : la sélection est possible mais demande des essais répétés.",
              "Le phénotype reflète bien le génotype : la sélection directe sur la valeur observée est efficace dès les premiers cycles."),
     ref = "Robinson et al. (1949) ; Johnson et al. (1955)"),
+  h2_strict = list(
+    nom = "Héritabilité au sens strict h² (σ²A / σ²P)", bornes = c(0.3, 0.6),
+    classes = c("Faible (h² < 0,3)", "Moyenne (h² de 0,3 à 0,6)", "Élevée (h² > 0,6)"),
+    sens = c("Peu de variance additive : les descendants ressemblent peu à leurs parents ; la sélection massale progresse lentement, l'hybridation ou la sélection sur descendance s'impose.",
+             "Variance additive notable : la sélection sur descendance (familles, sélection récurrente) est efficace.",
+             "Variance additive prépondérante : la valeur des parents se transmet, la sélection massale ou généalogique précoce est efficace."),
+    ref = "Robinson et al. (1949) ; Falconer & Mackay (1996)"),
   CVg_pct = list(
     nom = "Coefficient de variation génotypique CVg (%)", bornes = c(10, 20),
     classes = c("Faible (< 10 %)", "Moyen (10 à 20 %)", "Élevé (> 20 %)"),
@@ -1674,6 +1699,7 @@ hstat_gen_interpretation <- function(composantes, griffing = NULL) {
     for (t in names(griffing)) {
       g <- griffing[[t]]
       if (!isTRUE(g$ok)) next
+      aj(t, "h2_strict", g$h2_strict)
       aj(t, "baker", g$baker)
       vv <- g$variances
       dd <- vv$Valeur[grepl("√", vv$Parametre, fixed = TRUE)][1]
@@ -1710,18 +1736,57 @@ hstat_gen_lecture_stabilite <- function(st) {
   }
 }
 
-# Genotypes (ronds) et environnements (triangles), cercles de blanc, et leurs noms.
+# Genotypes (ronds) et environnements (triangles), cercles de blanc, et leurs
+# noms. Avec un type de materiel, chaque type a sa couleur et son enveloppe
+# convexe : une ellipse de dispersion sur trois ou quatre genotypes couvrirait
+# tout le plan et ecraserait les points.
 .hstat_gen_points_ge <- function(p, gd, ed, opt) {
   C <- opt$couleurs %||% HSTAT_GEN_COULEURS
   al <- opt$alpha %||% 1
-  p <- p +
-    ggplot2::geom_point(data = gd, ggplot2::aes(x, y), fill = C[["genotype"]], colour = "white",
-                        shape = 21, stroke = 0.6, size = opt$point * 1.2, alpha = al) +
-    ggplot2::geom_point(data = ed, ggplot2::aes(x, y), fill = C[["environnement"]], colour = "white",
-                        shape = 24, stroke = 0.6, size = opt$point * 1.1, alpha = al)
-  p <- .hstat_gen_etiq(p, gd, "x", "y", "nom", opt, C[["genotype"]])
-  .hstat_gen_etiq(p, ed, "x", "y", "nom", opt, C[["environnement"]], fontface = "italic")
+  grp <- opt$groupes
+  if (!is.null(grp)) gd$Groupe <- unname(grp[as.character(gd$nom)])
+  avec_grp <- !is.null(grp) && length(unique(stats::na.omit(gd$Groupe))) >= 2
+  if (avec_grp) {
+    gd$Groupe[is.na(gd$Groupe)] <- tr("Type non renseigné")
+    if (!isFALSE(opt$ellipses)) {
+      el <- .hstat_gen_enveloppes(gd$x, gd$y, gd$Groupe)
+      if (!is.null(el))
+        p <- p + ggplot2::geom_polygon(data = el, ggplot2::aes(x, y, group = groupe, fill = groupe,
+                                                               colour = groupe),
+                                       alpha = 0.12, linewidth = 0.45, show.legend = FALSE)
+    }
+    p <- p + ggplot2::geom_point(data = gd, ggplot2::aes(x, y, fill = Groupe), colour = "white",
+                                 shape = 21, stroke = 0.6, size = opt$point * 1.3, alpha = al) +
+      ggplot2::labs(fill = tr("Type de matériel")) +
+      ggplot2::guides(colour = "none",
+                      fill = ggplot2::guide_legend(override.aes = list(size = opt$point * 1.6)))
+  } else {
+    p <- p + ggplot2::geom_point(data = gd, ggplot2::aes(x, y), fill = C[["genotype"]], colour = "white",
+                                 shape = 21, stroke = 0.6, size = opt$point * 1.2, alpha = al)
+  }
+  p <- p + ggplot2::geom_point(data = ed, ggplot2::aes(x, y), fill = C[["environnement"]], colour = "white",
+                               shape = 24, stroke = 0.6, size = opt$point * 1.1, alpha = al)
+  p <- .hstat_gen_etiq(p, gd, "x", "y", "nom", opt, if (avec_grp) "#33414e" else C[["genotype"]])
+  .hstat_gen_etiq(p, ed, "x", "y", "nom", opt, C[["environnement"]], fontface = "bold")
 }
+
+# L'enveloppe convexe de chaque groupe d'au moins trois points non alignes.
+.hstat_gen_enveloppes <- function(x, y, g) {
+  morceaux <- lapply(unique(g), function(lv) {
+    i <- which(g == lv & is.finite(x) & is.finite(y))
+    if (length(i) < 3L) return(NULL)
+    h <- i[grDevices::chull(x[i], y[i])]
+    if (length(h) < 3L) return(NULL)
+    data.frame(x = x[h], y = y[h], groupe = lv, stringsAsFactors = FALSE)
+  })
+  morceaux <- Filter(Negate(is.null), morceaux)
+  if (length(morceaux)) do.call(rbind, morceaux)
+}
+
+# Les axes d'un plan factoriel, en tirets comme ceux de l'analyse multivariee.
+.hstat_gen_axes0 <- function(x0 = 0) list(
+  ggplot2::geom_hline(yintercept = 0, colour = "#3a3f47", linetype = 2, linewidth = 0.4),
+  ggplot2::geom_vline(xintercept = x0, colour = "#3a3f47", linetype = 2, linewidth = 0.4))
 
 .hstat_gen_biplot <- function(G, E, pct, opt, titre, nomx = "PC1", nomy = "PC2",
                               fleches = TRUE) {
@@ -1729,9 +1794,7 @@ hstat_gen_lecture_stabilite <- function(st) {
   lw <- opt$trait %||% 0.5
   gd <- data.frame(x = G[, 1], y = G[, 2], nom = rownames(G), stringsAsFactors = FALSE)
   ed <- data.frame(x = E[, 1], y = E[, 2], nom = rownames(E), stringsAsFactors = FALSE)
-  p <- ggplot2::ggplot() +
-    ggplot2::geom_hline(yintercept = 0, colour = "#9aa3ad", linewidth = 0.3) +
-    ggplot2::geom_vline(xintercept = 0, colour = "#9aa3ad", linewidth = 0.3)
+  p <- ggplot2::ggplot() + .hstat_gen_axes0()
   if (fleches)
     p <- p + ggplot2::geom_segment(data = ed, ggplot2::aes(x = 0, y = 0, xend = x, yend = y),
       colour = C[["environnement"]], linewidth = lw * 0.8,
@@ -1749,6 +1812,12 @@ hstat_gen_figure <- function(quoi, res, trait, opt = list(etiq = TRUE, taille = 
   absent <- function(m) .hstat_gen_pas_dispo(m %||% tr("Cette figure n'est pas disponible avec les données et les colonnes choisies."))
   x <- res$par_trait[[trait]]
   am <- x$ammi; gg <- x$gge
+  d0 <- res$prep$data
+  if (is.null(opt$groupes) && is.data.frame(d0) && "Type" %in% names(d0) && any(!is.na(d0$Type))) {
+    tg <- tapply(as.character(d0$Type), as.character(d0$G),
+                 function(v) { v <- v[!is.na(v)]; if (length(v)) v[1] else NA_character_ })
+    opt$groupes <- stats::setNames(as.character(tg), names(tg))
+  }
   fav <- C[["favorable"]]; def <- C[["defavorable"]]
   sgn <- .hstat_gen_signe(res$dirs[[trait]])
   p <- switch(quoi,
@@ -1756,9 +1825,7 @@ hstat_gen_figure <- function(quoi, res, trait, opt = list(etiq = TRUE, taille = 
       if (!isTRUE(am$ok)) return(absent(am$motif))
       gd <- data.frame(x = am$moy_g, y = am$scores_g[, 1], nom = rownames(am$Y))
       ed <- data.frame(x = am$moy_e, y = am$scores_e[, 1], nom = colnames(am$Y))
-      q <- ggplot2::ggplot() +
-        ggplot2::geom_hline(yintercept = 0, colour = "#9aa3ad", linewidth = 0.3) +
-        ggplot2::geom_vline(xintercept = mean(am$Y), colour = "#9aa3ad", linetype = 2, linewidth = 0.3)
+      q <- ggplot2::ggplot() + .hstat_gen_axes0(mean(am$Y))
       .hstat_gen_points_ge(q, gd, ed, opt) + ggplot2::labs(title = trf("AMMI1 : « %s »", trait), x = trf("Moyenne de « %s »", trait),
                         y = sprintf("IPCA1 (%.1f %%)", am$axes$Pct_GE[1]))
     },
@@ -1842,16 +1909,44 @@ hstat_gen_figure <- function(quoi, res, trait, opt = list(etiq = TRUE, taille = 
     heritabilite = {
       cp <- res$composantes
       if (is.null(cp) || !nrow(cp)) return(absent(tr("Aucune héritabilité calculable.")))
-      cp$Caractere <- factor(cp$Caractere, levels = cp$Caractere[order(cp$H2_moyenne)])
-      ggplot2::ggplot(cp, ggplot2::aes(Caractere, H2_moyenne, fill = Classe_H2)) +
-        ggplot2::geom_col(width = 0.7, alpha = al) +
-        ggplot2::geom_hline(yintercept = HSTAT_GEN_GRILLES$H2$bornes, linetype = 2, colour = "#5f6b7a") +
-        (if (!isFALSE(opt$valeurs)) ggplot2::geom_text(ggplot2::aes(label = val_txt(H2_moyenne)), hjust = -0.15, size = opt$taille)) +
-        ggplot2::scale_fill_manual(values = stats::setNames(c(def, "#c98a12", fav),
-                                                            .hstat_gen_libelles_h2()), drop = TRUE) +
-        ggplot2::coord_flip() + ggplot2::scale_y_continuous(limits = c(0, 1.08), expand = c(0, 0)) +
-        ggplot2::labs(title = tr("Héritabilité au sens large (base moyenne)"), x = NULL, y = "H²",
-                      fill = tr("Classe"))
+      lv <- cp$Caractere[order(cp$H2_moyenne)]
+      bornes <- ggplot2::geom_hline(yintercept = HSTAT_GEN_GRILLES$H2$bornes, linetype = 2, colour = "#5f6b7a")
+      echelle_y <- ggplot2::scale_y_continuous(limits = c(0, 1.1), expand = c(0, 0))
+      if ("h2_strict" %in% names(cp) && any(is.finite(cp$h2_strict))) {
+        # Les deux heritabilites cote a cote : la part additive (h²) dans la
+        # part genetique totale (H²).
+        n_l <- tr("H² au sens large (base moyenne)"); n_s <- tr("h² au sens strict (diallèle)")
+        dd <- rbind(data.frame(Caractere = cp$Caractere, Mesure = n_l, Valeur = cp$H2_moyenne),
+                    data.frame(Caractere = cp$Caractere, Mesure = n_s, Valeur = cp$h2_strict))
+        dd <- dd[is.finite(dd$Valeur), , drop = FALSE]
+        dd$Caractere <- factor(dd$Caractere, levels = lv)
+        # Retourne par coord_flip : H² au-dessus de h² dans chaque paire.
+        dd$Mesure <- factor(dd$Mesure, levels = c(n_s, n_l))
+        pos <- ggplot2::position_dodge(width = 0.8)
+        ggplot2::ggplot(dd, ggplot2::aes(Caractere, Valeur, fill = Mesure)) +
+          ggplot2::geom_col(position = pos, width = 0.75, alpha = al, colour = "black", linewidth = 0.3) +
+          bornes +
+          (if (!isFALSE(opt$valeurs)) ggplot2::geom_text(ggplot2::aes(label = val_txt(Valeur)), position = pos,
+                                                         hjust = -0.15, size = opt$taille)) +
+          ggplot2::scale_fill_manual(values = stats::setNames(c(C[["genotype"]], C[["selection"]]), c(n_l, n_s)),
+                                     breaks = c(n_l, n_s)) +
+          ggplot2::coord_flip() + echelle_y +
+          ggplot2::labs(title = tr("Héritabilité au sens large et au sens strict"),
+                        subtitle = tr("h² = σ²A / σ²P : la part additive, celle qui se transmet des parents aux descendants."),
+                        x = NULL, y = "H², h²", fill = NULL)
+      } else {
+        cp$Caractere <- factor(cp$Caractere, levels = lv)
+        ggplot2::ggplot(cp, ggplot2::aes(Caractere, H2_moyenne, fill = Classe_H2)) +
+          ggplot2::geom_col(width = 0.7, alpha = al, colour = "black", linewidth = 0.3) +
+          bornes +
+          (if (!isFALSE(opt$valeurs)) ggplot2::geom_text(ggplot2::aes(label = val_txt(H2_moyenne)), hjust = -0.15, size = opt$taille)) +
+          ggplot2::scale_fill_manual(values = stats::setNames(c(def, "#c98a12", fav),
+                                                              .hstat_gen_libelles_h2()), drop = TRUE) +
+          ggplot2::coord_flip() + echelle_y +
+          ggplot2::labs(title = tr("Héritabilité au sens large (base moyenne)"),
+                        subtitle = tr("L'héritabilité au sens strict demande un diallèle : indiquez les colonnes Parent 1 et Parent 2."),
+                        x = NULL, y = "H²", fill = tr("Classe"))
+      }
     },
     agc = {
       g <- x$griffing
@@ -1859,8 +1954,10 @@ hstat_gen_figure <- function(quoi, res, trait, opt = list(etiq = TRUE, taille = 
       a <- g$agc; a$Bon <- sgn * a$AGC > 0
       a$Parent <- factor(a$Parent, levels = a$Parent[order(sgn * a$AGC)])
       ggplot2::ggplot(a, ggplot2::aes(Parent, AGC, fill = Bon)) +
-        ggplot2::geom_col(width = 0.7, alpha = al) +
-        ggplot2::geom_errorbar(ggplot2::aes(ymin = AGC - Erreur_type, ymax = AGC + Erreur_type), width = 0.25) +
+        ggplot2::geom_col(width = 0.7, alpha = al, colour = "black", linewidth = 0.3) +
+        # La moitie exterieure de la barre d'erreur : celle qui s'eloigne de zero.
+        ggplot2::geom_errorbar(ggplot2::aes(ymin = AGC, ymax = AGC + sign(AGC) * Erreur_type),
+                               width = 0.25, linewidth = 0.4) +
         ggplot2::geom_hline(yintercept = 0) +
         (if (!isFALSE(opt$valeurs)) ggplot2::geom_text(ggplot2::aes(label = val_txt(AGC),
            y = AGC + sign(AGC) * Erreur_type, hjust = ifelse(AGC >= 0, -0.2, 1.2)), size = opt$taille)) +
@@ -1918,7 +2015,7 @@ hstat_gen_figure <- function(quoi, res, trait, opt = list(etiq = TRUE, taille = 
                        Part = 100 * as.numeric(ct))
       dd$Genotype <- factor(dd$Genotype, levels = rev(gens))
       ggplot2::ggplot(dd, ggplot2::aes(Part, Genotype, fill = Facteur)) +
-        ggplot2::geom_col(width = 0.75, alpha = al) +
+        ggplot2::geom_col(width = 0.75, alpha = al, colour = "black", linewidth = 0.3) +
         ggplot2::labs(title = tr("Forces et faiblesses : part de chaque facteur dans la distance à l'idéotype"),
                       subtitle = tr("Une petite part est une force, une grande part une faiblesse."),
                       x = tr("Contribution (%)"), y = NULL, fill = tr("Facteur"))
@@ -1935,7 +2032,8 @@ hstat_gen_figure <- function(quoi, res, trait, opt = list(etiq = TRUE, taille = 
       if (is.null(cv) || !nrow(cv)) return(absent(tr("Aucune covariable exploitable pour ce caractère.")))
       cv$Variable <- factor(cv$Variable, levels = cv$Variable[order(sgn * cv$Effet_standardise)])
       ggplot2::ggplot(cv, ggplot2::aes(Effet_standardise, Variable, fill = Effet)) +
-        ggplot2::geom_col(width = 0.7, alpha = al) + ggplot2::geom_vline(xintercept = 0) +
+        ggplot2::geom_col(width = 0.7, alpha = al, colour = "black", linewidth = 0.3) +
+        ggplot2::geom_vline(xintercept = 0) +
         ggplot2::geom_text(ggplot2::aes(label = paste0("p = ", hstat_p_txt(p)),
                                         hjust = ifelse(Effet_standardise >= 0, -0.1, 1.1)), size = opt$taille * 0.9) +
         ggplot2::scale_x_continuous(expand = ggplot2::expansion(mult = 0.25)) +
@@ -1998,7 +2096,8 @@ hstat_gen_figure <- function(quoi, res, trait, opt = list(etiq = TRUE, taille = 
                   data.frame(Caractere = tb$Caractere, Type = tr("Corrélation totale"), Valeur = tb$Correlation))
       dd$Caractere <- factor(dd$Caractere, levels = tb$Caractere[order(tb$Effet_direct)])
       ggplot2::ggplot(dd, ggplot2::aes(Valeur, Caractere, fill = Type)) +
-        ggplot2::geom_col(position = ggplot2::position_dodge(width = 0.75), width = 0.7, alpha = al) +
+        ggplot2::geom_col(position = ggplot2::position_dodge(width = 0.75), width = 0.7, alpha = al,
+                          colour = "black", linewidth = 0.3) +
         ggplot2::geom_vline(xintercept = 0) +
         (if (!isFALSE(opt$valeurs)) ggplot2::geom_text(ggplot2::aes(label = val_txt(Valeur),
            hjust = ifelse(Valeur >= 0, -0.15, 1.15)), position = ggplot2::position_dodge(width = 0.75),
@@ -2213,7 +2312,8 @@ mod_genetique_server <- function(id, values) {
         }
         compo <- do.call(rbind, lapply(par_trait, function(x)
           if (isTRUE(x$anova$ok)) x$anova$composantes))
-        compo <- hstat_gen_lecture_composantes(compo)
+        compo <- hstat_gen_composantes_h2(hstat_gen_lecture_composantes(compo),
+                                          lapply(par_trait, `[[`, "griffing"))
         h2 <- if (!is.null(compo)) stats::setNames(compo$H2_moyenne, compo$Caractere)
         moy <- hstat_gen_moyennes(d, traits)
         mgidi <- if (length(traits) >= 2) hstat_gen_mgidi(moy, traits, dirs, si, h2)
@@ -2313,6 +2413,9 @@ mod_genetique_server <- function(id, values) {
         li[[length(li) + 1]] <- trf("Héritabilité H² = %s (%s), précision sélective %s (%s), gain génétique attendu %s %% de la moyenne.",
           format(round(k$H2_moyenne, 3)), k$Classe_H2, format(round(k$Precision_selective, 3)),
           k$Classe_precision, format(round(k$Gain_genetique_pct, 1)))
+        if (isTRUE(is.finite(k$h2_strict)))
+          li[[length(li) + 1]] <- trf("Héritabilité au sens strict h² = %s (%s) : la part additive de la variance génétique.",
+            format(round(k$h2_strict, 3)), k$Classe_h2)
       }
       if (isTRUE(pp$ammi$ok)) {
         s <- pp$ammi$stabilite
@@ -2569,7 +2672,7 @@ mod_genetique_server <- function(id, values) {
         v <- as.character(input[[id]] %||% "")[1]
         if (!is.na(v) && grepl("^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$", v)) v else HSTAT_GEN_COULEURS[[cle]]
       }
-      opt <- list(etiq = isTRUE(input$genEtiquettes),
+      opt <- list(etiq = isTRUE(input$genEtiquettes), ellipses = !isFALSE(input$genEllipses),
                   taille = hstat_borne_client(input$genEtiqSize, 3.2, 1, 8),
                   point = hstat_borne_client(input$genPointSize, 2.5, 0.5, 8),
                   alpha = hstat_borne_client(input$genOpacite, 1, 0.1, 1),

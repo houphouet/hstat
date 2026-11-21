@@ -12081,3 +12081,29 @@ mordait sur le titre de l'axe.
 La synthèse en graphique (`hstat_synthese_figure()`) part de `theme_void()`,
 dont le fond est transparent : exportée en PNG, elle s'ouvrait sur un fond noir
 dans certaines visionneuses, son titre noir invisible. Le fond est blanc.
+
+### Héritabilité au sens strict, et des figures au rendu de l'analyse multivariée (1.58.0)
+
+Demandé à l'écran.
+
+**L'héritabilité au sens strict h² = σ²A / σ²P** demande la variance additive,
+que seul le diallèle estime (σ²A = 4σ²agc / (1 + F)). `hstat_gen_griffing()`
+la rend (`h2_strict`, `h2_large`, même base parcelle) ; `hstat_gen_composantes_h2()`
+la range dans les composantes, juste après H², pour le caractère qui a un
+diallèle — `NA` ailleurs, jamais une valeur devinée. Elle a sa grille
+(`HSTAT_GEN_METRIQUES$h2_strict`, Robinson et al. 1949) et sa signification
+génétique propre : la part qui se transmet des parents aux descendants. La
+figure de l'héritabilité porte alors H² et h² côte à côte ; sans diallèle,
+elle garde H² et ses couleurs de classe, et dit ce qui manque pour h².
+
+**Les biplots prennent l'allure de ceux de l'analyse multivariée** : axes en
+tirets, noms des environnements en gras, et, quand le type de matériel est
+renseigné, une couleur par type avec son enveloppe convexe (réglage
+« Entourer chaque type de matériel »). Une enveloppe et non une ellipse : sur
+trois ou quatre génotypes par type, l'ellipse de dispersion à 95 % (F(2, 2)
+≈ 19) couvrait tout le plan et écrasait les points — mesuré avant d'être
+écarté.
+
+**Les barres sont cerclées de noir**, et la barre d'erreur des AGC ne garde
+que sa **moitié extérieure** : de l'extrémité de la barre en s'éloignant de
+zéro, vers le haut pour une barre positive, vers le bas pour une négative.

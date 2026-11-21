@@ -26285,3 +26285,76 @@ test_that("La synthese en graphique a un fond blanc, pas transparent", {
   p <- hstat_synthese_figure(list(Y = t))
   expect_identical(p$theme$plot.background$fill, "#ffffff")
 })
+
+test_that("Selection genetique : l'heritabilite au sens strict vient du diallele, et se lit", {
+  skip_if_not_installed("ggplot2")
+  d <- .hstat_test_diallele(TRUE)
+  pr <- hstat_gen_preparer(d, "G", "Y", var_rep = "R", var_p1 = "P1", var_p2 = "P2")
+  g <- hstat_gen_griffing(pr$data, "Y")
+  expect_true(g$ok)
+  v <- stats::setNames(g$variances$Valeur, g$variances$Parametre)
+  tot <- v[["Variance additive (σ²A)"]] + v[["Variance de dominance (σ²D)"]] +
+         v[["Variance d'erreur (σ²e, parcelle)"]]
+  expect_equal(g$h2_strict, v[["Variance additive (σ²A)"]] / tot)
+  expect_equal(g$h2_strict, v[["Héritabilité au sens strict (h²)"]])
+  expect_true(g$h2_strict <= g$h2_large)
+  # La part additive ne depasse pas la part genetique.
+  cp <- data.frame(Caractere = c("Y", "Z"), H2_moyenne = c(0.9, 0.5), H2_parcelle = c(0.8, 0.4))
+  cp <- hstat_gen_composantes_h2(cp, list(Y = g))
+  expect_equal(cp$h2_strict[1], g$h2_strict)
+  expect_true(is.na(cp$h2_strict[2]))
+  expect_identical(match("h2_strict", names(cp)), match("H2_parcelle", names(cp)) + 1L)
+  expect_true(nzchar(cp$Classe_h2[1]))
+  it <- hstat_gen_interpretation(NULL, list(Y = g))
+  expect_true(any(grepl("sens strict", it$Metrique)))
+  # Les seuils, des deux cotes de la frontiere.
+  m <- HSTAT_GEN_METRIQUES$h2_strict
+  expect_false(identical(.hstat_gen_classe_metrique(0.29, m), .hstat_gen_classe_metrique(0.31, m)))
+  expect_false(identical(.hstat_gen_classe_metrique(0.59, m), .hstat_gen_classe_metrique(0.61, m)))
+})
+
+test_that("Selection genetique : barres cerclees de noir, demi-barre d'erreur, types de materiel entoures", {
+  skip_if_not_installed("ggplot2")
+  df <- .hstat_test_diallele(TRUE)
+  vals <- shiny::reactiveValues(data = df, resetSignal = 0)
+  shiny::testServer(mod_genetique_server, args = list(values = vals), {
+    session$setInputs(genGen = "G", genLoc = "", genAnnee = "", genRep = "R", genTraits = "Y",
+      genCov = character(0), genMinimiser = character(0), genPrincipal = "Y",
+      genSI = 15, genAlpha = "0.05", genF = 1, genPoidsY = 50, genSvp = "symetrique",
+      genEchelle = FALSE, genType = "", genGroupe = "", genP1 = "P1", genP2 = "P2")
+    session$setInputs(genCalculer = 1)
+    expect_true(is.finite(rv$res$composantes$h2_strict[1]))
+    session$setInputs(genGraphique = "agc")
+    p <- graphique(); b <- ggplot2::ggplot_build(p)
+    couche <- function(cl) b$data[[which(vapply(p$layers, function(l) inherits(l$geom, cl), TRUE))[1]]]
+    expect_true(all(couche("GeomCol")$colour == "black"))
+    eb <- couche("GeomErrorbar")
+    agc <- rv$res$par_trait$Y$griffing$agc
+    # La barre part du sommet de la barre et s'eloigne de zero.
+    expect_true(all(abs(eb$ymin) < abs(eb$ymax)))
+    expect_setequal(round(eb$ymin, 6), round(agc$AGC, 6))
+    session$setInputs(genGraphique = "heritabilite")
+    b <- ggplot2::ggplot_build(graphique())
+    expect_equal(length(unique(b$data[[1]]$fill)), 2)
+  })
+  met <- .hstat_test_met()
+  met$Type <- ifelse(met$Variete %in% paste0("V", 1:5), "Lignée", "Hybride")
+  vals <- shiny::reactiveValues(data = met, resetSignal = 0)
+  shiny::testServer(mod_genetique_server, args = list(values = vals), {
+    session$setInputs(genGen = "Variete", genLoc = "Loc", genAnnee = "Annee", genRep = "Bloc",
+      genTraits = c("Rendement", "Fibre_pct"), genCov = character(0),
+      genMinimiser = character(0), genPrincipal = "Rendement", genSI = 20, genAlpha = "0.05",
+      genF = 1, genPoidsY = 50, genSvp = "symetrique", genEchelle = FALSE, genType = "Type",
+      genGroupe = "", genP1 = "", genP2 = "", genComparaison = "tukey", genEtiquettes = TRUE)
+    session$setInputs(genCalculer = 1)
+    poly <- function() sum(vapply(graphique()$layers, function(l) inherits(l$geom, "GeomPolygon"), TRUE))
+    session$setInputs(genGraphique = "gge_base", genEllipses = TRUE)
+    expect_equal(poly(), 1)
+    expect_identical(graphique()$labels$fill, "Type de matériel")
+    session$setInputs(genEllipses = FALSE)
+    expect_equal(poly(), 0)
+    # Sans diallele, la figure de l'heritabilite dit ce qui manque.
+    session$setInputs(genGraphique = "heritabilite")
+    expect_match(graphique()$labels$subtitle, "diallèle")
+  })
+})
