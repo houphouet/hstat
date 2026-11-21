@@ -2264,6 +2264,40 @@ test_that("les auteurs du README suivent ceux de DESCRIPTION", {
   }
 })
 
+test_that("la liste des paquets du README suit DESCRIPTION", {
+  root <- .hstat_repo_root()
+  readme <- file.path(root, "README.md")
+  skip_if_not(file.exists(readme), "README.md absent (paquet installe)")
+  lignes <- readLines(readme, warn = FALSE)
+
+  # Le README est statique : sa liste de paquets est une copie de DESCRIPTION,
+  # et c'est la copie que rien ne garde qui derive. Les deux sens sont exiges,
+  # et chaque paquet doit etre range sous la bonne rubrique.
+  deb <- which(lignes == "## R packages")
+  expect_length(deb, 1L)
+  fin <- deb + which(grepl("^## ", lignes[-seq_len(deb)]))[1]
+  sec <- lignes[deb:(fin - 1L)]
+  paquets <- function(x) {
+    m <- regmatches(x, gregexpr("`[A-Za-z][A-Za-z0-9.]*`", x))
+    gsub("`", "", unlist(m))
+  }
+  i_opt <- which(grepl("^[*][*]Optional", sec))
+  expect_length(i_opt, 1L)
+  req <- setdiff(paquets(sec[seq_len(i_opt - 1L)]), "Imports")
+  opt <- setdiff(paquets(sec[-seq_len(i_opt)]), "Suggests")
+
+  dcf <- read.dcf(file.path(root, "DESCRIPTION"), fields = c("Imports", "Suggests"))
+  champ <- function(f) {
+    v <- trimws(strsplit(dcf[1, f], ",")[[1]])
+    v <- sub("[[:space:]]*[(].*$", "", v)
+    v[nzchar(v)]
+  }
+  expect_setequal(req, champ("Imports"))
+  expect_setequal(opt, champ("Suggests"))
+  expect_false(anyDuplicated(c(req, opt)) > 0L,
+               info = "un paquet est cite deux fois dans la liste du README")
+})
+
 # =============================================================================
 #  ATELIER DE CODAGE QUALITATIF (CAQDAS) -- mod_coding.R
 # =============================================================================
