@@ -12132,3 +12132,15 @@ Le balayage des accents (« une colonne créée et une colonne lue portent le m�
 nom ») a signalé en CI le titre d'axe « h² » contre le symbole local `h2` (le
 vecteur des H² passé au MGIDI) : c'est un libellé, pas une lecture de colonne.
 Il rejoint les couples connus, motif écrit dans le test (1.59.1).
+
+### Un effet direct négligeable se classe par la corrélation (1.60.0)
+
+Demandé à l'écran : `Degats_chenilles` sortait « Favorable » au rendement avec
+un effet direct de 0,055 dans l'analyse des pistes, alors que sa corrélation
+avec le rendement vaut −0,97. Un effet direct sous
+`HSTAT_GEN_PISTE_DIRECT_NEGLIGEABLE` (0,1) ne dit pas le sens : c'est un
+artefact de colinéarité, l'effet passe par les autres caractères. Le sens et
+l'intensité se lisent alors sur la corrélation, si elle atteint
+`HSTAT_GEN_PISTE_CORRELATION_FORTE` (0,3), et la lecture dit « effet surtout
+indirect ». Un effet direct net garde son sens. Le test vérifie aussi le sens
+inversé d'un caractère à diminuer.
