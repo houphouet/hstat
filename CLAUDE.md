@@ -12127,3 +12127,8 @@ de ses classes, dans l'ordre faible, moyenne, élevée (`breaks`, sans quoi la
 légende les range par ordre alphabétique : « Élevée » avant « Faible »). h²
 seule sans diallèle n'est pas un cadre vide : la figure dit qu'il faut les
 colonnes Parent 1 et Parent 2.
+
+Le balayage des accents (« une colonne créée et une colonne lue portent le même
+nom ») a signalé en CI le titre d'axe « h² » contre le symbole local `h2` (le
+vecteur des H² passé au MGIDI) : c'est un libellé, pas une lecture de colonne.
+Il rejoint les couples connus, motif écrit dans le test (1.59.1).

@@ -10114,10 +10114,13 @@ test_that("une colonne creee et une colonne lue portent le meme nom", {
   # génétique : les colonnes s'appellent `Genotype`, `Selectionne` et
   # `H2_moyenne`, les chaines accentuees sont des titres de légende et d'axe
   # passes a `tr()`. Verifie : aucune lecture accentuee n'existe dans le depot.
+  # « h² » est le titre de l'axe de l'heritabilite au sens strict ; le symbole
+  # `h2` qu'il rencontre est le vecteur local des H² passe au MGIDI, pas une
+  # colonne. La colonne s'appelle `h2_strict`.
   connus <- c("Observé", "Prédit", "Modalité", "Résidu", "Thème", "Fréquence",
               "Méthode", "Interprétation", "Métrique", "Unité", "Répétition",
               "Espèce", "Relevé", "Sensibilité", "Spécificité", "µl",
-              "Génotype", "Sélectionné", "H²")
+              "Génotype", "Sélectionné", "H²", "h²")
   fautifs <- fautifs[!grepl(paste0("chaine (", paste(connus, collapse = "|"),
                                    ") "), fautifs)]
   expect_equal(fautifs, character(0))
