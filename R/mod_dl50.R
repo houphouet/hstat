@@ -1914,22 +1914,6 @@ HSTAT_DL50_OPT_DEFAUT <- list(
 # scientifique pour les doses usuelles.
 .hstat_dl50_nb <- function(v) trimws(formatC(v, format = "fg", digits = 4, flag = "#"))
 
-# L'habillage moderne : grille majeure fine, pas de grille mineure, axes
-# traces, titre aligne sur la figure et non sur le panneau, legende du modele
-# discrete.
-.hstat_dl50_theme_moderne <- function(o) {
-  ggplot2::theme(
-    panel.grid.minor = ggplot2::element_blank(),
-    panel.grid.major = ggplot2::element_line(colour = "#e5e7eb", linewidth = 0.35),
-    axis.line = ggplot2::element_line(colour = "#374151", linewidth = 0.45),
-    axis.ticks = ggplot2::element_line(colour = "#374151", linewidth = 0.4),
-    axis.ticks.length = ggplot2::unit(3, "pt"),
-    plot.title.position = "plot",
-    legend.key = ggplot2::element_blank(),
-    plot.background = ggplot2::element_rect(fill = "white", colour = NA),
-    plot.margin = ggplot2::margin(10, 14, 8, 10))
-}
-
 # La matrice (a, b) de la bande.
 .hstat_dl50_bande_v <- function(f, type = "droite") {
   V <- f$Vh
@@ -2376,7 +2360,7 @@ hstat_dl50_graphique <- function(fits, opt = list()) {
     (viz_get_theme(o$theme, base_size = o$base_size)) +
     # L'HABILLAGE MODERNE SE POSE ENTRE LE THEME ET LES REGLAGES : il affine le
     # theme choisi, et tout ce que l'utilisateur regle ensuite.
-    (if (moderne) .hstat_dl50_theme_moderne(o) else ggplot2::theme()) +
+    (if (moderne) hstat_theme_moderne() else ggplot2::theme()) +
     ggplot2::theme(
       plot.title = .hstat_dl50_txt(o$titre_taille, o$titre_style,
                                    hjust = o$titre_pos),

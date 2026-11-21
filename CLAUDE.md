@@ -11977,3 +11977,80 @@ portées et leurs décimales, plus le kit complet des neuf familles. Une couleur
 qui n'est pas un code hexadécimal retombe sur le défaut. « Masquer la grille »
 retire ce que le thème pose ; ne rien cocher laisse le thème décider, sinon le
 choix d'un thème sans grille serait contredit.
+
+### Revue 1.57.0 : dix défauts du module génétique
+
+Revue de code menée sur le lot 1.55.0–1.56.0. Chaque défaut est gardé par un test.
+
+- **Un caractère nommé comme une colonne interne** (`G`, `E`, `R`, `Type`, `P1`,
+  `P2`) écrasait les génotypes, les environnements ou les répétitions : tous les
+  résultats sortaient plausibles et faux. Il est renommé « R (caractère) », la
+  note le dit, et `pr$noms` relie le nom choisi au nom interne — le caractère
+  principal et les caractères à diminuer passent par elle.
+- **Un génotype sans mesure pour un caractère faisait tomber le MGIDI**, donc la
+  session : l'indice était calculé sur les génotypes complets et le tableau bâti
+  sur tous. `.hstat_gen_ideotype()` rend les génotypes retenus, et ceux qu'il
+  écarte sont nommés.
+- **Plus de quinze caractères faisaient tomber la synthèse** : les corrélations
+  ne portent que sur les quinze premiers, et la synthèse les indexait par tous.
+- **Une covariable qualitative constante par environnement** se testait sur les
+  parcelles, chaque environnement compté autant de fois qu'il en porte. Elle se
+  teste désormais sur les moyennes des environnements, comme la numérique.
+- **Le ratio de Baker avait deux lectures** (0,5/0,75 dans la note du diallèle,
+  0,4/0,7 dans la grille). La note lit la grille, `HSTAT_GEN_METRIQUES$baker`.
+- **Un effet non testable était dit « Non significatif »** (diallèle sans
+  répétition), et l'AMMI annonçait « 1 axe significatif » sans aucun test. Ils
+  rendent « Non calculable », et la note de l'AMMI dit pourquoi le premier axe
+  est retenu.
+- **Le diallèle ignorait le seuil α choisi** : il comparait à 0,05.
+- **Une ligne à un seul parent** était prise pour l'autofécondation de ce
+  parent, quel que soit le génotype. Elle n'est un parent que si elle porte son
+  nom ; sinon, c'est un croisement incomplet, écarté et nommé.
+- **Un caractère principal constant faisait lever l'analyse des pistes**
+  (`if (NA)`) : la corrélation est refusée et nommée.
+- **Sans répétition, l'ANOVA de l'AMMI comptait l'interaction deux fois** : la
+  ligne « Erreur » de `y ~ E + G` *est* l'interaction, déjà décomposée par les
+  axes. Elle est retirée, et le test exige que les SC somment à la totale.
+
+Enfin, chaque analyse d'un caractère est gardée **à l'itération** : une erreur
+imprévue devient un refus nommé pour ce caractère seul, et ne fait plus
+disparaître les résultats des autres. Une garde extérieure reste autour de la
+synthèse, qui croise les caractères : elle se dit en notification au lieu de
+fermer la session.
+
+Écarté, et pourquoi : stocker les caractères sous un préfixe (`.car_<nom>`,
+comme `.cov_` pour les covariables) éviterait le renommage visible ; il
+toucherait chaque lecture `d[[trait]]` du module, pour un cas — une colonne
+mesurée nommée `R`, `G` ou `P1` — que le renommage annoncé couvre déjà.
+
+### Les figures génétiques ont un rendu de publication
+
+Demandé à l'écran : « les graphiques doivent être beaux ». Le réglage « Rendu
+des figures » (`genStyle`, `HSTAT_GEN_STYLES`) vaut « moderne » par défaut :
+`.hstat_gen_habillage()` se pose **entre** le thème choisi et les réglages de
+l'utilisateur, si bien que tout ce qu'on règle ensuite l'emporte. Il donne un
+fond blanc, une grille principale légère sans grille secondaire, des axes tracés
+et un titre calé sur la figure entière. « Classique » rend le thème seul.
+
+Figure par figure :
+
+- **Points cerclés de blanc** (forme 21, triangles 24) dans les biplots et
+  l'AMMI1 : la couleur passe en `fill`, et un point se détache de ceux qu'il
+  chevauche.
+- **Les cartes** (ASC, sensibilités, corrélations) n'ont ni trait d'axe ni
+  grille sous leurs tuiles, et leur texte passe au blanc sur une case foncée.
+  Elles le déclarent elles-mêmes (`.hstat_gen_tuiles()`) : le serveur garde le
+  thème propre à la figure (`propre <- p$theme`) et le repose **après** le
+  thème complet choisi, qui l'aurait effacé — les graduations inclinées des
+  corrélations se perdaient ainsi.
+- **Les corrélations ne montrent que le triangle inférieur** : la matrice est
+  symétrique et sa diagonale vaut 1. Une estimation au-delà de 1 garde son
+  chiffre, mais sa couleur sature (`oob = squish`) au lieu de tomber en gris.
+- **Les sensibilités se colorent relativement à leur covariable** : chacune a
+  son unité, et une pluviométrie en mm écraserait une température en °C. Le
+  chiffre écrit reste la pente.
+- **L'héritabilité garde ses couleurs de classe** (défavorable, ocre,
+  favorable). Elle quitte donc `HSTAT_GEN_GRAPHIQUES_PALETTE` : la palette
+  choisie aurait remplacé un code par une décoration.
+- **Un sous-titre long revient à la ligne** (`.hstat_gen_coupe()`) au lieu de
+  sortir du cadre.

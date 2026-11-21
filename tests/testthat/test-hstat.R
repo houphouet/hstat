@@ -26082,7 +26082,8 @@ test_that("Selection genetique : les reglages du graphique agissent sur la figur
                       genGrilleMaj = TRUE)
     p <- graphique()
     bd <- ggplot2::ggplot_build(p)$data
-    pts <- Filter(function(x) "colour" %in% names(x) && any(x$colour == "#FF0000"), bd)
+    teinte <- function(x, v) any(c(x$colour, x$fill) == v, na.rm = TRUE)
+    pts <- Filter(function(x) teinte(x, "#FF0000"), bd)
     expect_true(length(pts) >= 1L)
     expect_true(any(vapply(pts, function(x) isTRUE(all(x$alpha == 0.4)), logical(1))))
     th <- ggplot2::theme_get() + p$theme
@@ -26093,10 +26094,146 @@ test_that("Selection genetique : les reglages du graphique agissent sur la figur
     # Une couleur forgee retombe sur le defaut.
     session$setInputs(genCoulGeno = "javascript:alert(1)")
     bd <- ggplot2::ggplot_build(graphique())$data
-    expect_true(any(vapply(bd, function(x) "colour" %in% names(x) &&
-      any(x$colour == HSTAT_GEN_COULEURS[["genotype"]]), logical(1))))
+    expect_true(any(vapply(bd, function(x) teinte(x, HSTAT_GEN_COULEURS[["genotype"]]), logical(1))))
     expect_false(is.null(rv$res$interpretation))
     expect_true(all(c("Moyenne_ET_groupe", "Moyenne_ES_groupe", "Lecture_metriques") %in%
                     names(tables_export())))
+  })
+})
+
+test_that("Selection genetique : un caractere nomme comme une colonne interne est renomme, pas ecrase", {
+  df <- .hstat_test_met()
+  df$R <- df$Rendement; df$P1 <- df$Fibre_pct
+  pr <- hstat_gen_preparer(df, "Variete", c("R", "P1", "Degats_pct"), var_loc = "Loc",
+                           var_annee = "Annee", var_rep = "Bloc")
+  expect_true(pr$ok)
+  expect_equal(pr$n_gen, 10)
+  expect_setequal(pr$traits, c("R (caractère)", "P1 (caractère)", "Degats_pct"))
+  expect_equal(pr$data[["R (caractère)"]], df$R)
+  expect_equal(as.character(pr$data$R), as.character(df$Bloc))
+  expect_true(all(is.na(pr$data$P1)))
+  expect_true(any(grepl("renommé", pr$notes, fixed = TRUE)))
+  expect_identical(unname(pr$noms[["R"]]), "R (caractère)")
+})
+
+test_that("Selection genetique : un caractere constant refuse les pistes sans lever", {
+  m <- data.frame(Genotype = paste0("V", 1:8), Y = 5, A = rnorm(8), B = rnorm(8))
+  r <- hstat_gen_pistes(m, "Y", c("A", "B"))
+  expect_false(r$ok)
+  expect_match(r$motif, "constant")
+})
+
+test_that("Selection genetique : un seul parent renseigne n'est un parent que s'il porte son nom", {
+  df <- .hstat_test_diallele(TRUE)
+  ajout <- data.frame(P1 = c("A", NA), P2 = c(NA, "B"), R = 1, Y = c(999, 50),
+                      G = c("H7", "B"))
+  df <- rbind(df, ajout)
+  pr <- hstat_gen_preparer(df, "G", "Y", var_rep = "R", var_p1 = "P1", var_p2 = "P2")
+  cel <- .hstat_gen_cellules(pr$data, "Y")
+  expect_false(any(cel$y == 999))
+  expect_true(any(cel$P1 == "B" & cel$P2 == "B" & cel$y == 50))
+  expect_identical(attr(cel, "incomplets"), "H7")
+  g <- hstat_gen_griffing(pr$data, "Y")
+  expect_true(any(grepl("H7", g$notes, fixed = TRUE)))
+})
+
+test_that("Selection genetique : une covariable qualitative constante par environnement se teste sur les environnements", {
+  df <- .hstat_test_met()
+  env <- paste(df$Loc, df$Annee)
+  sols <- stats::setNames(rep(c("Argile", "Sable"), length.out = length(unique(env))), unique(env))
+  df$Sol <- unname(sols[env])
+  pr <- hstat_gen_preparer(df, "Variete", "Rendement", var_loc = "Loc", var_annee = "Annee",
+                           var_rep = "Bloc", covariables = "Sol")
+  cv <- hstat_gen_covariables(pr$data, "Rendement", pr$covariables)
+  expect_identical(cv$Niveau_analyse, tr("Environnements"))
+  expect_equal(cv$n, length(unique(env)))
+})
+
+test_that("Selection genetique : le ratio de Baker n'a qu'une lecture", {
+  for (b in c(0.2, 0.45, 0.72, 0.9))
+    expect_identical(.hstat_gen_action_genique(b),
+                     .hstat_gen_sens_metrique(b, HSTAT_GEN_METRIQUES$baker))
+})
+
+test_that("Selection genetique : un effet non testable n'est pas dit non significatif", {
+  df <- .hstat_test_diallele(TRUE)
+  df1 <- df[df$R == 1, ]
+  pr <- hstat_gen_preparer(df1, "G", "Y", var_p1 = "P1", var_p2 = "P2")
+  g <- hstat_gen_griffing(pr$data, "Y")
+  expect_true(g$ok)
+  expect_true(all(g$agc$Sens == tr("Non calculable")))
+  met <- .hstat_test_met()
+  met <- met[met$Bloc == 1, ]
+  pr2 <- hstat_gen_preparer(met, "Variete", "Rendement", var_loc = "Loc", var_annee = "Annee")
+  a <- hstat_gen_ammi(pr2$data, "Rendement")
+  expect_true(a$ok)
+  expect_false(a$axes_testes)
+  expect_false(tr("Erreur") %in% a$anova$Source)
+  expect_equal(sum(a$anova$SC), sum((a$Y - mean(a$Y))^2), tolerance = 1e-6)
+})
+
+test_that("Selection genetique : le diallele suit le seuil choisi", {
+  df <- .hstat_test_diallele(TRUE)
+  pr <- hstat_gen_preparer(df, "G", "Y", var_rep = "R", var_p1 = "P1", var_p2 = "P2")
+  for (al in c(0.01, 0.05, 0.1)) {
+    g <- hstat_gen_griffing(pr$data, "Y", alpha = al)
+    expect_identical(g$agc$Sens == tr("Non significatif"), g$agc$p >= al)
+    expect_identical(g$croisements$Sens_ASC == tr("Non significatif"), g$croisements$p >= al)
+  }
+})
+
+test_that("Selection genetique : un genotype incomplet est ecarte du MGIDI et nomme", {
+  df <- .hstat_test_met()
+  pr <- hstat_gen_preparer(df, "Variete", c("Rendement", "Degats_pct", "Fibre_pct"),
+                           var_loc = "Loc", var_annee = "Annee", var_rep = "Bloc")
+  m <- hstat_gen_moyennes(pr$data, pr$traits)
+  m$Degats_pct[m$Genotype == "V3"] <- NA
+  r <- hstat_gen_mgidi(m, pr$traits)
+  expect_true(r$ok)
+  expect_identical(r$incomplets, "V3")
+  expect_equal(nrow(r$table), 9)
+  expect_false("V3" %in% r$table$Genotype)
+})
+
+test_that("Selection genetique : la synthese tient quand les correlations ne couvrent pas tous les caracteres", {
+  set.seed(3)
+  m <- data.frame(Genotype = paste0("V", 1:20), Y = rnorm(20), A = rnorm(20), B = rnorm(20))
+  m$Y <- m$Y + 2 * m$A
+  pi <- hstat_gen_pistes(m, "Y", c("A", "B"))
+  expect_true(pi$ok)
+  co <- list(genotypique = matrix(c(1, 0.5, 0.5, 1), 2, dimnames = list(c("Y", "A"), c("Y", "A"))))
+  expect_no_error(f <- hstat_gen_synthese_facteurs("Y", pistes = pi, correlations = co))
+})
+
+test_that("Selection genetique : le rendu moderne habille la figure, le classique la laisse au theme", {
+  skip_if_not_installed("ggplot2")
+  df <- .hstat_test_met()
+  vals <- shiny::reactiveValues(data = df, resetSignal = 0)
+  shiny::testServer(mod_genetique_server, args = list(values = vals), {
+    session$setInputs(genGen = "Variete", genLoc = "Loc", genAnnee = "Annee", genRep = "Bloc",
+      genTraits = c("Rendement", "Jours_floraison", "Degats_pct", "Fibre_pct"), genCov = character(0),
+      genMinimiser = character(0), genPrincipal = "Rendement", genSI = 20, genAlpha = "0.05",
+      genF = 1, genPoidsY = 50, genSvp = "symetrique", genEchelle = FALSE, genType = "",
+      genGroupe = "", genP1 = "", genP2 = "", genComparaison = "tukey")
+    session$setInputs(genCalculer = 1)
+    session$setInputs(genGraphique = "ammi1", genStyle = "moderne")
+    p <- graphique()
+    expect_identical(p$theme$plot.title.position, "plot")
+    expect_s3_class(p$theme$axis.line, "element_line")
+    session$setInputs(genStyle = "classique")
+    expect_null(graphique()$theme$plot.title.position)
+    # Une carte n'a ni trait d'axe ni grille sous ses tuiles.
+    session$setInputs(genStyle = "moderne", genGraphique = "correlations")
+    p <- graphique()
+    expect_s3_class(p$theme$axis.line, "element_blank")
+    expect_s3_class(p$theme$panel.grid.major, "element_blank")
+    # Le triangle inferieur seul : n(n - 1) / 2 cases.
+    tuiles <- Filter(function(x) "fill" %in% names(x) && nrow(x) > 1, ggplot2::ggplot_build(p)$data)[[1]]
+    expect_equal(nrow(tuiles), 6)
+    # L'heritabilite garde ses couleurs de classe, quelle que soit la palette.
+    session$setInputs(genGraphique = "heritabilite", genPalette = "Set1")
+    fills <- unique(ggplot2::ggplot_build(graphique())$data[[1]]$fill)
+    expect_true(all(fills %in% c(HSTAT_GEN_COULEURS[["favorable"]], "#c98a12",
+                                 HSTAT_GEN_COULEURS[["defavorable"]])))
   })
 })
