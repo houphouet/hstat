@@ -12169,3 +12169,12 @@ Demandé à l'écran : « Six things worth knowing » et « Errors you can act o
 sont retirées du README, et la ligne « Genetic selection » du tableau « What
 you can do » passe juste sous « Explore » (les analyses multivariées). Leur
 contenu reste documenté ici même ; aucun test ni lien ne pointait vers elles.
+
+### Le README liste les paquets R (1.60.3)
+
+Demandé à l'écran. La section « R packages » (sous « Install and run ») nomme
+les `Imports` (requis) puis les `Suggests` (optionnels), rangés par usage.
+C'est une copie de `DESCRIPTION`, donc un test la garde dans les deux sens :
+un paquet ajouté à `DESCRIPTION` sans être listé, ou listé sans y figurer, le
+fait échouer, ainsi qu'un paquet requis rangé parmi les optionnels. Vérifié
+par deux mutations (un paquet retiré, un paquet inventé).

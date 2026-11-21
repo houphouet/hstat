@@ -41,6 +41,34 @@ No minimum R version is declared; CI runs the suite on the current release.
 
 ---
 
+## R packages
+
+Installing HStat installs the packages it cannot start without. The others are
+optional: each one serves an analysis or an interface element, `run_hstat()`
+installs the missing ones on first run, and an analysis whose package is
+absent says so and names an alternative.
+
+**Required** (`Imports`): `cluster`, `data.table`, `DBI`, `dplyr`, `DT`,
+`emmeans`, `ggplot2`, `haven`, `htmltools`, `magrittr`, `MASS`, `multcomp`,
+`multcompView`, `openxlsx`, `plotly`, `pROC`, `psych`, `readxl`, `rlang`,
+`scales`, `shiny`, `shinydashboard`, `shinyjs`, `stats`, `svglite`, `tidyr`,
+`vegan`.
+
+**Optional** (`Suggests`):
+
+| Used for | Packages |
+|---|---|
+| Interface and figures | `colourpicker`, `shinycssloaders`, `shinyWidgets`, `shinyalert`, `sortable`, `ggtext`, `ggrepel`, `patchwork`, `treemapify`, `RColorBrewer`, `corrplot`, `tibble`, `base64enc`, `zip` |
+| Data and missing values | `duckdb`, `VIM`, `mice`, `missForest`, `bestNormalize` |
+| Tests and mixed models | `afex`, `agricolae`, `ARTool`, `car`, `EMT`, `FSA`, `PMCMRplus`, `rcompanion`, `pwr`, `glmmTMB`, `lme4`, `lmerTest`, `lmtest`, `heplots` |
+| Multivariate analysis and clustering | `FactoMineR`, `factoextra`, `clustMixType`, `klaR`, `poLCA`, `mclust`, `dbscan`, `lavaan`, `pls` |
+| Machine learning and deep learning | `randomForest`, `xgboost`, `e1071`, `kknn`, `glmnet`, `rpart`, `nnet`, `neuralnet`, `torch` |
+| Time series and epidemiology | `forecast`, `prophet`, `dlm`, `dlnm`, `survival` |
+| AI services, network and start-up | `httr`, `curl`, `jsonlite`, `later` |
+| Test suite | `testthat` |
+
+---
+
 ## What you can do
 
 | Step | Tabs |
@@ -215,7 +243,7 @@ citation("HStat")
 Or use one of the following:
 
 **Text**
-> KOUADIO, Houphouet & Claude Code (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 1.60.2. https://github.com/houphouet/hstat
+> KOUADIO, Houphouet & Claude Code (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 1.60.3. https://github.com/houphouet/hstat
 
 **BibTeX**
 ```bibtex
@@ -223,7 +251,7 @@ Or use one of the following:
   title  = {HStat: Application Shiny interactive pour l'analyse statistique},
   author = {Houphouet KOUADIO and {Claude Code}},
   year   = {2026},
-  note   = {Version 1.60.2},
+  note   = {Version 1.60.3},
   url    = {https://github.com/houphouet/hstat},
 }
 ```
