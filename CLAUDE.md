@@ -12117,3 +12117,13 @@ un test de performance mesure un compte, jamais une durée — n'y était pas
 appliquée. Il compte désormais, par `trace()` sur `wilcox.test.default`, les
 appels qui demandent l'intervalle : zéro au-delà du plafond, au moins un en
 deçà, sans quoi le traceur pourrait ne rien voir et passer quand même.
+
+### La figure de l'héritabilité : l'une, l'autre ou les deux (1.59.0)
+
+Demandé à l'écran. « Héritabilité affichée » (`genHeritAffiche`,
+`HSTAT_GEN_HERITABILITES`) n'apparaît que sous cette figure : les deux côte à
+côte (défaut), H² seule ou h² seule. Une héritabilité seule prend les couleurs
+de ses classes, dans l'ordre faible, moyenne, élevée (`breaks`, sans quoi la
+légende les range par ordre alphabétique : « Élevée » avant « Faible »). h²
+seule sans diallèle n'est pas un cadre vide : la figure dit qu'il faut les
+colonnes Parent 1 et Parent 2.

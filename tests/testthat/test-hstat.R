@@ -26343,6 +26343,16 @@ test_that("Selection genetique : barres cerclees de noir, demi-barre d'erreur, t
     session$setInputs(genGraphique = "heritabilite")
     b <- ggplot2::ggplot_build(graphique())
     expect_equal(length(unique(b$data[[1]]$fill)), 2)
+    # L'une ou l'autre, ou les deux : une barre par caractere et par heritabilite.
+    nb <- function() nrow(ggplot2::ggplot_build(graphique())$data[[1]])
+    expect_equal(nb(), 2)
+    session$setInputs(genHeritAffiche = "large")
+    expect_equal(nb(), 1)
+    expect_identical(graphique()$labels$y, "H²")
+    session$setInputs(genHeritAffiche = "strict")
+    expect_equal(nb(), 1)
+    expect_identical(graphique()$labels$y, "h²")
+    expect_equal(ggplot2::ggplot_build(graphique())$data[[1]]$y, rv$res$composantes$h2_strict)
   })
   met <- .hstat_test_met()
   met$Type <- ifelse(met$Variete %in% paste0("V", 1:5), "Lignée", "Hybride")
@@ -26363,5 +26373,7 @@ test_that("Selection genetique : barres cerclees de noir, demi-barre d'erreur, t
     # Sans diallele, la figure de l'heritabilite dit ce qui manque.
     session$setInputs(genGraphique = "heritabilite")
     expect_match(graphique()$labels$subtitle, "diallèle")
+    expect_s3_class(hstat_gen_figure("heritabilite", rv$res, "Rendement", list(heritabilite = "strict")),
+                    "hstat_gen_absent")
   })
 })

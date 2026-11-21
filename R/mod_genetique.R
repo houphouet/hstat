@@ -1270,6 +1270,10 @@ HSTAT_GEN_GRAPHIQUES <- c(
 # ou une echelle continue, qu'une palette qualitative ferait tomber.
 HSTAT_GEN_GRAPHIQUES_PALETTE <- c("moyennes_env", "finlay")
 
+# Les heritabilites que la figure peut porter.
+HSTAT_GEN_HERITABILITES <- c("Les deux" = "deux", "Au sens large (H²)" = "large",
+                             "Au sens strict (h²)" = "strict")
+
 HSTAT_GEN_COULEURS <- c(genotype = "#1f6fb2", environnement = "#b03a2e",
                         favorable = "#1b7a43", defavorable = "#b03a2e",
                         neutre = "#8a94a3", selection = "#b4500b")
@@ -1440,6 +1444,9 @@ mod_genetique_ui <- function(id) {
                 shiny::selectInput(ns("genGraphique"), "Graphique affiché",
                                    choices = HSTAT_GEN_GRAPHIQUES, selected = "ammi1",
                                    width = "100%"),
+                shiny::conditionalPanel(ns = ns, condition = "input.genGraphique == 'heritabilite'",
+                  shiny::radioButtons(ns("genHeritAffiche"), "Héritabilité affichée",
+                                      choices = HSTAT_GEN_HERITABILITES, selected = "deux", inline = TRUE)),
                 withSpinner(shiny::plotOutput(ns("genPlot"), height = "620px"),
                             color = "#1b7a43")))),
 
@@ -1909,10 +1916,36 @@ hstat_gen_figure <- function(quoi, res, trait, opt = list(etiq = TRUE, taille = 
     heritabilite = {
       cp <- res$composantes
       if (is.null(cp) || !nrow(cp)) return(absent(tr("Aucune héritabilité calculable.")))
+      quoi_h <- opt$heritabilite %||% "deux"
+      if (!quoi_h %in% HSTAT_GEN_HERITABILITES) quoi_h <- "deux"
+      a_h2 <- "h2_strict" %in% names(cp) && any(is.finite(cp$h2_strict))
+      manque_h2 <- tr("L'héritabilité au sens strict demande un diallèle : indiquez les colonnes Parent 1 et Parent 2.")
+      if (quoi_h == "strict" && !a_h2) return(absent(manque_h2))
       lv <- cp$Caractere[order(cp$H2_moyenne)]
       bornes <- ggplot2::geom_hline(yintercept = HSTAT_GEN_GRILLES$H2$bornes, linetype = 2, colour = "#5f6b7a")
       echelle_y <- ggplot2::scale_y_continuous(limits = c(0, 1.1), expand = c(0, 0))
-      if ("h2_strict" %in% names(cp) && any(is.finite(cp$h2_strict))) {
+      # Une seule heritabilite : ses barres prennent la couleur de leur classe.
+      une <- function(v, classes, libelles, titre, axe, sous_titre = NULL) {
+        dd <- data.frame(Caractere = factor(cp$Caractere, levels = lv), Valeur = v, Classe = classes)
+        dd <- dd[is.finite(dd$Valeur), , drop = FALSE]
+        ggplot2::ggplot(dd, ggplot2::aes(Caractere, Valeur, fill = Classe)) +
+          ggplot2::geom_col(width = 0.7, alpha = al, colour = "black", linewidth = 0.3) +
+          bornes +
+          (if (!isFALSE(opt$valeurs)) ggplot2::geom_text(ggplot2::aes(label = val_txt(Valeur)), hjust = -0.15, size = opt$taille)) +
+          ggplot2::scale_fill_manual(values = stats::setNames(c(def, "#c98a12", fav), libelles),
+                                     breaks = libelles, drop = TRUE) +
+          ggplot2::coord_flip() + echelle_y +
+          ggplot2::labs(title = titre, subtitle = sous_titre, x = NULL, y = axe, fill = tr("Classe"))
+      }
+      if (quoi_h == "large" || (quoi_h == "deux" && !a_h2)) {
+        une(cp$H2_moyenne, cp$Classe_H2, .hstat_gen_libelles_h2(),
+            tr("Héritabilité au sens large (base moyenne)"), "H²",
+            if (!a_h2) manque_h2)
+      } else if (quoi_h == "strict") {
+        une(cp$h2_strict, cp$Classe_h2, vapply(HSTAT_GEN_METRIQUES$h2_strict$classes, tr, ""),
+            tr("Héritabilité au sens strict (diallèle)"), "h²",
+            tr("h² = σ²A / σ²P : la part additive, celle qui se transmet des parents aux descendants."))
+      } else {
         # Les deux heritabilites cote a cote : la part additive (h²) dans la
         # part genetique totale (H²).
         n_l <- tr("H² au sens large (base moyenne)"); n_s <- tr("h² au sens strict (diallèle)")
@@ -1934,18 +1967,6 @@ hstat_gen_figure <- function(quoi, res, trait, opt = list(etiq = TRUE, taille = 
           ggplot2::labs(title = tr("Héritabilité au sens large et au sens strict"),
                         subtitle = tr("h² = σ²A / σ²P : la part additive, celle qui se transmet des parents aux descendants."),
                         x = NULL, y = "H², h²", fill = NULL)
-      } else {
-        cp$Caractere <- factor(cp$Caractere, levels = lv)
-        ggplot2::ggplot(cp, ggplot2::aes(Caractere, H2_moyenne, fill = Classe_H2)) +
-          ggplot2::geom_col(width = 0.7, alpha = al, colour = "black", linewidth = 0.3) +
-          bornes +
-          (if (!isFALSE(opt$valeurs)) ggplot2::geom_text(ggplot2::aes(label = val_txt(H2_moyenne)), hjust = -0.15, size = opt$taille)) +
-          ggplot2::scale_fill_manual(values = stats::setNames(c(def, "#c98a12", fav),
-                                                              .hstat_gen_libelles_h2()), drop = TRUE) +
-          ggplot2::coord_flip() + echelle_y +
-          ggplot2::labs(title = tr("Héritabilité au sens large (base moyenne)"),
-                        subtitle = tr("L'héritabilité au sens strict demande un diallèle : indiquez les colonnes Parent 1 et Parent 2."),
-                        x = NULL, y = "H²", fill = tr("Classe"))
       }
     },
     agc = {
@@ -2673,6 +2694,7 @@ mod_genetique_server <- function(id, values) {
         if (!is.na(v) && grepl("^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$", v)) v else HSTAT_GEN_COULEURS[[cle]]
       }
       opt <- list(etiq = isTRUE(input$genEtiquettes), ellipses = !isFALSE(input$genEllipses),
+                  heritabilite = input$genHeritAffiche %||% "deux",
                   taille = hstat_borne_client(input$genEtiqSize, 3.2, 1, 8),
                   point = hstat_borne_client(input$genPointSize, 2.5, 0.5, 8),
                   alpha = hstat_borne_client(input$genOpacite, 1, 0.1, 1),
