@@ -2619,8 +2619,13 @@ mod_genetique_server <- function(id, values) {
         hstat_plot_extras_theme(extras)
       # Un angle laisse a 0 ne remplace pas l'inclinaison que la figure pose
       # elle-meme : ses libelles se chevaucheraient.
-      if (!is.null(propre$axis.text.x) && isTRUE(extras$angle_x %in% 0))
-        p <- p + ggplot2::theme(axis.text.x = propre$axis.text.x)
+      if (!is.null(propre$axis.text.x) && isTRUE(extras$angle_x %in% 0)) {
+        e <- propre$axis.text.x
+        # Le kit centre verticalement une etiquette droite : penchee, elle doit
+        # finir sous sa graduation, sinon elle mord sur le titre de l'axe.
+        if (isTRUE(e$angle > 0)) e$vjust <- 1
+        p <- p + ggplot2::theme(axis.text.x = e)
+      }
       # Masquer une grille retire ce que le theme pose ; ne rien cocher le laisse.
       if (isTRUE(input$genGrilleMaj)) p <- p + ggplot2::theme(panel.grid.major = ggplot2::element_blank())
       if (isTRUE(input$genGrilleMin)) p <- p + ggplot2::theme(panel.grid.minor = ggplot2::element_blank())

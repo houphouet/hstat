@@ -12074,7 +12074,9 @@ graduations à 45°, mais le kit de mise en forme, posé après elle, rend l'ang
 de son curseur — 0 par défaut — et l'effaçait. Un angle laissé à 0 garde
 désormais l'inclinaison propre à la figure ; un angle choisi l'emporte. Les
 moyennes par environnement s'inclinent d'elles-mêmes quand les noms
-d'environnement sont longs.
+d'environnement sont longs. L'étiquette penchée prend `vjust = 1` (1.57.3) :
+le kit centre une étiquette droite (`vjust = 0.5`), et penchée ainsi elle
+mordait sur le titre de l'axe.
 
 La synthèse en graphique (`hstat_synthese_figure()`) part de `theme_void()`,
 dont le fond est transparent : exportée en PNG, elle s'ouvrait sur un fond noir

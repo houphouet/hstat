@@ -26270,6 +26270,7 @@ test_that("Selection genetique : un angle laisse a 0 garde l'inclinaison propre 
     session$setInputs(genCalculer = 1)
     session$setInputs(genGraphique = "correlations", genXAngleX = 0)
     expect_equal(graphique()$theme$axis.text.x$angle, 45)
+    expect_equal(graphique()$theme$axis.text.x$vjust, 1)
     session$setInputs(genXAngleX = 30)
     expect_equal(graphique()$theme$axis.text.x$angle, 30)
     # Des noms d'environnement longs s'inclinent d'eux-memes.
