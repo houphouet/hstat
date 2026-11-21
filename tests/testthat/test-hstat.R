@@ -26226,6 +26226,7 @@ test_that("Selection genetique : le rendu moderne habille la figure, le classiqu
     session$setInputs(genStyle = "moderne", genGraphique = "correlations")
     p <- graphique()
     expect_s3_class(p$theme$axis.line, "element_blank")
+    expect_s3_class(p$theme$panel.grid.major, "element_blank")
     # Le triangle inferieur seul : n(n - 1) / 2 cases.
     tuiles <- Filter(function(x) "fill" %in% names(x) && nrow(x) > 1, ggplot2::ggplot_build(p)$data)[[1]]
     expect_equal(nrow(tuiles), 6)

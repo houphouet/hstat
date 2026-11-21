@@ -57,6 +57,12 @@ hstat_gen_direction_proposee <- function(noms) {
 # Le meilleur d'un vecteur selon le sens du caractere.
 .hstat_gen_signe <- function(direction) if (identical(direction, "diminuer")) -1 else 1
 
+# Le sens d'un effet : un test incalculable ne vaut pas « non significatif ».
+.hstat_gen_sens <- function(p, effet, alpha)
+  ifelse(!is.finite(p), tr("Non calculable"),
+         ifelse(p >= alpha, tr("Non significatif"),
+                ifelse(effet > 0, tr("Favorable"), tr("Défavorable"))))
+
 .hstat_gen_classe <- function(x, bornes, libelles) {
   vapply(x, function(v) {
     if (!is.finite(v)) return(NA_character_)
@@ -499,8 +505,7 @@ hstat_gen_griffing <- function(d, trait, F_consanguinite = 1, direction = "augme
                     stringsAsFactors = FALSE)
   alpha <- suppressWarnings(as.numeric(alpha)[1])
   if (!is.finite(alpha) || alpha <= 0 || alpha >= 1) alpha <- 0.05
-  agc$Sens <- ifelse(!is.finite(agc$p), tr("Non calculable"), ifelse(agc$p >= alpha, tr("Non significatif"),
-                     ifelse(sgn * agc$AGC > 0, tr("Favorable"), tr("Défavorable"))))
+  agc$Sens <- .hstat_gen_sens(agc$p, sgn * agc$AGC, alpha)
   agc$Rang <- rank(-sgn * agc$AGC, ties.method = "min")
   agc <- agc[order(agc$Rang), , drop = FALSE]
 
@@ -536,8 +541,7 @@ hstat_gen_griffing <- function(d, trait, F_consanguinite = 1, direction = "augme
                BH = tr("AGC faible × AGC élevée"), BB = tr("AGC faible × AGC faible"))
   niveau <- function(x) ifelse(sgn * x > 0, "H", "B")
   tc$Profil_AGC <- unname(profils[paste0(niveau(tc$AGC_parent_1), niveau(tc$AGC_parent_2))])
-  tc$Sens_ASC <- ifelse(!is.finite(tc$p), tr("Non calculable"), ifelse(tc$p >= alpha, tr("Non significatif"),
-                        ifelse(sgn * tc$ASC > 0, tr("Favorable"), tr("Défavorable"))))
+  tc$Sens_ASC <- .hstat_gen_sens(tc$p, sgn * tc$ASC, alpha)
   tc <- tc[order(-sgn * tc$ASC), , drop = FALSE]
   rownames(tc) <- NULL
 
@@ -1017,13 +1021,19 @@ hstat_gen_covariables <- function(d, trait, covariables, direction = "augmenter"
     z <- d[[paste0(".cov_", k)]]
     num <- is.numeric(z)
     env_niveau <- .hstat_gen_par_env(z, d$E) && nlevels(droplevels(d$E)) >= 3
-    ligne <- function(niveau, beta, unite, p, n, detail = "") {
-      eff <- if (!is.finite(p)) tr("Non calculable")
-             else if (p >= alpha) tr("Non significatif")
-             else if (sgn * beta > 0) tr("Favorable") else tr("Défavorable")
+    # Un ecart entre modalites n'a pas de signe : la meilleure est nommee.
+    ligne <- function(niveau, beta, unite, p, n, detail = "", facteur = FALSE) {
+      eff <- .hstat_gen_sens(p, if (facteur) 1 else sgn * beta, alpha)
       data.frame(Variable = k, Niveau_analyse = niveau, Effet_standardise = beta,
                  Effet_par_unite = unite, p = p, n = n, Effet = eff, Detail = detail,
                  stringsAsFactors = FALSE, check.names = FALSE)
+    }
+    facteur <- function(yv, zv, p, niveau) {
+      m <- tapply(yv, zv, mean)
+      meilleur <- names(m)[if (sgn > 0) which.max(m) else which.min(m)]
+      s <- stats::sd(yv)
+      ligne(niveau, if (isTRUE(s > 0)) (max(m) - min(m)) / s else NA_real_, NA_real_, p,
+            length(yv), trf("Meilleure modalité : %s", meilleur), facteur = TRUE)
     }
     if (num && env_niveau) {
       ze <- tapply(z, d$E, function(v) v[!is.na(v)][1])[names(idx_env)]
@@ -1055,12 +1065,7 @@ hstat_gen_covariables <- function(d, trait, covariables, direction = "augmenter"
       p <- if (length(ie) > nlevels(ze))
         tryCatch(stats::anova(stats::lm(ie ~ ze))[1, "Pr(>F)"], error = function(e) NA_real_)
         else NA_real_
-      m <- tapply(ie, ze, mean)
-      meilleur <- names(m)[if (sgn > 0) which.max(m) else which.min(m)]
-      ecart <- if (isTRUE(stats::sd(ie) > 0)) (max(m) - min(m)) / stats::sd(ie) else NA_real_
-      lignes[[k]] <- ligne(tr("Environnements"), ecart, NA_real_, p, length(ie),
-                           trf("Meilleure modalité : %s", meilleur))
-      if (identical(lignes[[k]]$Effet, tr("Défavorable"))) lignes[[k]]$Effet <- tr("Favorable")
+      lignes[[k]] <- facteur(ie, ze, p, tr("Environnements"))
     } else {
       dd <- data.frame(y = y, G = d$G, E = d$E, z = factor(z))
       dd <- droplevels(dd[is.finite(dd$y) & !is.na(dd$z), , drop = FALSE])
@@ -1070,12 +1075,7 @@ hstat_gen_covariables <- function(d, trait, covariables, direction = "augmenter"
       if (is.null(fit)) next
       av <- stats::anova(fit)
       p <- if ("z" %in% rownames(av)) av["z", "Pr(>F)"] else NA_real_
-      m <- tapply(dd$y, dd$z, mean)
-      meilleur <- names(m)[if (sgn > 0) which.max(m) else which.min(m)]
-      ecart <- (max(m) - min(m)) / stats::sd(dd$y)
-      lignes[[k]] <- ligne(tr("Modalités (à génotype fixé)"), ecart, NA_real_, p, nrow(dd),
-                           trf("Meilleure modalité : %s", meilleur))
-      if (identical(lignes[[k]]$Effet, tr("Défavorable"))) lignes[[k]]$Effet <- tr("Favorable")
+      lignes[[k]] <- facteur(dd$y, dd$z, p, tr("Modalités (à génotype fixé)"))
     }
   }
   if (!length(lignes)) return(NULL)
@@ -1165,8 +1165,8 @@ hstat_gen_synthese_facteurs <- function(trait, direction = "augmenter",
   if (!is.null(pistes) && isTRUE(pistes$ok)) {
     tb <- pistes$table
     m <- if (!is.null(correlations)) correlations$genotypique
-    rg <- vapply(tb$Caractere, function(a)
-      if (!is.null(m) && all(c(a, trait) %in% rownames(m))) m[a, trait] else NA_real_, numeric(1))
+    rg <- if (is.null(m)) rep(NA_real_, nrow(tb))
+          else m[cbind(match(tb$Caractere, rownames(m)), match(trait, colnames(m)))]
     for (i in seq_len(nrow(tb))) {
       dir_eff <- sgn * tb$Effet_direct[i]
       if (abs(tb$Effet_direct[i]) < 0.1 && abs(tb$Correlation[i]) < 0.3) next
@@ -1247,10 +1247,7 @@ HSTAT_GEN_COULEURS <- c(genotype = "#1f6fb2", environnement = "#b03a2e",
 # Le rendu des figures : « moderne » pose un habillage de publication entre le
 # theme choisi et les reglages de l'utilisateur, « classique » le theme seul.
 HSTAT_GEN_STYLES <- c("Moderne (publication)" = "moderne", "Classique (thème seul)" = "classique")
-# Les figures en cases : ni grille ni trait d'axe sous les tuiles.
-HSTAT_GEN_GRAPHIQUES_CARTES <- c("asc", "sensibilite", "correlations")
-
-.hstat_gen_habillage <- function(carte = FALSE) {
+.hstat_gen_habillage <- function() {
   th <- hstat_theme_moderne() + ggplot2::theme(
     plot.title = ggplot2::element_text(colour = "#1f2630", margin = ggplot2::margin(b = 4)),
     plot.subtitle = ggplot2::element_text(colour = "#5f6b7a", margin = ggplot2::margin(b = 10)),
@@ -1260,15 +1257,16 @@ HSTAT_GEN_GRAPHIQUES_CARTES <- c("asc", "sensibilite", "correlations")
     legend.title = ggplot2::element_text(face = "bold"),
     strip.background = ggplot2::element_rect(fill = "#eef1f5", colour = NA),
     strip.text = ggplot2::element_text(face = "bold"))
-  if (carte) th <- th + ggplot2::theme(axis.line = ggplot2::element_blank(),
-                                        axis.ticks = ggplot2::element_blank(),
-                                        panel.grid.major = ggplot2::element_blank())
   th
 }
 
-# Le texte d'une case foncee passe au blanc.
-.hstat_gen_encre_tuile <- function()
-  ggplot2::scale_colour_manual(values = c(`TRUE` = "white", `FALSE` = "#1f2630"), guide = "none")
+# Les cases d'une carte, et leur texte qui passe au blanc sur une case foncee.
+.hstat_gen_tuiles <- function()
+  list(ggplot2::geom_tile(colour = "white", linewidth = 0.8),
+       ggplot2::scale_colour_manual(values = c(`TRUE` = "white", `FALSE` = "#1f2630"), guide = "none"),
+       ggplot2::theme(axis.line = ggplot2::element_blank(), axis.ticks = ggplot2::element_blank(),
+                      panel.grid.major = ggplot2::element_blank(),
+                      panel.grid.minor = ggplot2::element_blank()))
 
 # Un sous-titre long revient a la ligne au lieu de sortir du cadre.
 .hstat_gen_coupe <- function(x, largeur = 95) paste(strwrap(x, largeur), collapse = "\n")
@@ -1699,10 +1697,23 @@ hstat_gen_lecture_stabilite <- function(st) {
   }
 }
 
+# Genotypes (ronds) et environnements (triangles), cercles de blanc, et leurs noms.
+.hstat_gen_points_ge <- function(p, gd, ed, opt) {
+  C <- opt$couleurs %||% HSTAT_GEN_COULEURS
+  al <- opt$alpha %||% 1
+  p <- p +
+    ggplot2::geom_point(data = gd, ggplot2::aes(x, y), fill = C[["genotype"]], colour = "white",
+                        shape = 21, stroke = 0.6, size = opt$point * 1.2, alpha = al) +
+    ggplot2::geom_point(data = ed, ggplot2::aes(x, y), fill = C[["environnement"]], colour = "white",
+                        shape = 24, stroke = 0.6, size = opt$point * 1.1, alpha = al)
+  p <- .hstat_gen_etiq(p, gd, "x", "y", "nom", opt, C[["genotype"]])
+  .hstat_gen_etiq(p, ed, "x", "y", "nom", opt, C[["environnement"]], fontface = "italic")
+}
+
 .hstat_gen_biplot <- function(G, E, pct, opt, titre, nomx = "PC1", nomy = "PC2",
                               fleches = TRUE) {
   C <- opt$couleurs %||% HSTAT_GEN_COULEURS
-  al <- opt$alpha %||% 1; lw <- opt$trait %||% 0.5
+  lw <- opt$trait %||% 0.5
   gd <- data.frame(x = G[, 1], y = G[, 2], nom = rownames(G), stringsAsFactors = FALSE)
   ed <- data.frame(x = E[, 1], y = E[, 2], nom = rownames(E), stringsAsFactors = FALSE)
   p <- ggplot2::ggplot() +
@@ -1712,15 +1723,7 @@ hstat_gen_lecture_stabilite <- function(st) {
     p <- p + ggplot2::geom_segment(data = ed, ggplot2::aes(x = 0, y = 0, xend = x, yend = y),
       colour = C[["environnement"]], linewidth = lw * 0.8,
       arrow = grid::arrow(length = grid::unit(0.18, "cm")))
-  p <- p +
-    ggplot2::geom_point(data = gd, ggplot2::aes(x, y), fill = C[["genotype"]], colour = "white",
-                        shape = 21, stroke = 0.6, size = opt$point * 1.2, alpha = al) +
-    ggplot2::geom_point(data = ed, ggplot2::aes(x, y), fill = C[["environnement"]], colour = "white",
-                        shape = 24, stroke = 0.6, size = opt$point * 1.1, alpha = al)
-  p <- .hstat_gen_etiq(p, gd, "x", "y", "nom", opt, C[["genotype"]])
-  p <- .hstat_gen_etiq(p, ed, "x", "y", "nom", opt, C[["environnement"]],
-                       fontface = "italic")
-  p + ggplot2::labs(title = titre,
+  .hstat_gen_points_ge(p, gd, ed, opt) + ggplot2::labs(title = titre,
                     x = sprintf("%s (%.1f %%)", nomx, pct[1]),
                     y = sprintf("%s (%.1f %%)", nomy, pct[2]))
 }
@@ -1742,14 +1745,8 @@ hstat_gen_figure <- function(quoi, res, trait, opt = list(etiq = TRUE, taille = 
       ed <- data.frame(x = am$moy_e, y = am$scores_e[, 1], nom = colnames(am$Y))
       q <- ggplot2::ggplot() +
         ggplot2::geom_hline(yintercept = 0, colour = "#9aa3ad", linewidth = 0.3) +
-        ggplot2::geom_vline(xintercept = mean(am$Y), colour = "#9aa3ad", linetype = 2, linewidth = 0.3) +
-        ggplot2::geom_point(data = gd, ggplot2::aes(x, y), fill = C[["genotype"]], colour = "white",
-                            shape = 21, stroke = 0.6, size = opt$point * 1.2, alpha = al) +
-        ggplot2::geom_point(data = ed, ggplot2::aes(x, y), fill = C[["environnement"]], colour = "white",
-                            shape = 24, stroke = 0.6, size = opt$point * 1.1, alpha = al)
-      q <- .hstat_gen_etiq(q, gd, "x", "y", "nom", opt, C[["genotype"]])
-      q <- .hstat_gen_etiq(q, ed, "x", "y", "nom", opt, C[["environnement"]], fontface = "italic")
-      q + ggplot2::labs(title = trf("AMMI1 : « %s »", trait), x = trf("Moyenne de « %s »", trait),
+        ggplot2::geom_vline(xintercept = mean(am$Y), colour = "#9aa3ad", linetype = 2, linewidth = 0.3)
+      .hstat_gen_points_ge(q, gd, ed, opt) + ggplot2::labs(title = trf("AMMI1 : « %s »", trait), x = trf("Moyenne de « %s »", trait),
                         y = sprintf("IPCA1 (%.1f %%)", am$axes$Pct_GE[1]))
     },
     ammi2 = {
@@ -1782,7 +1779,7 @@ hstat_gen_figure <- function(quoi, res, trait, opt = list(etiq = TRUE, taille = 
           q <- q + ggplot2::geom_segment(data = do.call(rbind, ray),
                      ggplot2::aes(x = 0, y = 0, xend = xend, yend = yend),
                      colour = C[["selection"]], linetype = 2, linewidth = lw * 0.8)
-        q <- q + ggplot2::labs(subtitle = .hstat_gen_coupe(tr("Qui gagne où : le génotype au sommet de chaque secteur gagne dans ses environnements.")))
+        q <- q + ggplot2::labs(subtitle = tr("Qui gagne où : le génotype au sommet de chaque secteur gagne dans ses environnements."))
       } else if (quoi == "gge_stabilite") {
         u <- gg$aec; L <- max(abs(gg$G)) * 1.2
         q <- q + ggplot2::annotate("segment", x = -L * u[1], y = -L * u[2], xend = L * u[1], yend = L * u[2],
@@ -1792,13 +1789,13 @@ hstat_gen_figure <- function(quoi, res, trait, opt = list(etiq = TRUE, taille = 
         pied <- data.frame(x = gg$G[, 1], y = gg$G[, 2], xend = pr * u[1], yend = pr * u[2])
         q <- q + ggplot2::geom_segment(data = pied, ggplot2::aes(x, y, xend = xend, yend = yend),
                                        colour = "#8a94a3", linetype = 3, linewidth = 0.3) +
-          ggplot2::labs(subtitle = .hstat_gen_coupe(tr("Axe de l'environnement moyen : la projection donne la moyenne, la distance à l'axe l'instabilité.")))
+          ggplot2::labs(subtitle = tr("Axe de l'environnement moyen : la projection donne la moyenne, la distance à l'axe l'instabilité."))
       } else if (quoi == "gge_env") {
         u <- gg$aec; L <- max(sqrt(rowSums(gg$E^2))) * 1.1
         q <- q + ggplot2::annotate("segment", x = 0, y = 0, xend = L * u[1], yend = L * u[2],
                                    colour = C[["selection"]], linewidth = lw * 1.4,
                                    arrow = grid::arrow(length = grid::unit(0.25, "cm"))) +
-          ggplot2::labs(subtitle = .hstat_gen_coupe(tr("Une flèche longue discrimine, un angle faible avec l'axe moyen représente.")))
+          ggplot2::labs(subtitle = tr("Une flèche longue discrimine, un angle faible avec l'axe moyen représente."))
       }
       q + ggplot2::coord_equal()
     },
@@ -1836,8 +1833,7 @@ hstat_gen_figure <- function(quoi, res, trait, opt = list(etiq = TRUE, taille = 
         ggplot2::geom_hline(yintercept = HSTAT_GEN_GRILLES$H2$bornes, linetype = 2, colour = "#5f6b7a") +
         (if (!isFALSE(opt$valeurs)) ggplot2::geom_text(ggplot2::aes(label = val_txt(H2_moyenne)), hjust = -0.15, size = opt$taille)) +
         ggplot2::scale_fill_manual(values = stats::setNames(c(def, "#c98a12", fav),
-          .hstat_gen_classe(c(0, 0.45, 0.9), HSTAT_GEN_GRILLES$H2$bornes, .hstat_gen_libelles_h2())),
-          drop = TRUE) +
+                                                            .hstat_gen_libelles_h2()), drop = TRUE) +
         ggplot2::coord_flip() + ggplot2::scale_y_continuous(limits = c(0, 1.08), expand = c(0, 0)) +
         ggplot2::labs(title = tr("Héritabilité au sens large (base moyenne)"), x = NULL, y = "H²",
                       fill = tr("Classe"))
@@ -1870,10 +1866,10 @@ hstat_gen_figure <- function(quoi, res, trait, opt = list(etiq = TRUE, taille = 
       dd$P1 <- factor(dd$P1, levels = g$parents); dd$P2 <- factor(dd$P2, levels = rev(g$parents))
       lim <- max(abs(dd$ASC), na.rm = TRUE)
       ggplot2::ggplot(dd, ggplot2::aes(P1, P2, fill = sgn * ASC)) +
-        ggplot2::geom_tile(colour = "white", linewidth = 0.8) +
+        .hstat_gen_tuiles() +
         ggplot2::geom_text(ggplot2::aes(label = if (!isFALSE(opt$valeurs)) val_txt(ASC) else "",
                                         colour = abs(ASC) > 0.6 * lim), size = opt$taille, show.legend = FALSE) +
-        .hstat_gen_encre_tuile() +
+
         ggplot2::coord_equal() +
         ggplot2::scale_fill_gradient2(low = def, mid = "#f7f7f7", high = fav, limits = c(-lim, lim),
                                       name = tr("ASC favorable")) +
@@ -1947,11 +1943,11 @@ hstat_gen_figure <- function(quoi, res, trait, opt = list(etiq = TRUE, taille = 
       dd$Relatif <- stats::ave(dd$Pente, dd$Covariable, FUN = function(v) {
         m <- max(abs(v), na.rm = TRUE); if (is.finite(m) && m > 0) v / m else v * 0 })
       ggplot2::ggplot(dd, ggplot2::aes(Covariable, Genotype, fill = sgn * Relatif)) +
-        ggplot2::geom_tile(colour = "white", linewidth = 0.8) +
+        .hstat_gen_tuiles() +
         ggplot2::geom_text(ggplot2::aes(label = signif(Pente, 2),
                                         colour = abs(Relatif) > 0.6), size = opt$taille * 0.9,
                            show.legend = FALSE) +
-        .hstat_gen_encre_tuile() +
+
         ggplot2::scale_fill_gradient2(low = def, mid = "#f7f7f7", high = fav, limits = c(-1, 1),
                                       name = tr("Réponse favorable (relative)")) +
         ggplot2::labs(title = trf("Sensibilité des génotypes aux covariables : « %s »", trait),
@@ -1967,11 +1963,11 @@ hstat_gen_figure <- function(quoi, res, trait, opt = list(etiq = TRUE, taille = 
       dd <- dd[match(dd$A, rownames(m)) > match(dd$B, colnames(m)), , drop = FALSE]
       dd$A <- factor(dd$A, levels = rownames(m)); dd$B <- factor(dd$B, levels = rev(colnames(m)))
       ggplot2::ggplot(dd, ggplot2::aes(A, B, fill = r)) +
-        ggplot2::geom_tile(colour = "white", linewidth = 0.8) +
+        .hstat_gen_tuiles() +
         ggplot2::geom_text(ggplot2::aes(label = ifelse(is.finite(r) & !isFALSE(opt$valeurs), val_txt(r), ""),
                                         colour = is.finite(r) & abs(r) > 0.6),
                            size = opt$taille, show.legend = FALSE) +
-        .hstat_gen_encre_tuile() +
+
         ggplot2::scale_fill_gradient2(low = "#b03a2e", mid = "#f7f7f7", high = "#1f6fb2",
                                       limits = c(-1, 1), oob = scales::squish,
                                       na.value = "#e5e7eb", name = "rg") +
@@ -1999,6 +1995,8 @@ hstat_gen_figure <- function(quoi, res, trait, opt = list(etiq = TRUE, taille = 
                       x = NULL, y = NULL, fill = NULL)
     },
     absent(NULL))
+  if (inherits(p, "ggplot") && is.character(p$labels$subtitle))
+    p$labels$subtitle <- .hstat_gen_coupe(p$labels$subtitle)
   p
 }
 
@@ -2170,9 +2168,13 @@ mod_genetique_server <- function(id, values) {
       a_diallele <- any(!is.na(d$P1)) || any(!is.na(d$P2))
       par_trait <- list()
       echec <- tryCatch({ shiny::withProgress(message = tr("Analyse génétique en cours..."), value = 0, {
+        # Une analyse qui leve devient un refus nomme pour ce caractere seul.
+        sur <- function(expr, defaut = NULL) tryCatch(expr, error = function(e)
+          if (is.null(defaut)) NULL else list(ok = FALSE, motif = hstat_err_fr(e)))
+        echoue <- list(ok = FALSE)
         for (t in traits) {
-          an <- hstat_gen_anova(d, t, si / 100)
-          am <- hstat_gen_ammi(d, t, dirs[[t]], alpha, an)
+          an <- sur(hstat_gen_anova(d, t, si / 100), echoue)
+          am <- sur(hstat_gen_ammi(d, t, dirs[[t]], alpha, an), echoue)
           Y <- if (isTRUE(am$ok)) am$Y else {
             y <- hstat_gen_table_ge(d, t)
             if (ncol(y) >= 3 && all(is.finite(y))) y else NULL
@@ -2181,17 +2183,17 @@ mod_genetique_server <- function(id, values) {
           r <- if (isTRUE(an$ok)) an$r else 1
           par_trait[[t]] <- list(
             anova = an, ammi = am,
-            comp = hstat_gen_comparaisons(d, t, an, dirs[[t]], meth_cmp, alpha),
-            gge = if (isTRUE(am$ok)) hstat_gen_gge(am$Y, dirs[[t]], isTRUE(input$genEchelle), svp)
+            comp = sur(hstat_gen_comparaisons(d, t, an, dirs[[t]], meth_cmp, alpha), echoue),
+            gge = if (isTRUE(am$ok)) sur(hstat_gen_gge(am$Y, dirs[[t]], isTRUE(input$genEchelle), svp), echoue)
                   else list(ok = FALSE, motif = am$motif),
-            stab = if (!is.null(Y)) {
+            stab = if (!is.null(Y)) sur({
               st <- hstat_gen_stabilite(Y, mse, r, dirs[[t]])
               if (!is.null(st)) st$table <- hstat_gen_lecture_stabilite(st$table)
               st
-            },
-            griffing = if (a_diallele) hstat_gen_griffing(d, t, Fc, dirs[[t]], temoin, alpha),
-            cov = hstat_gen_covariables(d, t, pr$covariables, dirs[[t]], alpha),
-            fr = hstat_gen_regression_factorielle(d, t, pr$covariables, Y = Y, mse = mse, r = r))
+            }),
+            griffing = if (a_diallele) sur(hstat_gen_griffing(d, t, Fc, dirs[[t]], temoin, alpha), echoue),
+            cov = sur(hstat_gen_covariables(d, t, pr$covariables, dirs[[t]], alpha)),
+            fr = sur(hstat_gen_regression_factorielle(d, t, pr$covariables, Y = Y, mse = mse, r = r)))
           shiny::incProgress(0.8 / length(traits))
         }
         compo <- do.call(rbind, lapply(par_trait, function(x)
@@ -2579,12 +2581,15 @@ mod_genetique_server <- function(id, values) {
         ech <- hstat_scales_palette(input$genPalette %||% unname(HSTAT_PALETTE_GG))
         if (!is.null(ech)) p <- p + ech
       }
+      propre <- p$theme
       titre_pos <- suppressWarnings(as.numeric(input$genTitrePos %||% "0.5")[1])
       if (!isTRUE(titre_pos %in% c(0, 0.5, 1))) titre_pos <- 0.5
       p <- p +
         hstat_export_theme(input, "genP", base_size = extras$police %||% HSTAT_GG_BASE_SIZE) +
-        (if (!identical(input$genStyle, "classique"))
-           .hstat_gen_habillage(quoi %in% HSTAT_GEN_GRAPHIQUES_CARTES)) +
+        (if (!identical(input$genStyle, "classique")) .hstat_gen_habillage()) +
+        # Le theme propre a la figure (cases sans grille, graduations inclinees)
+        # survit au theme complet pose ci-dessus.
+        (if (length(propre)) do.call(ggplot2::theme, propre)) +
         ggplot2::theme(
           plot.title = ggplot2::element_text(size = hstat_borne_client(input$genTitreSize, 15, 8, 30),
                                              hjust = titre_pos,

@@ -12012,8 +12012,16 @@ Revue de code menée sur le lot 1.55.0–1.56.0. Chaque défaut est gardé par u
   ligne « Erreur » de `y ~ E + G` *est* l'interaction, déjà décomposée par les
   axes. Elle est retirée, et le test exige que les SC somment à la totale.
 
-Enfin, le calcul est enveloppé : une erreur imprévue se dit en notification au
-lieu de fermer la session.
+Enfin, chaque analyse d'un caractère est gardée **à l'itération** : une erreur
+imprévue devient un refus nommé pour ce caractère seul, et ne fait plus
+disparaître les résultats des autres. Une garde extérieure reste autour de la
+synthèse, qui croise les caractères : elle se dit en notification au lieu de
+fermer la session.
+
+Écarté, et pourquoi : stocker les caractères sous un préfixe (`.car_<nom>`,
+comme `.cov_` pour les covariables) éviterait le renommage visible ; il
+toucherait chaque lecture `d[[trait]]` du module, pour un cas — une colonne
+mesurée nommée `R`, `G` ou `P1` — que le renommage annoncé couvre déjà.
 
 ### Les figures génétiques ont un rendu de publication
 
@@ -12029,9 +12037,12 @@ Figure par figure :
 - **Points cerclés de blanc** (forme 21, triangles 24) dans les biplots et
   l'AMMI1 : la couleur passe en `fill`, et un point se détache de ceux qu'il
   chevauche.
-- **Les cartes** (`HSTAT_GEN_GRAPHIQUES_CARTES` : ASC, sensibilités,
-  corrélations) n'ont ni trait d'axe ni grille sous leurs tuiles. Leur texte
-  passe au blanc sur une case foncée, et elles sont carrées.
+- **Les cartes** (ASC, sensibilités, corrélations) n'ont ni trait d'axe ni
+  grille sous leurs tuiles, et leur texte passe au blanc sur une case foncée.
+  Elles le déclarent elles-mêmes (`.hstat_gen_tuiles()`) : le serveur garde le
+  thème propre à la figure (`propre <- p$theme`) et le repose **après** le
+  thème complet choisi, qui l'aurait effacé — les graduations inclinées des
+  corrélations se perdaient ainsi.
 - **Les corrélations ne montrent que le triangle inférieur** : la matrice est
   symétrique et sa diagonale vaut 1. Une estimation au-delà de 1 garde son
   chiffre, mais sa couleur sature (`oob = squish`) au lieu de tomber en gris.
