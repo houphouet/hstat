@@ -609,7 +609,7 @@ hstat_gen_classement_croisements <- function(liste, directions = NULL, poids = N
 # Les effets principaux s'estiment par l'analyse de variance, l'interaction
 # se decompose par valeurs singulieres (Gauch 1988). Les degres de liberte
 # des axes sont ceux de Gollob (1968) : g + e - 1 - 2k.
-hstat_gen_ammi <- function(d, trait, direction = "augmenter", alpha = 0.05) {
+hstat_gen_ammi <- function(d, trait, direction = "augmenter", alpha = 0.05, an = NULL) {
   refus <- function(m) list(ok = FALSE, motif = m)
   Y <- hstat_gen_table_ge(d, trait)
   g <- nrow(Y); e <- ncol(Y)
@@ -619,7 +619,7 @@ hstat_gen_ammi <- function(d, trait, direction = "augmenter", alpha = 0.05) {
   if (nrow(manq))
     return(refus(trf("Tableau génotypes × environnements incomplet (%d case(s) vide(s), par exemple %s en %s) : AMMI et GGE exigent chaque génotype dans chaque environnement.",
                      nrow(manq), rownames(Y)[manq[1, 1]], colnames(Y)[manq[1, 2]])))
-  an <- hstat_gen_anova(d, trait)
+  if (is.null(an)) an <- hstat_gen_anova(d, trait)
   r <- if (isTRUE(an$ok)) an$r else 1
   mu <- mean(Y)
   GE <- sweep(sweep(Y, 1, rowMeans(Y)), 2, colMeans(Y)) + mu
@@ -2177,7 +2177,7 @@ mod_genetique_server <- function(id, values) {
       echec <- tryCatch({ shiny::withProgress(message = tr("Analyse génétique en cours..."), value = 0, {
         for (t in traits) {
           an <- hstat_gen_anova(d, t, si / 100)
-          am <- hstat_gen_ammi(d, t, dirs[[t]], alpha)
+          am <- hstat_gen_ammi(d, t, dirs[[t]], alpha, an)
           Y <- if (isTRUE(am$ok)) am$Y else {
             y <- hstat_gen_table_ge(d, t)
             if (ncol(y) >= 3 && all(is.finite(y))) y else NULL
