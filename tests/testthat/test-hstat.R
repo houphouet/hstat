@@ -26217,15 +26217,37 @@ test_that("Selection genetique : la synthese tient quand les correlations ne cou
 
 test_that("Selection genetique : un effet direct negligeable se classe par la correlation", {
   pi <- list(ok = TRUE, table = data.frame(
-    Caractere = c("Degats", "Hauteur", "Bruit"),
-    Effet_direct = c(0.055, 0.6, 0.02), Correlation = c(-0.97, 0.5, 0.1)))
+    Caractere = c("Degats", "Hauteur", "Bruit", "Seuil_bas", "Seuil_haut",
+                  "Corr_basse", "Corr_haute", "Contraire", "Contraire_faible", "Direct_dep"),
+    Effet_direct = c(0.055, 0.6, 0.02, 0.099, 0.101, 0.05, 0.05, 0.12, 0.12, -0.4),
+    Correlation  = c(-0.97, 0.5, 0.1, -0.5, -0.5, 0.29, 0.31, -0.97, -0.29, -0.5)))
   f <- hstat_gen_synthese_facteurs("Rendement", "augmenter", pistes = pi)
-  expect_identical(f$Effet[f$Element == "Degats"], tr("Défavorable"))
-  expect_equal(f$Intensite[f$Element == "Degats"], -0.97)
-  expect_match(f$Lecture[f$Element == "Degats"], "indirect")
-  # Un effet direct net garde son sens, et un caractere sans lien ne figure pas.
-  expect_identical(f$Effet[f$Element == "Hauteur"], tr("Favorable"))
+  ligne <- function(x) f[f$Element == x, ]
+  expect_identical(ligne("Degats")$Effet, tr("Défavorable"))
+  expect_equal(ligne("Degats")$Intensite, -0.97)
+  expect_match(ligne("Degats")$Lecture, "indirect")
+  expect_identical(ligne("Degats")$Intensite_mesure, tr("Corrélation avec le caractère principal"))
+  # Un effet direct net garde son sens, sa valeur et sa lecture.
+  expect_identical(ligne("Hauteur")$Effet, tr("Favorable"))
+  expect_equal(ligne("Hauteur")$Intensite, 0.6)
+  expect_match(ligne("Hauteur")$Lecture, "^Effet direct :")
+  expect_identical(ligne("Hauteur")$Intensite_mesure, tr("Effet direct (analyse des pistes)"))
   expect_false("Bruit" %in% f$Element)
+  # Les deux seuils se testent des deux cotes de leur frontiere.
+  expect_match(ligne("Seuil_bas")$Lecture, "indirect")
+  expect_identical(ligne("Seuil_haut")$Effet, tr("Défavorable"))
+  expect_match(ligne("Seuil_haut")$Lecture, "sens contraire")
+  expect_false("Corr_basse" %in% f$Element)
+  expect_true("Corr_haute" %in% f$Element)
+  # Un effet direct au-dela du seuil mais contredit par une correlation forte suit
+  # la correlation ; contredit par une correlation faible, il garde son sens.
+  expect_identical(ligne("Contraire")$Effet, tr("Défavorable"))
+  expect_equal(ligne("Contraire")$Intensite, -0.97)
+  expect_identical(ligne("Contraire_faible")$Effet, tr("Favorable"))
+  expect_equal(ligne("Contraire_faible")$Intensite, 0.12)
+  # Dans un meme sens, un effet direct passe avant une correlation, meme plus forte.
+  dep <- f$Element[f$Effet == tr("Défavorable")]
+  expect_true(which(dep == "Direct_dep") < which(dep == "Degats"))
   # Caractere a diminuer : la correlation negative devient favorable.
   g <- hstat_gen_synthese_facteurs("Rendement", "diminuer", pistes = pi)
   expect_identical(g$Effet[g$Element == "Degats"], tr("Favorable"))
