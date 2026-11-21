@@ -18474,7 +18474,7 @@ test_that("les fenetres de retard sont une option, et decochees elles ne posent 
   })
 })
 
-test_that("les cinq modules d'application demandes vivent sous « 3. Analyses statistiques »", {
+test_that("section 3 : les cinq modules d'application, puis la selection genetique juste sous les analyses multivariees", {
   skip_if_not_installed("shinydashboard")
   skip_if_not_installed("htmltools")
   root <- .hstat_repo_root()
@@ -18512,11 +18512,19 @@ test_that("les cinq modules d'application demandes vivent sous « 3. Analyses st
   }
   # La selection genetique vient juste sous les analyses multivariees : elle
   # prend leurs biplots, et on la cherche a cote d'elles.
-  p_mv <- regexpr('data-value="multivariate"', html, fixed = TRUE)
-  p_gen <- regexpr('data-value="genetique"', html, fixed = TRUE)
-  p_quali <- regexpr('data-value="qualitative"', html, fixed = TRUE)
-  expect_true(p_mv > 0 && p_gen > p_mv && p_gen < p_quali,
-              label = "genetique entre multivariate et qualitative dans le menu")
+  # Les entrees du menu, dans l'ordre ou elles sont rendues.
+  entrees <- regmatches(html, gregexpr('data-value="[^"]+"', html))[[1]]
+  entrees <- sub('^data-value="([^"]+)"$', "\\1", entrees)
+  i_mv <- match("multivariate", entrees)
+  expect_false(is.na(i_mv), label = "multivariate dans le menu")
+  expect_identical(entrees[i_mv + 1L], "genetique",
+                   label = "entree qui suit directement multivariate")
+  # Et les deux restent dans la section 3 : deplacees ensemble ailleurs,
+  # l'ordre relatif tiendrait encore.
+  for (tab in c("multivariate", "genetique")) {
+    p <- pos(paste0('data-value="', tab, '"'))
+    expect_true(p > h3 && p < h4, label = paste(tab, "dans la section 3"))
+  }
   # ET LA SECTION 5 GARDE LES SIENS : sans cette moitie, une interface qui
   # aurait tout empile sous la section 3 passerait aussi.
   h5 <- pos("5. Planification")
