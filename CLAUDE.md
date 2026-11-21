@@ -12186,3 +12186,13 @@ Demandé à l'écran. Dans le menu, l'entrée passe de la fin de la section
 analyses multivariées, dont elle reprend les biplots. Le test du menu rendu
 l'exige (entre `multivariate` et `qualitative`) ; vérifié comme échouant sur
 l'ancienne place.
+
+#### Le test du menu garde la place, pas seulement l'ordre (1.60.5)
+
+Relu après coup. L'assertion de 1.60.4 ne demandait que l'ordre relatif
+multivarié < génétique < qualitatif : une entrée glissée entre les deux
+premières, ou les trois déplacées ensemble dans une autre section, passaient.
+Le test relève désormais la liste des entrées du menu rendu et exige que
+`genetique` soit **l'entrée qui suit** `multivariate`, et que les deux restent
+entre les titres des sections 3 et 4. Les deux mutations échouent. Le titre
+du test nomme aussi la sélection génétique, qu'il garde.
