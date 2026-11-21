@@ -18510,6 +18510,13 @@ test_that("les cinq modules d'application demandes vivent sous « 3. Analyses st
     p <- pos(paste0("#shiny-tab-", tab))
     expect_true(p > h3 && p < h4, label = tab)
   }
+  # La selection genetique vient juste sous les analyses multivariees : elle
+  # prend leurs biplots, et on la cherche a cote d'elles.
+  p_mv <- regexpr('data-value="multivariate"', html, fixed = TRUE)
+  p_gen <- regexpr('data-value="genetique"', html, fixed = TRUE)
+  p_quali <- regexpr('data-value="qualitative"', html, fixed = TRUE)
+  expect_true(p_mv > 0 && p_gen > p_mv && p_gen < p_quali,
+              label = "genetique entre multivariate et qualitative dans le menu")
   # ET LA SECTION 5 GARDE LES SIENS : sans cette moitie, une interface qui
   # aurait tout empile sous la section 3 passerait aussi.
   h5 <- pos("5. Planification")

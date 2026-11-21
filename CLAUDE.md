@@ -12178,3 +12178,11 @@ C'est une copie de `DESCRIPTION`, donc un test la garde dans les deux sens :
 un paquet ajouté à `DESCRIPTION` sans être listé, ou listé sans y figurer, le
 fait échouer, ainsi qu'un paquet requis rangé parmi les optionnels. Vérifié
 par deux mutations (un paquet retiré, un paquet inventé).
+
+### « Sélection génétique » vient sous « Analyses multivariées » (1.60.4)
+
+Demandé à l'écran. Dans le menu, l'entrée passe de la fin de la section
+« 3. Analyses statistiques » (après DL50 / CL50) à la ligne qui suit les
+analyses multivariées, dont elle reprend les biplots. Le test du menu rendu
+l'exige (entre `multivariate` et `qualitative`) ; vérifié comme échouant sur
+l'ancienne place.
