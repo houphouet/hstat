@@ -12162,3 +12162,10 @@ Trois points de la revue de code, chacun testé.
 3. **Les deux seuils se testent des deux côtés** (0,099 / 0,101 et
    0,29 / 0,31) ; quatre mutations — chaque seuil déplacé, la règle du signe
    contraire retirée, l'ordre perdu — échouent toutes.
+
+### Le README perd deux sections (1.60.2)
+
+Demandé à l'écran : « Six things worth knowing » et « Errors you can act on »
+sont retirées du README, et la ligne « Genetic selection » du tableau « What
+you can do » passe juste sous « Explore » (les analyses multivariées). Leur
+contenu reste documenté ici même ; aucun test ni lien ne pointait vers elles.

@@ -50,6 +50,7 @@ No minimum R version is declared; CI runs the suite on the current release.
 | **Describe** | Descriptive statistics, 14 chart types, correlations |
 | **Test** | t-test (Student *and* Welch, each under its own name), ANOVA (Fisher, Welch, repeated measures), non-parametric tests, chi-square, post-hoc comparisons protected by the omnibus test, tests against a reference value |
 | **Explore** | PCA, CA, MCA, FAMD, clustering, HCPC, DFA, PLS, SEM/CFA, MANOVA/PERMANOVA — 14 multivariate analyses |
+| **Genetic selection** | Varieties, lines, parents, crosses, hybrids and breeds across sites and years: variance components and heritabilities, genetic advance and selective accuracy, Griffing diallel (GCA/SCA, Baker ratio, heterosis), multi-trait ranking of crosses, AMMI (ASV, YSI, WAAS), GGE biplot (which-won-where, mean vs stability, environments), Eberhart-Russell, Wricke, Shukla and Lin-Binns stability, MGIDI, MTSI and GYT biplot, environmental covariates and factorial regression, genotypic correlations and path analysis, and a final list of what improves or depreciates the target trait |
 | **Model** | Machine learning, deep learning, time series and forecasting |
 | **Qualitative** | Frequency and cross-tabulation, Likert scales, text analysis, CAQDAS coding workbench |
 | **Agronomy** | Yield and yield gain against an untreated control, efficacy thresholds (Abbott's formula), harvest-loss and relative-yield indicators |
@@ -58,113 +59,10 @@ No minimum R version is declared; CI runs the suite on the current release.
 | **Plan** | Experimental designs, sample size and statistical power |
 | **Dose** | Product dose and active-ingredient rate per hectare, spray mix, tank loads, and serial dilutions (working solutions) |
 | **DL50 / CL50** | Dose-mortality probit regression (Henry line), natural mortality by Abbott or EM, lethal doses with standard error and tolerance standard deviation, Fieller intervals, potency ratio (resistance ratio), trial comparison and merging, native WIN DL file import/export |
-| **Genetic selection** | Varieties, lines, parents, crosses, hybrids and breeds across sites and years: variance components and heritabilities, genetic advance and selective accuracy, Griffing diallel (GCA/SCA, Baker ratio, heterosis), multi-trait ranking of crosses, AMMI (ASV, YSI, WAAS), GGE biplot (which-won-where, mean vs stability, environments), Eberhart-Russell, Wricke, Shukla and Lin-Binns stability, MGIDI, MTSI and GYT biplot, environmental covariates and factorial regression, genotypic correlations and path analysis, and a final list of what improves or depreciates the target trait |
 
 Every analysis states its **assumptions**, gives an **interpretation in plain
 language**, and exports its tables (CSV, Excel) and its figures (PNG, JPEG,
 TIFF, SVG, PDF, EPS) at a resolution you choose.
-
----
-
-## Six things worth knowing
-
-### 1. Your data are never translated
-
-Switching to English must not turn the `Oui` in your table into `Yes`. For a
-statistics tool that is the worst possible defect, because nothing breaks — it
-just quietly rewrites what you came to read.
-
-So the server declares your column names and category labels to the browser,
-and nothing on that list is ever translated. Inside a table cell, only
-sentences are (over 25 characters): a data value is almost never a whole
-sentence, an interpretation always is.
-
-### 2. Bigger-than-RAM files
-
-Under 500 MB a file is read into memory. Above it, CSV / Parquet / DuckDB files
-are **never loaded**: DuckDB queries them on disk, exact statistics are computed
-by SQL on the *full* dataset, and interactive analyses run on a reproducible
-random sample. Files with more than 2.1 billion rows are supported.
-
-### 3. R's own datasets, by name
-
-Type `iris`, `mtcars` or `Titanic` — no file to provide. Three traps are handled
-rather than met: the catalogue names a dataset `beaver1 (beavers)`, so the
-**alias** is not the data file and `data(list = "beaver1")` creates nothing while
-merely *warning*; two thirds of the 104 datasets in `datasets` are **not**
-data frames (23 time series, 8 matrices, 6 contingency tables, 10 named
-vectors), so they are converted and the conversion is **announced**; and what is
-not a table of observations is **named**, never silently dropped. Measured:
-101 of the 104 datasets of `datasets`, and 758 of the 804 shipped by every
-installed package, become a usable table.
-
-### 4. A qualitative coding workbench (CAQDAS)
-
-Read one open-ended answer at a time, select a passage, drop it on a code. Codes
-nest, and a parent counts its whole branch. Memos attach to a code, a document,
-a segment or nothing. Then: retrieval, cross-tabulation, complex queries
-(*A AND B* / *A EXCEPT B*, with the scope stated alongside the count),
-concordance (KWIC), document portraits, intercoder agreement (Cohen's kappa),
-word clouds and concept maps.
-
-A coding assistant proposes a codebook and pre-codes the answers. Its default
-engine needs **no model at all**: it clusters corpus terms by co-occurrence,
-entirely inside R — free, offline, no key, and the only engine guaranteed to be
-available everywhere. A language model is there if you want one (Claude,
-ChatGPT, Gemini, DeepSeek, GitHub Models, or any OpenAI-compatible server,
-local or remote), each reading **its own** environment variable and never an
-ambient one. A metered feature must never become the default path of someone
-who did not ask for it.
-
-### 5. The session survives a locked screen
-
-When the machine sleeps, the browser drops its connection and a Shiny app
-normally dies with it. HStat keeps the session alive, shows a banner saying the
-work is **not lost**, and reconnects on its own — when you unlock the machine,
-return to the tab, or the network comes back. **Only you close the
-application.**
-
-### 6. Bioassays that reproduce WIN DL, digit for digit
-
-The DL50 / CL50 tab reimplements WIN DL (CIRAD): probit dose-mortality
-regression, natural mortality by Abbott or EM, lethal doses with their standard
-error, Fieller intervals, potency ratio, trial comparison and merging.
-
-Conformity is checked against the software's **own output file**, not against a
-reimplementation: 27 quantities, maximum relative deviation 2.5 × 10⁻⁴ — and
-that worst case is the chi-square, which WIN DL prints to three decimals; on the
-other twenty-six it is 5.3 × 10⁻⁵. Getting there meant adopting two conventions
-that are in no textbook — the log-likelihood is written without the binomial
-coefficients, and the Fisher information is assembled on the dosed batches alone
-— plus the Hastings polynomial for the inverse normal, whose 4.5 × 10⁻⁴ error is
-visible at the software's printing precision.
-
-### 7. A setting you can see is a setting that acts
-
-The costliest defect in a statistics tool is not the one that crashes. It is the
-control that is declared, read, and quietly ignored: you change it, the figure
-does not move, and nothing says so.
-
-So the formatting controls are declared **once**, in a shared kit, and the tests
-require three things of every option — declared in the interface, read by the
-reactive that draws the figure, and used at least once more than its own
-assignment. The same rule covers buttons (every one must be read by an
-observer), module outputs (namespaced, or they render nowhere) and downloads
-(every export button must have a producer, and a failed export writes a valid
-file carrying the reason rather than an HTML error page named `.png`).
-
-Finding those is most of what [`CLAUDE.md`](CLAUDE.md) records.
-
----
-
-## Errors you can act on
-
-R speaks English, and it speaks to statisticians: *"data are essentially
-constant"*, *"system is computationally singular"*. HStat translates the errors
-it shows into French sentences that name the **cause** and then the **gesture**
-— which variable to change, which filter to check, which package to install,
-which analysis to use instead. The original R message is kept in parentheses:
-it is what you would paste when asking for help.
 
 ---
 
@@ -317,7 +215,7 @@ citation("HStat")
 Or use one of the following:
 
 **Text**
-> KOUADIO, Houphouet & Claude Code (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 1.60.1. https://github.com/houphouet/hstat
+> KOUADIO, Houphouet & Claude Code (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 1.60.2. https://github.com/houphouet/hstat
 
 **BibTeX**
 ```bibtex
@@ -325,7 +223,7 @@ Or use one of the following:
   title  = {HStat: Application Shiny interactive pour l'analyse statistique},
   author = {Houphouet KOUADIO and {Claude Code}},
   year   = {2026},
-  note   = {Version 1.60.1},
+  note   = {Version 1.60.2},
   url    = {https://github.com/houphouet/hstat},
 }
 ```
