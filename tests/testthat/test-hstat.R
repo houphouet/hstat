@@ -10114,10 +10114,13 @@ test_that("une colonne creee et une colonne lue portent le meme nom", {
   # génétique : les colonnes s'appellent `Genotype`, `Selectionne` et
   # `H2_moyenne`, les chaines accentuees sont des titres de légende et d'axe
   # passes a `tr()`. Verifie : aucune lecture accentuee n'existe dans le depot.
+  # « h² » est le titre de l'axe de l'heritabilite au sens strict ; le symbole
+  # `h2` qu'il rencontre est le vecteur local des H² passe au MGIDI, pas une
+  # colonne. La colonne s'appelle `h2_strict`.
   connus <- c("Observé", "Prédit", "Modalité", "Résidu", "Thème", "Fréquence",
               "Méthode", "Interprétation", "Métrique", "Unité", "Répétition",
               "Espèce", "Relevé", "Sensibilité", "Spécificité", "µl",
-              "Génotype", "Sélectionné", "H²")
+              "Génotype", "Sélectionné", "H²", "h²")
   fautifs <- fautifs[!grepl(paste0("chaine (", paste(connus, collapse = "|"),
                                    ") "), fautifs)]
   expect_equal(fautifs, character(0))
@@ -23276,9 +23279,16 @@ test_that("le Wilcoxon a un echantillon renonce a son intervalle au-dela du plaf
   petit <- hstat_ref_test(rnorm(200, 0.3), method = "wilcoxon")
   expect_true(all(is.finite(c(petit$conf.low, petit$conf.high))))
   x <- rnorm(HSTAT_WILCOX_IC_MAX + 1L, 0.3)
-  t0 <- proc.time()[["elapsed"]]
+  # Un compte, jamais une duree : l'intervalle n'est pas demande au-dela du
+  # plafond (un chronometre echoue sur un executeur lent, pas sur le code).
+  e <- new.env(); e$n <- 0L
+  suppressMessages(trace("wilcox.test.default", where = asNamespace("stats"), print = FALSE,
+    tracer = bquote(if (isTRUE(conf.int)) assign("n", get("n", envir = .(e)) + 1L, envir = .(e)))))
+  on.exit(suppressMessages(untrace("wilcox.test.default", where = asNamespace("stats"))), add = TRUE)
   grand <- hstat_ref_test(x, method = "wilcoxon")
-  expect_lt(proc.time()[["elapsed"]] - t0, 1)
+  expect_identical(e$n, 0L)
+  invisible(hstat_ref_test(rnorm(50), method = "wilcoxon"))
+  expect_gt(e$n, 0L)
   expect_true(is.na(grand$conf.low) && is.na(grand$conf.high))
   # La p-value porte toujours sur toutes les valeurs.
   expect_equal(grand$p.value, stats::wilcox.test(x, exact = FALSE)$p.value)
@@ -26235,5 +26245,138 @@ test_that("Selection genetique : le rendu moderne habille la figure, le classiqu
     fills <- unique(ggplot2::ggplot_build(graphique())$data[[1]]$fill)
     expect_true(all(fills %in% c(HSTAT_GEN_COULEURS[["favorable"]], "#c98a12",
                                  HSTAT_GEN_COULEURS[["defavorable"]])))
+  })
+})
+
+test_that("Selection genetique : un caractere constant est refuse par AMMI et GGE, et le MTSI tient", {
+  df <- .hstat_test_met()
+  df$Constant <- 7
+  df$Sans_interaction <- 10 + as.integer(factor(df$Variete))
+  pr <- hstat_gen_preparer(df, "Variete", c("Rendement", "Fibre_pct", "Constant", "Sans_interaction"),
+                           var_loc = "Loc", var_annee = "Annee", var_rep = "Bloc")
+  am <- hstat_gen_ammi(pr$data, "Constant")
+  expect_false(am$ok)
+  expect_match(am$motif, "constant")
+  expect_false(hstat_gen_ammi(pr$data, "Sans_interaction")$ok)
+  Y <- hstat_gen_table_ge(pr$data, "Constant")
+  expect_false(hstat_gen_gge(Y)$ok)
+  expect_null(hstat_gen_regression_factorielle(pr$data, "Constant", character(0), Y = Y))
+  liste <- lapply(stats::setNames(pr$traits, pr$traits), function(t) hstat_gen_ammi(pr$data, t))
+  m <- hstat_gen_mtsi(liste)
+  expect_true(m$ok)
+  expect_true(all(is.finite(m$table$MTSI)))
+})
+
+test_that("Selection genetique : un angle laisse a 0 garde l'inclinaison propre a la figure", {
+  skip_if_not_installed("ggplot2")
+  df <- .hstat_test_met()
+  vals <- shiny::reactiveValues(data = df, resetSignal = 0)
+  shiny::testServer(mod_genetique_server, args = list(values = vals), {
+    session$setInputs(genGen = "Variete", genLoc = "Loc", genAnnee = "Annee", genRep = "Bloc",
+      genTraits = c("Rendement", "Jours_floraison", "Degats_pct", "Fibre_pct"), genCov = character(0),
+      genMinimiser = character(0), genPrincipal = "Rendement", genSI = 20, genAlpha = "0.05",
+      genF = 1, genPoidsY = 50, genSvp = "symetrique", genEchelle = FALSE, genType = "",
+      genGroupe = "", genP1 = "", genP2 = "", genComparaison = "tukey")
+    session$setInputs(genCalculer = 1)
+    session$setInputs(genGraphique = "correlations", genXAngleX = 0)
+    expect_equal(graphique()$theme$axis.text.x$angle, 45)
+    expect_equal(graphique()$theme$axis.text.x$vjust, 1)
+    session$setInputs(genXAngleX = 30)
+    expect_equal(graphique()$theme$axis.text.x$angle, 30)
+    # Des noms d'environnement longs s'inclinent d'eux-memes.
+    session$setInputs(genGraphique = "moyennes_env", genXAngleX = 0)
+    expect_equal(graphique()$theme$axis.text.x$angle, 45)
+  })
+})
+
+test_that("La synthese en graphique a un fond blanc, pas transparent", {
+  t <- data.frame(Modalite = c("A", "B"), Y = c("1 a", "2 b"), stringsAsFactors = FALSE)
+  attr(t, "groupes") <- matrix(c("a", "b"), 2); attr(t, "n_stat") <- 0L
+  p <- hstat_synthese_figure(list(Y = t))
+  expect_identical(p$theme$plot.background$fill, "#ffffff")
+})
+
+test_that("Selection genetique : l'heritabilite au sens strict vient du diallele, et se lit", {
+  skip_if_not_installed("ggplot2")
+  d <- .hstat_test_diallele(TRUE)
+  pr <- hstat_gen_preparer(d, "G", "Y", var_rep = "R", var_p1 = "P1", var_p2 = "P2")
+  g <- hstat_gen_griffing(pr$data, "Y")
+  expect_true(g$ok)
+  v <- stats::setNames(g$variances$Valeur, g$variances$Parametre)
+  tot <- v[["Variance additive (σ²A)"]] + v[["Variance de dominance (σ²D)"]] +
+         v[["Variance d'erreur (σ²e, parcelle)"]]
+  expect_equal(g$h2_strict, v[["Variance additive (σ²A)"]] / tot)
+  expect_equal(g$h2_strict, v[["Héritabilité au sens strict (h²)"]])
+  expect_true(g$h2_strict <= g$h2_large)
+  # La part additive ne depasse pas la part genetique.
+  cp <- data.frame(Caractere = c("Y", "Z"), H2_moyenne = c(0.9, 0.5), H2_parcelle = c(0.8, 0.4))
+  cp <- hstat_gen_composantes_h2(cp, list(Y = g))
+  expect_equal(cp$h2_strict[1], g$h2_strict)
+  expect_true(is.na(cp$h2_strict[2]))
+  expect_identical(match("h2_strict", names(cp)), match("H2_parcelle", names(cp)) + 1L)
+  expect_true(nzchar(cp$Classe_h2[1]))
+  it <- hstat_gen_interpretation(NULL, list(Y = g))
+  expect_true(any(grepl("sens strict", it$Metrique)))
+  # Les seuils, des deux cotes de la frontiere.
+  m <- HSTAT_GEN_METRIQUES$h2_strict
+  expect_false(identical(.hstat_gen_classe_metrique(0.29, m), .hstat_gen_classe_metrique(0.31, m)))
+  expect_false(identical(.hstat_gen_classe_metrique(0.59, m), .hstat_gen_classe_metrique(0.61, m)))
+})
+
+test_that("Selection genetique : barres cerclees de noir, demi-barre d'erreur, types de materiel entoures", {
+  skip_if_not_installed("ggplot2")
+  df <- .hstat_test_diallele(TRUE)
+  vals <- shiny::reactiveValues(data = df, resetSignal = 0)
+  shiny::testServer(mod_genetique_server, args = list(values = vals), {
+    session$setInputs(genGen = "G", genLoc = "", genAnnee = "", genRep = "R", genTraits = "Y",
+      genCov = character(0), genMinimiser = character(0), genPrincipal = "Y",
+      genSI = 15, genAlpha = "0.05", genF = 1, genPoidsY = 50, genSvp = "symetrique",
+      genEchelle = FALSE, genType = "", genGroupe = "", genP1 = "P1", genP2 = "P2")
+    session$setInputs(genCalculer = 1)
+    expect_true(is.finite(rv$res$composantes$h2_strict[1]))
+    session$setInputs(genGraphique = "agc")
+    p <- graphique(); b <- ggplot2::ggplot_build(p)
+    couche <- function(cl) b$data[[which(vapply(p$layers, function(l) inherits(l$geom, cl), TRUE))[1]]]
+    expect_true(all(couche("GeomCol")$colour == "black"))
+    eb <- couche("GeomErrorbar")
+    agc <- rv$res$par_trait$Y$griffing$agc
+    # La barre part du sommet de la barre et s'eloigne de zero.
+    expect_true(all(abs(eb$ymin) < abs(eb$ymax)))
+    expect_setequal(round(eb$ymin, 6), round(agc$AGC, 6))
+    session$setInputs(genGraphique = "heritabilite")
+    b <- ggplot2::ggplot_build(graphique())
+    expect_equal(length(unique(b$data[[1]]$fill)), 2)
+    # L'une ou l'autre, ou les deux : une barre par caractere et par heritabilite.
+    nb <- function() nrow(ggplot2::ggplot_build(graphique())$data[[1]])
+    expect_equal(nb(), 2)
+    session$setInputs(genHeritAffiche = "large")
+    expect_equal(nb(), 1)
+    expect_identical(graphique()$labels$y, "H²")
+    session$setInputs(genHeritAffiche = "strict")
+    expect_equal(nb(), 1)
+    expect_identical(graphique()$labels$y, "h²")
+    expect_equal(ggplot2::ggplot_build(graphique())$data[[1]]$y, rv$res$composantes$h2_strict)
+  })
+  met <- .hstat_test_met()
+  met$Type <- ifelse(met$Variete %in% paste0("V", 1:5), "Lignée", "Hybride")
+  vals <- shiny::reactiveValues(data = met, resetSignal = 0)
+  shiny::testServer(mod_genetique_server, args = list(values = vals), {
+    session$setInputs(genGen = "Variete", genLoc = "Loc", genAnnee = "Annee", genRep = "Bloc",
+      genTraits = c("Rendement", "Fibre_pct"), genCov = character(0),
+      genMinimiser = character(0), genPrincipal = "Rendement", genSI = 20, genAlpha = "0.05",
+      genF = 1, genPoidsY = 50, genSvp = "symetrique", genEchelle = FALSE, genType = "Type",
+      genGroupe = "", genP1 = "", genP2 = "", genComparaison = "tukey", genEtiquettes = TRUE)
+    session$setInputs(genCalculer = 1)
+    poly <- function() sum(vapply(graphique()$layers, function(l) inherits(l$geom, "GeomPolygon"), TRUE))
+    session$setInputs(genGraphique = "gge_base", genEllipses = TRUE)
+    expect_equal(poly(), 1)
+    expect_identical(graphique()$labels$fill, "Type de matériel")
+    session$setInputs(genEllipses = FALSE)
+    expect_equal(poly(), 0)
+    # Sans diallele, la figure de l'heritabilite dit ce qui manque.
+    session$setInputs(genGraphique = "heritabilite")
+    expect_match(graphique()$labels$subtitle, "diallèle")
+    expect_s3_class(hstat_gen_figure("heritabilite", rv$res, "Rendement", list(heritabilite = "strict")),
+                    "hstat_gen_absent")
   })
 })

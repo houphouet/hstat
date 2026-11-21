@@ -12054,3 +12054,81 @@ Figure par figure :
   choisie aurait remplacé un code par une décoration.
 - **Un sous-titre long revient à la ligne** (`.hstat_gen_coupe()`) au lieu de
   sortir du cadre.
+
+### Un caractère constant ne décompose rien (1.57.1)
+
+Trouvé en produisant un jeu d'essai « pièges » pour le module : un caractère
+constant (ou sans interaction G × E) passait l'AMMI avec des parts d'axes en
+0/0. L'ASV et le WAAS sortaient `NaN`, le MTSI tombait sur « NA/NaN/Inf in
+foreign function call » et emportait toute la synthèse, et le GGE levait
+`if (NA)`. L'AMMI refuse désormais un caractère constant ou sans interaction,
+le GGE un tableau où les génotypes ne diffèrent nulle part, la régression
+factorielle rend `NULL`, et le MTSI écarte une colonne non numérique au lieu de
+tomber. Chaque refus est nommé ; le test les vérifie tous.
+
+### Un angle laissé à 0 n'efface pas l'inclinaison d'une figure (1.57.2)
+
+Trouvé en produisant les résultats des jeux d'essai : sur la carte des
+corrélations, les noms des caractères se chevauchaient. La figure pose ses
+graduations à 45°, mais le kit de mise en forme, posé après elle, rend l'angle
+de son curseur — 0 par défaut — et l'effaçait. Un angle laissé à 0 garde
+désormais l'inclinaison propre à la figure ; un angle choisi l'emporte. Les
+moyennes par environnement s'inclinent d'elles-mêmes quand les noms
+d'environnement sont longs. L'étiquette penchée prend `vjust = 1` (1.57.3) :
+le kit centre une étiquette droite (`vjust = 0.5`), et penchée ainsi elle
+mordait sur le titre de l'axe.
+
+La synthèse en graphique (`hstat_synthese_figure()`) part de `theme_void()`,
+dont le fond est transparent : exportée en PNG, elle s'ouvrait sur un fond noir
+dans certaines visionneuses, son titre noir invisible. Le fond est blanc.
+
+### Héritabilité au sens strict, et des figures au rendu de l'analyse multivariée (1.58.0)
+
+Demandé à l'écran.
+
+**L'héritabilité au sens strict h² = σ²A / σ²P** demande la variance additive,
+que seul le diallèle estime (σ²A = 4σ²agc / (1 + F)). `hstat_gen_griffing()`
+la rend (`h2_strict`, `h2_large`, même base parcelle) ; `hstat_gen_composantes_h2()`
+la range dans les composantes, juste après H², pour le caractère qui a un
+diallèle — `NA` ailleurs, jamais une valeur devinée. Elle a sa grille
+(`HSTAT_GEN_METRIQUES$h2_strict`, Robinson et al. 1949) et sa signification
+génétique propre : la part qui se transmet des parents aux descendants. La
+figure de l'héritabilité porte alors H² et h² côte à côte ; sans diallèle,
+elle garde H² et ses couleurs de classe, et dit ce qui manque pour h².
+
+**Les biplots prennent l'allure de ceux de l'analyse multivariée** : axes en
+tirets, noms des environnements en gras, et, quand le type de matériel est
+renseigné, une couleur par type avec son enveloppe convexe (réglage
+« Entourer chaque type de matériel »). Une enveloppe et non une ellipse : sur
+trois ou quatre génotypes par type, l'ellipse de dispersion à 95 % (F(2, 2)
+≈ 19) couvrait tout le plan et écrasait les points — mesuré avant d'être
+écarté.
+
+**Les barres sont cerclées de noir**, et la barre d'erreur des AGC ne garde
+que sa **moitié extérieure** : de l'extrémité de la barre en s'éloignant de
+zéro, vers le haut pour une barre positive, vers le bas pour une négative.
+
+### Le Wilcoxon au-delà du plafond se vérifie par un compte (1.58.1)
+
+Le test « le Wilcoxon à un échantillon renonce à son intervalle » chronométrait
+l'appel et exigeait moins d'une seconde. Le « R CMD check » de la CI l'a fait
+échouer à 1,26 s, sur un code inchangé : la règle déjà écrite pour le DLNM —
+un test de performance mesure un compte, jamais une durée — n'y était pas
+appliquée. Il compte désormais, par `trace()` sur `wilcox.test.default`, les
+appels qui demandent l'intervalle : zéro au-delà du plafond, au moins un en
+deçà, sans quoi le traceur pourrait ne rien voir et passer quand même.
+
+### La figure de l'héritabilité : l'une, l'autre ou les deux (1.59.0)
+
+Demandé à l'écran. « Héritabilité affichée » (`genHeritAffiche`,
+`HSTAT_GEN_HERITABILITES`) n'apparaît que sous cette figure : les deux côte à
+côte (défaut), H² seule ou h² seule. Une héritabilité seule prend les couleurs
+de ses classes, dans l'ordre faible, moyenne, élevée (`breaks`, sans quoi la
+légende les range par ordre alphabétique : « Élevée » avant « Faible »). h²
+seule sans diallèle n'est pas un cadre vide : la figure dit qu'il faut les
+colonnes Parent 1 et Parent 2.
+
+Le balayage des accents (« une colonne créée et une colonne lue portent le même
+nom ») a signalé en CI le titre d'axe « h² » contre le symbole local `h2` (le
+vecteur des H² passé au MGIDI) : c'est un libellé, pas une lecture de colonne.
+Il rejoint les couples connus, motif écrit dans le test (1.59.1).
