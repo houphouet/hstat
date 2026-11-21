@@ -1821,7 +1821,9 @@ hstat_gen_figure <- function(quoi, res, trait, opt = list(etiq = TRUE, taille = 
       ggplot2::ggplot(dd, ggplot2::aes(Environnement, Valeur, colour = Genotype, group = Genotype)) +
         ggplot2::geom_line(linewidth = lw, na.rm = TRUE) + ggplot2::geom_point(size = opt$point, alpha = al, na.rm = TRUE) +
         ggplot2::labs(title = trf("« %s » par environnement", trait), y = trait,
-                      x = tr("Environnements (rangés par moyenne croissante)"), colour = tr("Génotype"))
+                      x = tr("Environnements (rangés par moyenne croissante)"), colour = tr("Génotype")) +
+        (if (sum(nchar(levels(dd$Environnement))) > 40)
+          ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 45, hjust = 1)))
     },
     finlay = {
       s <- x$stab
@@ -2615,6 +2617,10 @@ mod_genetique_server <- function(id, values) {
                                             face = extras$st_grad %||% "plain"),
           legend.position = if (isTRUE(input$genLegendePos %in% c("right", "bottom", "top", "left", "none"))) input$genLegendePos else "right") +
         hstat_plot_extras_theme(extras)
+      # Un angle laisse a 0 ne remplace pas l'inclinaison que la figure pose
+      # elle-meme : ses libelles se chevaucheraient.
+      if (!is.null(propre$axis.text.x) && isTRUE(extras$angle_x %in% 0))
+        p <- p + ggplot2::theme(axis.text.x = propre$axis.text.x)
       # Masquer une grille retire ce que le theme pose ; ne rien cocher le laisse.
       if (isTRUE(input$genGrilleMaj)) p <- p + ggplot2::theme(panel.grid.major = ggplot2::element_blank())
       if (isTRUE(input$genGrilleMin)) p <- p + ggplot2::theme(panel.grid.minor = ggplot2::element_blank())

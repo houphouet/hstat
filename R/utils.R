@@ -4625,6 +4625,7 @@ hstat_synthese_figure <- function(tabs, couleurs = NULL, taille = 3.4,
     ggplot2::theme(strip.text = ggplot2::element_text(face = "bold", hjust = 0,
                                                      margin = ggplot2::margin(4, 0, 4, 2)),
                    plot.title = ggplot2::element_text(face = "bold", hjust = 0.5),
+                   plot.background = ggplot2::element_rect(fill = "#ffffff", colour = NA),
                    legend.position = "none")
   if (length(tabs) > 1L)
     p <- p + ggplot2::facet_wrap(~Table, ncol = 1, scales = "free")

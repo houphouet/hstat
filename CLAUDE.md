@@ -12065,3 +12065,17 @@ foreign function call » et emportait toute la synthèse, et le GGE levait
 le GGE un tableau où les génotypes ne diffèrent nulle part, la régression
 factorielle rend `NULL`, et le MTSI écarte une colonne non numérique au lieu de
 tomber. Chaque refus est nommé ; le test les vérifie tous.
+
+### Un angle laissé à 0 n'efface pas l'inclinaison d'une figure (1.57.2)
+
+Trouvé en produisant les résultats des jeux d'essai : sur la carte des
+corrélations, les noms des caractères se chevauchaient. La figure pose ses
+graduations à 45°, mais le kit de mise en forme, posé après elle, rend l'angle
+de son curseur — 0 par défaut — et l'effaçait. Un angle laissé à 0 garde
+désormais l'inclinaison propre à la figure ; un angle choisi l'emporte. Les
+moyennes par environnement s'inclinent d'elles-mêmes quand les noms
+d'environnement sont longs.
+
+La synthèse en graphique (`hstat_synthese_figure()`) part de `theme_void()`,
+dont le fond est transparent : exportée en PNG, elle s'ouvrait sur un fond noir
+dans certaines visionneuses, son titre noir invisible. Le fond est blanc.

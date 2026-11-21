@@ -26256,3 +26256,31 @@ test_that("Selection genetique : un caractere constant est refuse par AMMI et GG
   expect_true(m$ok)
   expect_true(all(is.finite(m$table$MTSI)))
 })
+
+test_that("Selection genetique : un angle laisse a 0 garde l'inclinaison propre a la figure", {
+  skip_if_not_installed("ggplot2")
+  df <- .hstat_test_met()
+  vals <- shiny::reactiveValues(data = df, resetSignal = 0)
+  shiny::testServer(mod_genetique_server, args = list(values = vals), {
+    session$setInputs(genGen = "Variete", genLoc = "Loc", genAnnee = "Annee", genRep = "Bloc",
+      genTraits = c("Rendement", "Jours_floraison", "Degats_pct", "Fibre_pct"), genCov = character(0),
+      genMinimiser = character(0), genPrincipal = "Rendement", genSI = 20, genAlpha = "0.05",
+      genF = 1, genPoidsY = 50, genSvp = "symetrique", genEchelle = FALSE, genType = "",
+      genGroupe = "", genP1 = "", genP2 = "", genComparaison = "tukey")
+    session$setInputs(genCalculer = 1)
+    session$setInputs(genGraphique = "correlations", genXAngleX = 0)
+    expect_equal(graphique()$theme$axis.text.x$angle, 45)
+    session$setInputs(genXAngleX = 30)
+    expect_equal(graphique()$theme$axis.text.x$angle, 30)
+    # Des noms d'environnement longs s'inclinent d'eux-memes.
+    session$setInputs(genGraphique = "moyennes_env", genXAngleX = 0)
+    expect_equal(graphique()$theme$axis.text.x$angle, 45)
+  })
+})
+
+test_that("La synthese en graphique a un fond blanc, pas transparent", {
+  t <- data.frame(Modalite = c("A", "B"), Y = c("1 a", "2 b"), stringsAsFactors = FALSE)
+  attr(t, "groupes") <- matrix(c("a", "b"), 2); attr(t, "n_stat") <- 0L
+  p <- hstat_synthese_figure(list(Y = t))
+  expect_identical(p$theme$plot.background$fill, "#ffffff")
+})
