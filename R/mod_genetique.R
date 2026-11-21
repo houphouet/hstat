@@ -1169,6 +1169,10 @@ hstat_gen_types <- function(d, traits) {
   }))
 }
 
+# Sous ce seuil, un effet direct est negligeable et le sens se lit sur la correlation.
+HSTAT_GEN_PISTE_DIRECT_NEGLIGEABLE <- 0.1
+HSTAT_GEN_PISTE_CORRELATION_FORTE <- 0.3
+
 # SYNTHESE : ce qui fait monter le caractere recherche, et ce qui le deprecie.
 hstat_gen_synthese_facteurs <- function(trait, direction = "augmenter",
                                         covariables = NULL, pistes = NULL,
@@ -1198,14 +1202,21 @@ hstat_gen_synthese_facteurs <- function(trait, direction = "augmenter",
     rg <- if (is.null(m)) rep(NA_real_, nrow(tb))
           else m[cbind(match(tb$Caractere, rownames(m)), match(trait, colnames(m)))]
     for (i in seq_len(nrow(tb))) {
-      dir_eff <- sgn * tb$Effet_direct[i]
-      if (abs(tb$Effet_direct[i]) < 0.1 && abs(tb$Correlation[i]) < 0.3) next
-      eff <- if (dir_eff > 0) tr("Favorable") else tr("Défavorable")
-      aj(tr("Caractère associé"), tb$Caractere[i], eff, round(tb$Effet_direct[i], 3),
-         trf("effet direct %s ; r = %s ; rg = %s", format(round(tb$Effet_direct[i], 3)),
-             format(round(tb$Correlation[i], 3)), format(round(rg[i], 3))),
-         if (dir_eff > 0) trf("Effet direct : une hausse de « %s » améliore « %s ».", tb$Caractere[i], trait)
-         else trf("Effet direct : une hausse de « %s » déprécie « %s ».", tb$Caractere[i], trait))
+      d <- tb$Effet_direct[i]; r <- tb$Correlation[i]
+      faible <- !is.finite(d) || abs(d) < HSTAT_GEN_PISTE_DIRECT_NEGLIGEABLE
+      if (faible && (!is.finite(r) || abs(r) < HSTAT_GEN_PISTE_CORRELATION_FORTE)) next
+      # Un effet direct negligeable ne dit pas le sens : c'est la correlation qui le dit.
+      par_r <- faible
+      fav <- sgn * (if (par_r) r else d) > 0
+      eff <- if (fav) tr("Favorable") else tr("Défavorable")
+      lec <- if (par_r) {
+        if (fav) trf("Effet surtout indirect : une hausse de « %s » accompagne une amélioration de « %s ».", tb$Caractere[i], trait)
+        else trf("Effet surtout indirect : une hausse de « %s » accompagne une dépréciation de « %s ».", tb$Caractere[i], trait)
+      } else if (fav) trf("Effet direct : une hausse de « %s » améliore « %s ».", tb$Caractere[i], trait)
+      else trf("Effet direct : une hausse de « %s » déprécie « %s ».", tb$Caractere[i], trait)
+      aj(tr("Caractère associé"), tb$Caractere[i], eff, round(if (par_r) r else d, 3),
+         trf("effet direct %s ; r = %s ; rg = %s", format(round(d, 3)),
+             format(round(r, 3)), format(round(rg[i], 3))), lec)
     }
   }
   if (!is.null(griffing) && isTRUE(griffing$ok)) {

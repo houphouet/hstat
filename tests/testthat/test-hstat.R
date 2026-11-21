@@ -26215,6 +26215,22 @@ test_that("Selection genetique : la synthese tient quand les correlations ne cou
   expect_no_error(f <- hstat_gen_synthese_facteurs("Y", pistes = pi, correlations = co))
 })
 
+test_that("Selection genetique : un effet direct negligeable se classe par la correlation", {
+  pi <- list(ok = TRUE, table = data.frame(
+    Caractere = c("Degats", "Hauteur", "Bruit"),
+    Effet_direct = c(0.055, 0.6, 0.02), Correlation = c(-0.97, 0.5, 0.1)))
+  f <- hstat_gen_synthese_facteurs("Rendement", "augmenter", pistes = pi)
+  expect_identical(f$Effet[f$Element == "Degats"], tr("Défavorable"))
+  expect_equal(f$Intensite[f$Element == "Degats"], -0.97)
+  expect_match(f$Lecture[f$Element == "Degats"], "indirect")
+  # Un effet direct net garde son sens, et un caractere sans lien ne figure pas.
+  expect_identical(f$Effet[f$Element == "Hauteur"], tr("Favorable"))
+  expect_false("Bruit" %in% f$Element)
+  # Caractere a diminuer : la correlation negative devient favorable.
+  g <- hstat_gen_synthese_facteurs("Rendement", "diminuer", pistes = pi)
+  expect_identical(g$Effet[g$Element == "Degats"], tr("Favorable"))
+})
+
 test_that("Selection genetique : le rendu moderne habille la figure, le classique la laisse au theme", {
   skip_if_not_installed("ggplot2")
   df <- .hstat_test_met()
