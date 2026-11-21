@@ -12054,3 +12054,14 @@ Figure par figure :
   choisie aurait remplacé un code par une décoration.
 - **Un sous-titre long revient à la ligne** (`.hstat_gen_coupe()`) au lieu de
   sortir du cadre.
+
+### Un caractère constant ne décompose rien (1.57.1)
+
+Trouvé en produisant un jeu d'essai « pièges » pour le module : un caractère
+constant (ou sans interaction G × E) passait l'AMMI avec des parts d'axes en
+0/0. L'ASV et le WAAS sortaient `NaN`, le MTSI tombait sur « NA/NaN/Inf in
+foreign function call » et emportait toute la synthèse, et le GGE levait
+`if (NA)`. L'AMMI refuse désormais un caractère constant ou sans interaction,
+le GGE un tableau où les génotypes ne diffèrent nulle part, la régression
+factorielle rend `NULL`, et le MTSI écarte une colonne non numérique au lieu de
+tomber. Chaque refus est nommé ; le test les vérifie tous.

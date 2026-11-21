@@ -626,6 +626,10 @@ hstat_gen_ammi <- function(d, trait, direction = "augmenter", alpha = 0.05, an =
   if (is.null(an)) an <- hstat_gen_anova(d, trait)
   r <- if (isTRUE(an$ok)) an$r else 1
   mu <- mean(Y)
+  # Un caractere constant n'a ni effet ni interaction : les parts d'axes
+  # vaudraient 0/0 et l'ASV, le WAAS et le MTSI en sortiraient non numeriques.
+  if (sum((Y - mu)^2) <= 1e-12 * max(1, sum(Y^2)))
+    return(refus(tr("Le caractère est constant : AMMI et GGE n'ont rien à décomposer.")))
   GE <- sweep(sweep(Y, 1, rowMeans(Y)), 2, colMeans(Y)) + mu
   sv <- svd(GE)
   kmax <- min(g - 1, e - 1)
@@ -633,6 +637,8 @@ hstat_gen_ammi <- function(d, trait, direction = "augmenter", alpha = 0.05, an =
   ss <- r * lam^2
   dfk <- g + e - 1 - 2 * seq_len(kmax)
   ss_ge <- r * sum(GE^2)
+  if (ss_ge <= 1e-12 * r * sum((Y - mu)^2))
+    return(refus(tr("Aucune interaction génotype × environnement : les génotypes gardent le même écart partout, l'AMMI n'a rien à décomposer.")))
   a_err <- isTRUE(an$ok) && r > 1 && is.finite(an$mse)
   ms_err <- if (a_err) an$mse else NA_real_
   df_err <- if (a_err) an$df_erreur else NA_real_
@@ -707,6 +713,8 @@ hstat_gen_gge <- function(Y, direction = "augmenter", echelle = FALSE,
   if (is.null(Y) || nrow(Y) < 3 || ncol(Y) < 3)
     return(refus(tr("AMMI et GGE demandent au moins trois génotypes et trois environnements.")))
   X <- sweep(Y, 2, colMeans(Y))
+  if (!all(is.finite(X)) || sum(X^2) <= 1e-12 * max(1, sum(Y^2)))
+    return(refus(tr("Les génotypes ne diffèrent dans aucun environnement : le GGE biplot n'a rien à décomposer.")))
   if (isTRUE(echelle)) {
     s <- apply(Y, 2, stats::sd)
     s[!is.finite(s) | s == 0] <- 1
@@ -939,6 +947,10 @@ hstat_gen_mtsi <- function(ammi_liste, directions = NULL, poids_performance = 50
     (ry * wy + rw * (100 - wy)) / 100
   }, numeric(length(gens)))
   W <- matrix(W, length(gens), dimnames = list(gens, traits))
+  W <- W[, colSums(!is.finite(W)) == 0, drop = FALSE]
+  if (ncol(W) < 2)
+    return(list(ok = FALSE, motif = tr("Le MTSI demande au moins deux caractères analysés par AMMI (trois environnements ou plus, tableau complet).")))
+  traits <- colnames(W)
   res <- .hstat_gen_ideotype(W, si)
   if (!isTRUE(res$ok)) return(res)
   tab <- data.frame(Genotype = gens, MTSI = res$indice, Rang = res$rang,
@@ -1094,6 +1106,7 @@ hstat_gen_regression_factorielle <- function(d, trait, covariables, Y = NULL,
   if (is.null(Y) || ncol(Y) < 3 || any(!is.finite(Y))) return(NULL)
   GE <- sweep(sweep(Y, 1, rowMeans(Y)), 2, colMeans(Y)) + mean(Y)
   ss_ge <- r * sum(GE^2)
+  if (!is.finite(ss_ge) || ss_ge <= 1e-12 * r * max(1, sum(Y^2))) return(NULL)
   g <- nrow(Y); e <- ncol(Y)
   tests <- list(); sens <- data.frame(Genotype = rownames(Y), stringsAsFactors = FALSE)
   for (k in covariables) {

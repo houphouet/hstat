@@ -26237,3 +26237,22 @@ test_that("Selection genetique : le rendu moderne habille la figure, le classiqu
                                  HSTAT_GEN_COULEURS[["defavorable"]])))
   })
 })
+
+test_that("Selection genetique : un caractere constant est refuse par AMMI et GGE, et le MTSI tient", {
+  df <- .hstat_test_met()
+  df$Constant <- 7
+  df$Sans_interaction <- 10 + as.integer(factor(df$Variete))
+  pr <- hstat_gen_preparer(df, "Variete", c("Rendement", "Fibre_pct", "Constant", "Sans_interaction"),
+                           var_loc = "Loc", var_annee = "Annee", var_rep = "Bloc")
+  am <- hstat_gen_ammi(pr$data, "Constant")
+  expect_false(am$ok)
+  expect_match(am$motif, "constant")
+  expect_false(hstat_gen_ammi(pr$data, "Sans_interaction")$ok)
+  Y <- hstat_gen_table_ge(pr$data, "Constant")
+  expect_false(hstat_gen_gge(Y)$ok)
+  expect_null(hstat_gen_regression_factorielle(pr$data, "Constant", character(0), Y = Y))
+  liste <- lapply(stats::setNames(pr$traits, pr$traits), function(t) hstat_gen_ammi(pr$data, t))
+  m <- hstat_gen_mtsi(liste)
+  expect_true(m$ok)
+  expect_true(all(is.finite(m$table$MTSI)))
+})
