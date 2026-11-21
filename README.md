@@ -19,25 +19,7 @@ remotes::install_github("houphouet/hstat")
 
 library(HStat)
 run_hstat()
-```
-
-On first run, HStat asks whether to open in your browser or in the RStudio
-Shiny window, and can keep the answer as the default
-(`run_hstat(ouverture = "demander")` asks again). Missing packages are
-installed on first run.
-
-HStat sends an anonymous launch signal, at most once a day, so its worldwide
-spread can be followed: the HStat version, the operating system family and the
-R version. No question is asked; a note says so on the first launch. The
-country is deduced by the receiving service
-([GoatCounter](https://www.goatcounter.com)), which does not store the
-address. No identifier, data or result ever leaves your machine.
-Three anonymous counters are followed on GoatCounter: `/installation/<version>/<os>`
-(once per machine and per version: the download count), `/lancement/<version>/<os>`
-(once a day) and `/application/<version>` (each time the app page opens).
-`run_hstat(statistiques = FALSE)` turns it off for good, and
-`options(hstat.statistiques = FALSE)` turns it off for a session.
-No minimum R version is declared; CI runs the suite on the current release.
+```
 
 ---
 
