@@ -1173,6 +1173,17 @@ hstat_gen_types <- function(d, traits) {
 HSTAT_GEN_PISTE_DIRECT_NEGLIGEABLE <- 0.1
 HSTAT_GEN_PISTE_CORRELATION_FORTE <- 0.3
 
+# Le sens d'un caractere associe : l'effet direct, sauf s'il est negligeable ou de
+# signe contraire a une correlation forte (colinearite), ou c'est la correlation.
+.hstat_gen_piste_sens <- function(d, r) {
+  r_forte <- is.finite(r) && abs(r) >= HSTAT_GEN_PISTE_CORRELATION_FORTE
+  faible <- !is.finite(d) || abs(d) < HSTAT_GEN_PISTE_DIRECT_NEGLIGEABLE
+  contraire <- !faible && r_forte && sign(d) != sign(r)
+  if (faible && !r_forte) return(NULL)
+  base <- if (faible) "indirect" else if (contraire) "contraire" else "direct"
+  list(base = base, valeur = if (base == "direct") d else r)
+}
+
 # SYNTHESE : ce qui fait monter le caractere recherche, et ce qui le deprecie.
 hstat_gen_synthese_facteurs <- function(trait, direction = "augmenter",
                                         covariables = NULL, pistes = NULL,
@@ -1180,10 +1191,11 @@ hstat_gen_synthese_facteurs <- function(trait, direction = "augmenter",
                                         alpha = 0.05) {
   sgn <- .hstat_gen_signe(direction)
   out <- list()
-  aj <- function(cat, el, eff, intens, preuve, lecture)
+  aj <- function(cat, el, eff, intens, mesure, preuve, lecture, rang = 1L)
     out[[length(out) + 1L]] <<- data.frame(Categorie = cat, Element = el, Effet = eff,
-                                           Intensite = intens, Preuve = preuve,
-                                           Lecture = lecture, stringsAsFactors = FALSE)
+                                           Intensite = intens, Intensite_mesure = mesure,
+                                           Preuve = preuve, Lecture = lecture,
+                                           .rang = rang, stringsAsFactors = FALSE)
   if (!is.null(covariables) && nrow(covariables)) {
     for (i in seq_len(nrow(covariables))) {
       cv <- covariables[i, ]
@@ -1193,7 +1205,8 @@ hstat_gen_synthese_facteurs <- function(trait, direction = "augmenter",
       else trf("Une hausse de « %s » déprécie « %s ».", cv$Variable, trait)
       if (nzchar(cv$Detail) && grepl(tr("Meilleure modalité"), cv$Detail, fixed = TRUE)) lec <- cv$Detail
       aj(tr("Variable environnementale ou pratique"), cv$Variable, cv$Effet,
-         round(cv$Effet_standardise, 3), paste0("p = ", hstat_p_txt(cv$p)), lec)
+         round(cv$Effet_standardise, 3), tr("Effet standardisé de la covariable"),
+         paste0("p = ", hstat_p_txt(cv$p)), lec)
     }
   }
   if (!is.null(pistes) && isTRUE(pistes$ok)) {
@@ -1202,21 +1215,24 @@ hstat_gen_synthese_facteurs <- function(trait, direction = "augmenter",
     rg <- if (is.null(m)) rep(NA_real_, nrow(tb))
           else m[cbind(match(tb$Caractere, rownames(m)), match(trait, colnames(m)))]
     for (i in seq_len(nrow(tb))) {
-      d <- tb$Effet_direct[i]; r <- tb$Correlation[i]
-      faible <- !is.finite(d) || abs(d) < HSTAT_GEN_PISTE_DIRECT_NEGLIGEABLE
-      if (faible && (!is.finite(r) || abs(r) < HSTAT_GEN_PISTE_CORRELATION_FORTE)) next
-      # Un effet direct negligeable ne dit pas le sens : c'est la correlation qui le dit.
-      par_r <- faible
-      fav <- sgn * (if (par_r) r else d) > 0
+      d <- tb$Effet_direct[i]; r <- tb$Correlation[i]; ca <- tb$Caractere[i]
+      s <- .hstat_gen_piste_sens(d, r)
+      if (is.null(s)) next
+      fav <- sgn * s$valeur > 0
       eff <- if (fav) tr("Favorable") else tr("Défavorable")
-      lec <- if (par_r) {
-        if (fav) trf("Effet surtout indirect : une hausse de « %s » accompagne une amélioration de « %s ».", tb$Caractere[i], trait)
-        else trf("Effet surtout indirect : une hausse de « %s » accompagne une dépréciation de « %s ».", tb$Caractere[i], trait)
-      } else if (fav) trf("Effet direct : une hausse de « %s » améliore « %s ».", tb$Caractere[i], trait)
-      else trf("Effet direct : une hausse de « %s » déprécie « %s ».", tb$Caractere[i], trait)
-      aj(tr("Caractère associé"), tb$Caractere[i], eff, round(if (par_r) r else d, 3),
+      lec <- switch(s$base,
+        direct = if (fav) trf("Effet direct : une hausse de « %s » améliore « %s ».", ca, trait)
+                 else trf("Effet direct : une hausse de « %s » déprécie « %s ».", ca, trait),
+        indirect = if (fav) trf("Effet surtout indirect : une hausse de « %s » accompagne une amélioration de « %s ».", ca, trait)
+                   else trf("Effet surtout indirect : une hausse de « %s » accompagne une dépréciation de « %s ».", ca, trait),
+        contraire = if (fav) trf("Effet direct de sens contraire à la corrélation (colinéarité) : une hausse de « %s » accompagne une amélioration de « %s ».", ca, trait)
+                    else trf("Effet direct de sens contraire à la corrélation (colinéarité) : une hausse de « %s » accompagne une dépréciation de « %s ».", ca, trait))
+      mes <- if (s$base == "direct") tr("Effet direct (analyse des pistes)")
+             else tr("Corrélation avec le caractère principal")
+      aj(tr("Caractère associé"), ca, eff, round(s$valeur, 3), mes,
          trf("effet direct %s ; r = %s ; rg = %s", format(round(d, 3)),
-             format(round(r, 3)), format(round(rg[i], 3))), lec)
+             format(round(r, 3)), format(round(rg[i], 3))), lec,
+         rang = if (s$base == "direct") 1L else 2L)
     }
   }
   if (!is.null(griffing) && isTRUE(griffing$ok)) {
@@ -1226,6 +1242,7 @@ hstat_gen_synthese_facteurs <- function(trait, direction = "augmenter",
       fav <- sgn * a$AGC[i] > 0
       aj(tr("Parent (aptitude générale)"), a$Parent[i],
          if (fav) tr("Favorable") else tr("Défavorable"), round(a$AGC[i], 3),
+         tr("Aptitude générale à la combinaison (AGC)"),
          paste0("p = ", hstat_p_txt(a$p[i])),
          if (fav) trf("« %s » transmet à sa descendance une valeur élevée du caractère.", a$Parent[i])
          else trf("« %s » transmet à sa descendance une valeur dépréciée du caractère.", a$Parent[i]))
@@ -1233,7 +1250,9 @@ hstat_gen_synthese_facteurs <- function(trait, direction = "augmenter",
   }
   if (!length(out)) return(NULL)
   res <- do.call(rbind, out)
-  res <- res[order(res$Effet != tr("Favorable"), -abs(res$Intensite)), , drop = FALSE]
+  # Une correlation ne se range pas contre un effet direct : elle vient apres.
+  res <- res[order(res$Effet != tr("Favorable"), res$.rang, -abs(res$Intensite)), , drop = FALSE]
+  res$.rang <- NULL
   rownames(res) <- NULL
   res
 }

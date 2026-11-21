@@ -12144,3 +12144,21 @@ l'intensité se lisent alors sur la corrélation, si elle atteint
 `HSTAT_GEN_PISTE_CORRELATION_FORTE` (0,3), et la lecture dit « effet surtout
 indirect ». Un effet direct net garde son sens. Le test vérifie aussi le sens
 inversé d'un caractère à diminuer.
+
+#### Revue 1.60.1 : pas de saut au seuil, et une intensité qui dit ce qu'elle mesure
+
+Trois points de la revue de code, chacun testé.
+
+1. **Une colinéarité ne s'arrête pas à 0,1.** Avec un effet direct de 0,12 et
+   r = −0,97, le classement repassait « Favorable » juste au-dessus du seuil.
+   Un effet direct de **signe contraire** à une corrélation forte suit la
+   corrélation, et la lecture le dit (« de sens contraire à la corrélation
+   (colinéarité) »). Contredit par une corrélation faible, il garde son sens.
+   La règle vit dans `.hstat_gen_piste_sens()`.
+2. **`Intensite_mesure` nomme la grandeur de `Intensite`** : effet standardisé
+   de la covariable, effet direct, corrélation, ou AGC. Dans un même sens, une
+   ligne lue sur la corrélation vient **après** les effets directs : −0,97 ne
+   se range pas devant un effet direct de 0,6 qui n'est pas la même grandeur.
+3. **Les deux seuils se testent des deux côtés** (0,099 / 0,101 et
+   0,29 / 0,31) ; quatre mutations — chaque seuil déplacé, la règle du signe
+   contraire retirée, l'ordre perdu — échouent toutes.
