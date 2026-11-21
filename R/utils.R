@@ -13368,6 +13368,21 @@ hstat_volcan_plot <- function(vd, couleurs = c(hausse = "#d7301f",
 # l'apercu des donnees nettoyees (`rownames = TRUE`).
 
 # Suite d'entiers ecrite en plages : 3, 5-8, 12.
+# Le rendu « moderne » des figures publiees, partage par la DL50 et la
+# selection genetique : grille legere, axes traces, titre cale sur la figure.
+hstat_theme_moderne <- function() {
+  ggplot2::theme(
+    panel.grid.minor = ggplot2::element_blank(),
+    panel.grid.major = ggplot2::element_line(colour = "#e5e7eb", linewidth = 0.35),
+    axis.line = ggplot2::element_line(colour = "#374151", linewidth = 0.45),
+    axis.ticks = ggplot2::element_line(colour = "#374151", linewidth = 0.4),
+    axis.ticks.length = ggplot2::unit(3, "pt"),
+    plot.title.position = "plot",
+    legend.key = ggplot2::element_blank(),
+    plot.background = ggplot2::element_rect(fill = "white", colour = NA),
+    plot.margin = ggplot2::margin(10, 14, 8, 10))
+}
+
 hstat_lignes_compactes <- function(x, max = 100L) {
   x <- as.character(x)
   if (!length(x)) return("")

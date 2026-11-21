@@ -113,8 +113,8 @@ hstat_gen_preparer <- function(df, var_gen, traits, var_loc = NULL,
   for (t in traits) {
     v <- hstat_as_numeric_fr(df[[t]])
     if (is.null(v)) { illis <- c(illis, t); next }
-    nom <- t
-    while (nom %in% names(d) || startsWith(nom, ".cov_")) nom <- paste0(nom, " (caractère)")
+    nom <- if (t %in% names(d) || startsWith(t, ".cov_"))
+      make.unique(c(names(d), paste0(t, " (caractère)")), sep = " ")[ncol(d) + 1L] else t
     noms[[t]] <- nom
     d[[nom]] <- v
   }
@@ -396,7 +396,7 @@ hstat_gen_griffing <- function(d, trait, F_consanguinite = 1, direction = "augme
   inc <- attr(cel, "incomplets")
   if (length(inc))
     notes <- c(notes, trf("%d génotype(s) écarté(s) du diallèle, un seul de leurs parents étant renseigné : %s.",
-                          length(inc), paste(utils::head(inc, 10), collapse = ", ")))
+                          length(inc), hstat_lignes_compactes(inc, max = 10L)))
   Fc <- suppressWarnings(as.numeric(F_consanguinite)[1])
   if (!is.finite(Fc) || Fc < 0 || Fc > 1) Fc <- 1
 
@@ -1251,29 +1251,24 @@ HSTAT_GEN_STYLES <- c("Moderne (publication)" = "moderne", "Classique (thème se
 HSTAT_GEN_GRAPHIQUES_CARTES <- c("asc", "sensibilite", "correlations")
 
 .hstat_gen_habillage <- function(carte = FALSE) {
-  encre <- "#3d4652"
-  th <- ggplot2::theme(
-    plot.title.position = "plot", plot.caption.position = "plot",
+  th <- hstat_theme_moderne() + ggplot2::theme(
     plot.title = ggplot2::element_text(colour = "#1f2630", margin = ggplot2::margin(b = 4)),
     plot.subtitle = ggplot2::element_text(colour = "#5f6b7a", margin = ggplot2::margin(b = 10)),
-    plot.background = ggplot2::element_rect(fill = "white", colour = NA),
     panel.background = ggplot2::element_rect(fill = "white", colour = NA),
-    panel.grid.major = ggplot2::element_line(colour = "#e6e9ee", linewidth = 0.35),
-    panel.grid.minor = ggplot2::element_blank(),
-    axis.line = ggplot2::element_line(colour = "#5f6b7a", linewidth = 0.4),
-    axis.ticks = ggplot2::element_line(colour = "#5f6b7a", linewidth = 0.35),
-    axis.text = ggplot2::element_text(colour = encre),
-    axis.title = ggplot2::element_text(colour = "#2b333d"),
-    legend.key = ggplot2::element_blank(), legend.background = ggplot2::element_blank(),
-    legend.title = ggplot2::element_text(colour = "#2b333d", face = "bold"),
+    axis.text = ggplot2::element_text(colour = "#3d4652"),
+    legend.background = ggplot2::element_blank(),
+    legend.title = ggplot2::element_text(face = "bold"),
     strip.background = ggplot2::element_rect(fill = "#eef1f5", colour = NA),
-    strip.text = ggplot2::element_text(face = "bold", colour = "#2b333d"),
-    plot.margin = ggplot2::margin(12, 16, 10, 12))
+    strip.text = ggplot2::element_text(face = "bold"))
   if (carte) th <- th + ggplot2::theme(axis.line = ggplot2::element_blank(),
                                         axis.ticks = ggplot2::element_blank(),
                                         panel.grid.major = ggplot2::element_blank())
   th
 }
+
+# Le texte d'une case foncee passe au blanc.
+.hstat_gen_encre_tuile <- function()
+  ggplot2::scale_colour_manual(values = c(`TRUE` = "white", `FALSE` = "#1f2630"), guide = "none")
 
 # Un sous-titre long revient a la ligne au lieu de sortir du cadre.
 .hstat_gen_coupe <- function(x, largeur = 95) paste(strwrap(x, largeur), collapse = "\n")
@@ -1878,7 +1873,7 @@ hstat_gen_figure <- function(quoi, res, trait, opt = list(etiq = TRUE, taille = 
         ggplot2::geom_tile(colour = "white", linewidth = 0.8) +
         ggplot2::geom_text(ggplot2::aes(label = if (!isFALSE(opt$valeurs)) val_txt(ASC) else "",
                                         colour = abs(ASC) > 0.6 * lim), size = opt$taille, show.legend = FALSE) +
-        ggplot2::scale_colour_manual(values = c(`TRUE` = "white", `FALSE` = "#1f2630"), guide = "none") +
+        .hstat_gen_encre_tuile() +
         ggplot2::coord_equal() +
         ggplot2::scale_fill_gradient2(low = def, mid = "#f7f7f7", high = fav, limits = c(-lim, lim),
                                       name = tr("ASC favorable")) +
@@ -1956,7 +1951,7 @@ hstat_gen_figure <- function(quoi, res, trait, opt = list(etiq = TRUE, taille = 
         ggplot2::geom_text(ggplot2::aes(label = signif(Pente, 2),
                                         colour = abs(Relatif) > 0.6), size = opt$taille * 0.9,
                            show.legend = FALSE) +
-        ggplot2::scale_colour_manual(values = c(`TRUE` = "white", `FALSE` = "#1f2630"), guide = "none") +
+        .hstat_gen_encre_tuile() +
         ggplot2::scale_fill_gradient2(low = def, mid = "#f7f7f7", high = fav, limits = c(-1, 1),
                                       name = tr("Réponse favorable (relative)")) +
         ggplot2::labs(title = trf("Sensibilité des génotypes aux covariables : « %s »", trait),
@@ -1976,7 +1971,7 @@ hstat_gen_figure <- function(quoi, res, trait, opt = list(etiq = TRUE, taille = 
         ggplot2::geom_text(ggplot2::aes(label = ifelse(is.finite(r) & !isFALSE(opt$valeurs), val_txt(r), ""),
                                         colour = is.finite(r) & abs(r) > 0.6),
                            size = opt$taille, show.legend = FALSE) +
-        ggplot2::scale_colour_manual(values = c(`TRUE` = "white", `FALSE` = "#1f2630"), guide = "none") +
+        .hstat_gen_encre_tuile() +
         ggplot2::scale_fill_gradient2(low = "#b03a2e", mid = "#f7f7f7", high = "#1f6fb2",
                                       limits = c(-1, 1), oob = scales::squish,
                                       na.value = "#e5e7eb", name = "rg") +
@@ -2501,7 +2496,7 @@ mod_genetique_server <- function(id, values) {
       inc <- rv$res$mgidi$incomplets
       shiny::tagList(refus(rv$res$mgidi), refus(rv$res$mtsi), refus(rv$res$gyt),
         if (length(inc)) note(trf("%d génotype(s) écarté(s) du MGIDI, un caractère n'y étant pas mesuré : %s.",
-                                  length(inc), paste(utils::head(inc, 10), collapse = ", "))),
+                                  length(inc), hstat_lignes_compactes(inc, max = 10L))),
         note(trf("Intensité de sélection : %s %% (%d génotype(s) retenu(s)). Un indice plus petit est plus proche de l'idéotype.",
                  format(rv$res$si), rv$res$n_sel)))
     })
