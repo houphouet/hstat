@@ -26635,3 +26635,56 @@ test_that("Selection genetique : le caractere principal n'est pas forcement le r
     expect_false(grepl("Rendement et stabilité", htm, fixed = TRUE))
   })
 })
+
+test_that("Selection genetique : un seul reglage de decimales, sous le caractere affiche, pour tous les tableaux", {
+  skip_if_not_installed("DT")
+  html <- as.character(mod_genetique_ui("g"))
+  ids <- regmatches(html, gregexpr('id="g-[A-Za-z0-9_]+"', html))[[1]]
+  ids <- sub('^id="g-', "", sub('"$', "", ids))
+  i <- match("genTraitAffiche", ids)
+  # Juste sous le caractere affiche : c'est le champ qui le suit.
+  expect_identical(ids[i + 1L], "genDecimales")
+  # Pas de doublon : la synthese n'a plus son propre reglage.
+  expect_false("genSynthDec" %in% ids)
+  expect_equal(sum(ids == "genDecimales"), 1L)
+  # Tous les tableaux du serveur passent par le reglage commun.
+  src <- paste(deparse(mod_genetique_server), collapse = "\n")
+  # (un seul appel direct : celui de l'aide qui lit le reglage)
+  expect_equal(lengths(regmatches(src, gregexpr(".hstat_gen_dt(", src, fixed = TRUE))), 1L)
+  expect_gt(lengths(regmatches(src, gregexpr("gen_dt(", src, fixed = TRUE))), 20L)
+  # Ce que DT pose reellement sur une colonne.
+  decimales <- function(dt, col, noms) {
+    for (cd in dt$x$options$columnDefs) {
+      if (is.null(cd$render) || !(match(col, noms) - 1L) %in% unlist(cd$targets)) next
+      m <- regmatches(cd$render, regexpr("formatRound\\(data, [0-9]+", cd$render))
+      if (length(m)) return(as.integer(sub(".*, ", "", m)))
+    }
+    NA_integer_
+  }
+  df <- .hstat_test_met()
+  vals <- shiny::reactiveValues(data = df, resetSignal = 0)
+  shiny::testServer(mod_genetique_server, args = list(values = vals), {
+    session$setInputs(genGen = "Variete", genLoc = "Loc", genAnnee = "Annee", genRep = "Bloc",
+      genTraits = c("Rendement", "Fibre_pct"), genCov = character(0),
+      genMinimiser = character(0), genPrincipal = "Rendement", genSI = 20, genAlpha = "0.05",
+      genF = 1, genPoidsY = 50, genSvp = "symetrique", genEchelle = FALSE, genType = "",
+      genGroupe = "", genP1 = "", genP2 = "", genSynthDisp = "ecart_type")
+    session$setInputs(genCalculer = 1)
+    cp <- rv$res$composantes
+    for (k in c(1L, 5L)) {
+      session$setInputs(genDecimales = k)
+      expect_identical(decimales(gen_dt(cp, "x"), "H2_moyenne", names(cp)), k)
+      # La synthese lit le meme reglage.
+      cel <- as.character(synth_tabs()[[1]][1, 2])
+      expect_identical(nchar(sub(" .*", "", sub("^[^.]*\\.", "", cel))), k)
+    }
+    # Un champ vide ou hors bornes retombe sur le defaut, ou sur la borne.
+    session$setInputs(genDecimales = NA)
+    expect_identical(decimales(gen_dt(cp, "x"), "H2_moyenne", names(cp)), HSTAT_GEN_DECIMALES_DEFAUT)
+    session$setInputs(genDecimales = 99)
+    expect_identical(decimales(gen_dt(cp, "x"), "H2_moyenne", names(cp)), HSTAT_GEN_DECIMALES_MAX)
+  })
+  # Les colonnes ne sont plus arrondies au calcul : c'est l'affichage qui decide.
+  m <- matrix(c(1, 0.123456789, 0.123456789, 1), 2, dimnames = list(c("a", "b"), c("a", "b")))
+  expect_equal(.hstat_gen_mat_df(m)$a[2], 0.123456789)
+})

@@ -12269,3 +12269,25 @@ L'onglet s'appelle « Aptitudes à la combinaison (AGC, ASC) », les sélecteurs
 « Parent 1 (femelle, lignée) » et « Parent 2 (mâle, testeur) ». Les rôles
 s'écrivent « Lignée (Parent 1) » et « Testeur (Parent 2) » : « Lignée » seul
 est une modalité plausible d'une colonne de type de matériel.
+
+### Un seul réglage de décimales pour tous les tableaux (1.63.0)
+
+Demandé à l'écran : un arrondi pour tous les tableaux du module, sans doublon,
+juste sous « Caractère affiché ». « Décimales des tableaux » (`genDecimales`,
+3 par défaut, 0 à `HSTAT_GEN_DECIMALES_MAX` = 8, borné par
+`hstat_gen_decimales()`) gouverne tous les `DTOutput` du module : ils passent
+par `gen_dt()`, qui lit ce réglage, et la synthèse des génotypes (tableau,
+graphique et export) le lit aussi. Le « Décimales » propre à la synthèse
+(`genSynthDec`) est retiré : deux réglages pour un même trait, c'est le second
+qui ment. Celui des valeurs portées sur le graphique reste : il règle la
+figure, pas un tableau.
+
+Six colonnes étaient arrondies **au calcul** (contributions du MGIDI à 2, W du
+MTSI à 2, Z du GYT à 3, intensités de la synthèse des facteurs à 3,
+corrélations à 4) : elles plafonnaient l'affichage quel que soit le réglage.
+Elles portent désormais la valeur complète, et c'est l'affichage qui arrondit.
+
+Le test lit les décimales que DT pose réellement sur une colonne, à 1 puis à
+5, vérifie que la synthèse suit, et qu'un champ vide ou hors bornes retombe
+sur le défaut ou la borne. Deux mutations (réglage ignoré par les tableaux,
+puis par la synthèse) le font échouer.
