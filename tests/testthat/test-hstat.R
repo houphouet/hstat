@@ -26467,3 +26467,72 @@ test_that("Selection genetique : barres cerclees de noir, demi-barre d'erreur, t
                     "hstat_gen_absent")
   })
 })
+
+test_that("Selection genetique : la barre des analyses vient au-dessus des deux colonnes, et la pilote", {
+  html <- as.character(mod_genetique_ui("g"))
+  pos <- function(m) { p <- regexpr(m, html, fixed = TRUE); expect_true(p > 0, label = m); as.integer(p) }
+  p_nav <- pos('class="hstat-gen-nav"')
+  p_donnees <- pos("Données et dispositif")
+  p_res <- pos("Résultats de la sélection")
+  expect_true(p_nav < p_donnees && p_nav < p_res)
+  # Chaque analyse a son bouton dans la barre, et son panneau dans les resultats.
+  cles <- c("synthese", "variance", "comparaisons", "griffing", "ammi", "gge",
+            "stabilite", "multicaractere", "environnement", "correlations", "graphique")
+  barre <- substr(html, p_nav, p_donnees)
+  resultats <- substr(html, p_res, nchar(html))
+  for (k in cles) {
+    expect_true(grepl(sprintf('data-value="%s"', k), barre, fixed = TRUE), label = paste("barre", k))
+    expect_true(grepl(sprintf('data-value="%s"', k), resultats, fixed = TRUE), label = paste("panneau", k))
+  }
+  # Les onglets des resultats ne s'affichent plus : la barre les remplace.
+  expect_false(grepl("Diallèle de Griffing", resultats, fixed = TRUE))
+  # Le clic dans la barre change le panneau affiche.
+  df <- .hstat_test_met()
+  vals <- shiny::reactiveValues(data = df, resetSignal = 0)
+  envoyes <- list()
+  shiny::testServer(mod_genetique_server, args = list(values = vals), {
+    racine <- session$rootScope()
+    racine$sendInputMessage <- function(inputId, message)
+      envoyes[[sub("^.*-", "", inputId)]] <<- message
+    session$setInputs(genNav = "gge")
+    expect_identical(envoyes$genOnglets$value, "gge")
+    session$setInputs(genNav = "graphique")
+    expect_identical(envoyes$genOnglets$value, "graphique")
+  })
+})
+
+test_that("Selection genetique : les couleurs des elements suivent les titres et libelles", {
+  html <- as.character(mod_genetique_ui("g"))
+  p_titres <- regexpr("Titres et libellés", html, fixed = TRUE)
+  p_coul <- regexpr("Couleurs des éléments", html, fixed = TRUE)
+  p_tailles <- regexpr("Tailles", html, fixed = TRUE)
+  expect_true(p_titres > 0 && p_coul > p_titres && p_coul < p_tailles)
+  # Dans la meme colonne : aucune colonne ne s'ouvre entre les deux cartes.
+  expect_false(grepl("col-sm-", substr(html, p_titres, p_coul), fixed = TRUE))
+})
+
+test_that("Selection genetique : le caractere principal n'est pas forcement le rendement", {
+  skip_if_not_installed("ggplot2")
+  expect_false(grepl("(rendement)", as.character(mod_genetique_ui("g")), fixed = TRUE))
+  df <- .hstat_test_met()
+  vals <- shiny::reactiveValues(data = df, resetSignal = 0)
+  shiny::testServer(mod_genetique_server, args = list(values = vals), {
+    session$setInputs(genGen = "Variete", genLoc = "Loc", genAnnee = "Annee", genRep = "Bloc",
+      genTraits = c("Rendement", "Jours_floraison", "Degats_pct", "Fibre_pct"),
+      genCov = character(0), genMinimiser = c("Jours_floraison", "Degats_pct"),
+      genPrincipal = "Fibre_pct", genSI = 20, genAlpha = "0.05", genF = 1, genPoidsY = 50,
+      genSvp = "symetrique", genEchelle = FALSE, genType = "", genGroupe = "",
+      genP1 = "", genP2 = "")
+    session$setInputs(genCalculer = 1)
+    r <- rv$res
+    expect_identical(r$principal, "Fibre_pct")
+    # Le GYT croise le caractere choisi, pas le rendement.
+    expect_true(isTRUE(r$gyt$ok))
+    expect_true(all(startsWith(colnames(r$gyt$Z), "Fibre_pct")))
+    expect_false(any(startsWith(colnames(r$gyt$Z), "Rendement")))
+    # La synthese nomme le caractere choisi.
+    htm <- as.character(output$genSyntheseUI$html)
+    expect_match(htm, "« Fibre_pct »", fixed = TRUE)
+    expect_false(grepl("Rendement et stabilité", htm, fixed = TRUE))
+  })
+})

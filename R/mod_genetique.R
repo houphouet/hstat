@@ -981,29 +981,30 @@ hstat_gen_mtsi <- function(ammi_liste, directions = NULL, poids_performance = 50
   res
 }
 
-# GYT BIPLOT (Yan & Fregeau-Reid 2018) : genotype par rendement*caractere.
-# Un caractere a diminuer entre en rendement / caractere, ce qui demande des
+# GYT BIPLOT (Yan & Fregeau-Reid 2018) : genotype par caractere principal *
+# caractere, le principal chez les auteurs, tout caractere mesure ici. Un
+# caractere a diminuer entre en principal / caractere, ce qui demande des
 # valeurs strictement positives.
-hstat_gen_gyt <- function(moyennes, rendement, traits, directions = NULL) {
+hstat_gen_gyt <- function(moyennes, principal, traits, directions = NULL) {
   refus <- function(m) list(ok = FALSE, motif = m)
-  if (is.null(rendement) || !rendement %in% names(moyennes))
-    return(refus(tr("Choisissez le caractère principal (rendement) pour le GYT biplot.")))
-  autres <- setdiff(intersect(traits, names(moyennes)), rendement)
-  if (!length(autres)) return(refus(tr("Le GYT biplot demande au moins un caractère en plus du rendement.")))
-  dirs <- .hstat_gen_dir(directions, c(rendement, autres))
-  y <- moyennes[[rendement]]
+  if (is.null(principal) || !principal %in% names(moyennes))
+    return(refus(tr("Choisissez le caractère principal pour le GYT biplot.")))
+  autres <- setdiff(intersect(traits, names(moyennes)), principal)
+  if (!length(autres)) return(refus(tr("Le GYT biplot demande au moins un caractère en plus du caractère principal.")))
+  dirs <- .hstat_gen_dir(directions, c(principal, autres))
+  y <- moyennes[[principal]]
   cols <- list(); ecartes <- character(0)
   for (t in autres) {
     x <- moyennes[[t]]
     if (dirs[[t]] == "diminuer") {
       if (any(!is.finite(x) | x <= 0)) { ecartes <- c(ecartes, t); next }
-      cols[[paste0(rendement, "/", t)]] <- y / x
-    } else cols[[paste0(rendement, "*", t)]] <- y * x
+      cols[[paste0(principal, "/", t)]] <- y / x
+    } else cols[[paste0(principal, "*", t)]] <- y * x
   }
   if (!length(cols)) return(refus(tr("Aucune combinaison calculable : un caractère à diminuer doit être strictement positif.")))
   M <- do.call(cbind, cols); rownames(M) <- moyennes$Genotype
   M <- M[stats::complete.cases(M), , drop = FALSE]
-  if (identical(dirs[[rendement]], "diminuer")) M <- -M
+  if (identical(dirs[[principal]], "diminuer")) M <- -M
   s <- apply(M, 2, stats::sd); s[!is.finite(s) | s == 0] <- 1
   Zs <- scale(M, center = TRUE, scale = s)
   idx <- rowMeans(Zs)
@@ -1289,7 +1290,7 @@ HSTAT_GEN_GRAPHIQUES <- c(
   "MGIDI : indice multicaractère des génotypes"  = "mgidi",
   "MGIDI : forces et faiblesses"                 = "mgidi_forces",
   "MTSI : indice de performance et de stabilité" = "mtsi",
-  "GYT biplot (rendement × caractère)"           = "gyt",
+  "GYT biplot (caractère principal × autres caractères)"           = "gyt",
   "Effets des variables environnementales"       = "covariables",
   "Sensibilité des génotypes aux covariables"    = "sensibilite",
   "Corrélations génotypiques"                    = "correlations",
@@ -1344,6 +1345,19 @@ mod_genetique_ui <- function(id) {
   ns <- shiny::NS(id)
   shiny::tagList(
     .hstat_scope_banner(exact = FALSE),
+    shiny::div(class = "hstat-gen-nav",
+      shiny::tabsetPanel(id = ns("genNav"), type = "pills", selected = "synthese",
+        shiny::tabPanel(shiny::tagList(shiny::icon("flag-checkered"), " Synthèse et recommandations"), value = "synthese"),
+        shiny::tabPanel(shiny::tagList(shiny::icon("percent"), " Variance et héritabilité"), value = "variance"),
+        shiny::tabPanel(shiny::tagList(shiny::icon("layer-group"), " Comparaisons des génotypes"), value = "comparaisons"),
+        shiny::tabPanel(shiny::tagList(shiny::icon("sitemap"), " Diallèle de Griffing"), value = "griffing"),
+        shiny::tabPanel(shiny::tagList(shiny::icon("chart-line"), " AMMI, ASV et YSI"), value = "ammi"),
+        shiny::tabPanel(shiny::tagList(shiny::icon("draw-polygon"), " GGE biplot"), value = "gge"),
+        shiny::tabPanel(shiny::tagList(shiny::icon("scale-balanced"), " Stabilité"), value = "stabilite"),
+        shiny::tabPanel(shiny::tagList(shiny::icon("ranking-star"), " Sélection multicaractère"), value = "multicaractere"),
+        shiny::tabPanel(shiny::tagList(shiny::icon("cloud-sun-rain"), " Environnement × génotype"), value = "environnement"),
+        shiny::tabPanel(shiny::tagList(shiny::icon("diagram-project"), " Corrélations et pistes"), value = "correlations"),
+        shiny::tabPanel(shiny::tagList(shiny::icon("chart-area"), " Graphique"), value = "graphique"))),
     shiny::fluidRow(
       shiny::column(4,
         shinydashboard::box(
@@ -1354,9 +1368,11 @@ mod_genetique_ui <- function(id) {
             shiny::selectizeInput(ns("genMinimiser"), "Caractères à diminuer",
               choices = NULL, multiple = TRUE),
             shiny::tags$small(style = "color:#5f6b7a;",
-              "Un rendement s'augmente ; une durée de cycle, des dégâts de ravageurs ou une incidence de maladie se diminuent. La proposition vient du nom de la colonne : vérifiez-la."),
-            shiny::selectInput(ns("genPrincipal"), "Caractère principal (rendement)",
-              choices = NULL)),
+              "Un rendement, une teneur ou une résistance s'augmentent ; une durée de cycle, des dégâts de ravageurs ou une incidence de maladie se diminuent. La proposition vient du nom de la colonne : vérifiez-la."),
+            shiny::selectInput(ns("genPrincipal"), "Caractère principal de la sélection",
+              choices = NULL),
+            shiny::tags$small(style = "color:#5f6b7a;",
+              "Le caractère que la sélection cherche d'abord à améliorer : rendement, précocité, résistance, qualité… N'importe quel caractère mesuré peut l'être. Les autres entrent dans la sélection multicaractère, les corrélations et les pistes.")),
           .hstat_opt_carte("Paramètres de sélection", "sliders", "violet",
             shiny::numericInput(ns("genSI"), "Intensité de sélection (% des génotypes retenus)",
               value = 15, min = 5, max = 50, step = 1),
@@ -1398,12 +1414,12 @@ mod_genetique_ui <- function(id) {
             status = "success", solidHeader = TRUE, width = 12,
             shiny::selectInput(ns("genTraitAffiche"), "Caractère affiché", choices = NULL,
                                width = "100%"),
-            shiny::tabsetPanel(
-              shiny::tabPanel(shiny::tagList(shiny::icon("flag-checkered"), " Synthèse et recommandations"),
+            shiny::tabsetPanel(id = ns("genOnglets"), type = "hidden",
+              shiny::tabPanelBody("synthese",
                 shiny::br(), shiny::uiOutput(ns("genSyntheseUI")),
                 DT::DTOutput(ns("genConsensusTable")), shiny::tags$hr(),
                 DT::DTOutput(ns("genFacteursTable"))),
-              shiny::tabPanel(shiny::tagList(shiny::icon("percent"), " Variance et héritabilité"),
+              shiny::tabPanelBody("variance",
                 shiny::br(), DT::DTOutput(ns("genComposantesTable")), shiny::tags$hr(),
                 shiny::uiOutput(ns("genAnovaNote")), DT::DTOutput(ns("genAnovaTable")),
                 shiny::tags$hr(), DT::DTOutput(ns("genValeursTable")),
@@ -1414,7 +1430,7 @@ mod_genetique_ui <- function(id) {
                 shiny::tags$details(
                   shiny::tags$summary(shiny::icon("table"), " Grille complète des seuils d'interprétation"),
                   DT::DTOutput(ns("genGrilleTable")))),
-              shiny::tabPanel(shiny::tagList(shiny::icon("layer-group"), " Comparaisons des génotypes"),
+              shiny::tabPanelBody("comparaisons",
                 shiny::br(), shiny::uiOutput(ns("genCompNote")),
                 DT::DTOutput(ns("genCompTable")), shiny::tags$hr(),
                 shiny::h4(shiny::icon("table-list"), " Synthèse : tous les caractères"),
@@ -1433,7 +1449,7 @@ mod_genetique_ui <- function(id) {
                   shiny::plotOutput(ns("genSynthPlot"), height = "auto"),
                   hstat_export_plot_ui(ns, "genSP", width = 10, height = 7, theme = FALSE)),
                 shiny::helpText("Chaque case : moyenne ± dispersion et groupe ; deux génotypes qui partagent une lettre ne diffèrent pas au seuil choisi. Le meilleur génotype, selon le sens d'amélioration du caractère, porte la lettre « a ». La case prend la couleur de son groupe. Sous chaque caractère : coefficient de variation, degrés de liberté, F du test des génotypes, effectif N et probabilité P.")),
-              shiny::tabPanel(shiny::tagList(shiny::icon("sitemap"), " Diallèle de Griffing"),
+              shiny::tabPanelBody("griffing",
                 shiny::br(), shiny::uiOutput(ns("genGriffingNote")),
                 DT::DTOutput(ns("genGriffAnova")), shiny::tags$hr(),
                 DT::DTOutput(ns("genGriffVar")), shiny::tags$hr(),
@@ -1441,18 +1457,18 @@ mod_genetique_ui <- function(id) {
                 DT::DTOutput(ns("genGriffAsc")), shiny::tags$hr(),
                 DT::DTOutput(ns("genGriffRec")), shiny::tags$hr(),
                 DT::DTOutput(ns("genClassementTable"))),
-              shiny::tabPanel(shiny::tagList(shiny::icon("chart-line"), " AMMI, ASV et YSI"),
+              shiny::tabPanelBody("ammi",
                 shiny::br(), shiny::uiOutput(ns("genAmmiNote")),
                 DT::DTOutput(ns("genAmmiAnova")), shiny::tags$hr(),
                 DT::DTOutput(ns("genAmmiStab"))),
-              shiny::tabPanel(shiny::tagList(shiny::icon("draw-polygon"), " GGE biplot"),
+              shiny::tabPanelBody("gge",
                 shiny::br(), shiny::uiOutput(ns("genGgeNote")),
                 DT::DTOutput(ns("genGgeMega")), shiny::tags$hr(),
                 DT::DTOutput(ns("genGgeGen")), shiny::tags$hr(),
                 DT::DTOutput(ns("genGgeEnv"))),
-              shiny::tabPanel(shiny::tagList(shiny::icon("scale-balanced"), " Stabilité"),
+              shiny::tabPanelBody("stabilite",
                 shiny::br(), DT::DTOutput(ns("genStabTable"))),
-              shiny::tabPanel(shiny::tagList(shiny::icon("ranking-star"), " Sélection multicaractère"),
+              shiny::tabPanelBody("multicaractere",
                 shiny::br(), shiny::uiOutput(ns("genMgidiNote")),
                 DT::DTOutput(ns("genMgidiTable")), shiny::tags$hr(),
                 DT::DTOutput(ns("genGainsTable")), shiny::tags$hr(),
@@ -1460,16 +1476,16 @@ mod_genetique_ui <- function(id) {
                 DT::DTOutput(ns("genForcesTable")), shiny::tags$hr(),
                 DT::DTOutput(ns("genMtsiTable")), shiny::tags$hr(),
                 DT::DTOutput(ns("genGytTable"))),
-              shiny::tabPanel(shiny::tagList(shiny::icon("cloud-sun-rain"), " Environnement × génotype"),
+              shiny::tabPanelBody("environnement",
                 shiny::br(), shiny::uiOutput(ns("genCovNote")),
                 DT::DTOutput(ns("genCovTable")), shiny::tags$hr(),
                 DT::DTOutput(ns("genFrTable")), shiny::tags$hr(),
                 DT::DTOutput(ns("genSensTable"))),
-              shiny::tabPanel(shiny::tagList(shiny::icon("diagram-project"), " Corrélations et pistes"),
+              shiny::tabPanelBody("correlations",
                 shiny::br(), DT::DTOutput(ns("genCorGTable")), shiny::tags$hr(),
                 DT::DTOutput(ns("genCorPTable")), shiny::tags$hr(),
                 shiny::uiOutput(ns("genPistesNote")), DT::DTOutput(ns("genPistesTable"))),
-              shiny::tabPanel(shiny::tagList(shiny::icon("chart-area"), " Graphique"),
+              shiny::tabPanelBody("graphique",
                 shiny::br(),
                 shiny::selectInput(ns("genGraphique"), "Graphique affiché",
                                    choices = HSTAT_GEN_GRAPHIQUES, selected = "ammi1",
@@ -1501,7 +1517,17 @@ mod_genetique_ui <- function(id) {
                   shiny::textInput(ns("genTitre"), "Titre", value = ""),
                   shiny::textInput(ns("genSousTitre"), "Sous-titre", value = ""),
                   shiny::textInput(ns("genLabX"), "Titre de l'axe X", value = ""),
-                  shiny::textInput(ns("genLabY"), "Titre de l'axe Y", value = ""))),
+                  shiny::textInput(ns("genLabY"), "Titre de l'axe Y", value = "")),
+                .hstat_opt_carte("Couleurs des éléments", "fill-drip", "orange",
+                  shiny::fluidRow(
+                    shiny::column(6, colourInput(ns("genCoulGeno"), "Génotypes", value = HSTAT_GEN_COULEURS[["genotype"]])),
+                    shiny::column(6, colourInput(ns("genCoulEnv"), "Environnements", value = HSTAT_GEN_COULEURS[["environnement"]]))),
+                  shiny::fluidRow(
+                    shiny::column(6, colourInput(ns("genCoulFav"), "Effet favorable", value = HSTAT_GEN_COULEURS[["favorable"]])),
+                    shiny::column(6, colourInput(ns("genCoulDef"), "Effet défavorable", value = HSTAT_GEN_COULEURS[["defavorable"]]))),
+                  shiny::fluidRow(
+                    shiny::column(6, colourInput(ns("genCoulSel"), "Sélection et repères", value = HSTAT_GEN_COULEURS[["selection"]])),
+                    shiny::column(6, colourInput(ns("genCoulNeutre"), "Non significatif", value = HSTAT_GEN_COULEURS[["neutre"]]))))),
               shiny::column(4,
                 .hstat_opt_carte("Tailles", "text-height", "magenta",
                   shiny::sliderInput(ns("genTitreSize"), "Taille du titre",
@@ -1536,17 +1562,6 @@ mod_genetique_ui <- function(id) {
                   shiny::checkboxInput(ns("genGrilleMaj"), "Masquer la grille principale", value = FALSE),
                   shiny::checkboxInput(ns("genGrilleMin"), "Masquer la grille secondaire", value = FALSE)))),
             shiny::fluidRow(
-              shiny::column(6,
-                .hstat_opt_carte("Couleurs des éléments", "fill-drip", "orange",
-                  shiny::fluidRow(
-                    shiny::column(6, colourInput(ns("genCoulGeno"), "Génotypes", value = HSTAT_GEN_COULEURS[["genotype"]])),
-                    shiny::column(6, colourInput(ns("genCoulEnv"), "Environnements", value = HSTAT_GEN_COULEURS[["environnement"]]))),
-                  shiny::fluidRow(
-                    shiny::column(6, colourInput(ns("genCoulFav"), "Effet favorable", value = HSTAT_GEN_COULEURS[["favorable"]])),
-                    shiny::column(6, colourInput(ns("genCoulDef"), "Effet défavorable", value = HSTAT_GEN_COULEURS[["defavorable"]]))),
-                  shiny::fluidRow(
-                    shiny::column(6, colourInput(ns("genCoulSel"), "Sélection et repères", value = HSTAT_GEN_COULEURS[["selection"]])),
-                    shiny::column(6, colourInput(ns("genCoulNeutre"), "Non significatif", value = HSTAT_GEN_COULEURS[["neutre"]]))))),
               shiny::column(6,
                 .hstat_opt_carte("Valeurs portées sur le graphique", "hashtag", "violet",
                   shiny::checkboxInput(ns("genValeurs"), "Écrire les valeurs sur les barres", value = TRUE),
@@ -2074,8 +2089,8 @@ hstat_gen_figure <- function(quoi, res, trait, opt = list(etiq = TRUE, taille = 
     gyt = {
       m <- res$gyt
       if (!isTRUE(m$ok)) return(absent(m$motif))
-      if (is.null(m$G)) return(absent(tr("Le GYT biplot demande au moins deux combinaisons rendement × caractère.")))
-      .hstat_gen_biplot(m$G, m$C, m$pct, opt, trf("GYT biplot : rendement « %s » × caractères", res$principal)) +
+      if (is.null(m$G)) return(absent(tr("Le GYT biplot demande au moins deux combinaisons caractère principal × caractère.")))
+      .hstat_gen_biplot(m$G, m$C, m$pct, opt, trf("GYT biplot : caractère principal « %s » × autres caractères", res$principal)) +
         ggplot2::coord_equal()
     },
     covariables = {
@@ -2217,6 +2232,12 @@ mod_genetique_server <- function(id, values) {
     shiny::observeEvent(values$resetSignal, {
       rv$res <- NULL; rv$message <- NULL
     }, ignoreInit = TRUE)
+
+    # La barre des analyses, au-dessus des deux colonnes, choisit le panneau
+    # affiche dans les resultats.
+    shiny::observeEvent(input$genNav, {
+      shiny::updateTabsetPanel(session, "genOnglets", selected = input$genNav)
+    })
 
     # SELECTEURS : une colonne par role, proposee d'apres son nom.
     output$genColsUI <- shiny::renderUI({
@@ -2470,7 +2491,7 @@ mod_genetique_server <- function(id, values) {
       }
       if (isTRUE(pp$ammi$ok)) {
         s <- pp$ammi$stabilite
-        li[[length(li) + 1]] <- trf("Rendement et stabilité (YSI) : %s.",
+        li[[length(li) + 1]] <- trf("Performance et stabilité pour « %s » (YSI) : %s.", p,
           paste(utils::head(s$Genotype, r$n_sel), collapse = ", "))
         li[[length(li) + 1]] <- trf("L'interaction G × E est portée à %s %% par les deux premiers axes AMMI.",
           format(round(sum(utils::head(pp$ammi$axes$Pct_GE, 2)), 1)))
@@ -2640,7 +2661,7 @@ mod_genetique_server <- function(id, values) {
       else if (!a$n_axes_significatifs)
         tr("Aucun axe d'interaction significatif : le premier axe est retenu pour la stabilité.")
       else trf("%d axe(s) d'interaction significatif(s).", a$n_axes_significatifs)
-      note(paste(tete, tr("ASV : valeur de stabilité AMMI (Purchase 2000), plus petite = plus stable ; YSI : rang du rendement + rang de l'ASV ; WAAS : moyenne pondérée des scores absolus (Olivoto 2019).")))
+      note(paste(tete, tr("ASV : valeur de stabilité AMMI (Purchase 2000), plus petite = plus stable ; YSI : rang de la moyenne du caractère + rang de l'ASV ; WAAS : moyenne pondérée des scores absolus (Olivoto 2019).")))
     })
     ammi <- shiny::reactive({ a <- pt()$ammi; shiny::req(isTRUE(a$ok)); a })
     output$genAmmiAnova <- DT::renderDT(.hstat_gen_dt(ammi()$anova, trf("Analyse AMMI de « %s »", trait_aff())))
@@ -2682,7 +2703,7 @@ mod_genetique_server <- function(id, values) {
     output$genMtsiTable <- DT::renderDT({ m <- rv$res$mtsi; shiny::req(isTRUE(m$ok))
       .hstat_gen_dt(m$table, tr("MTSI : indice de stabilité multicaractère (WAASY)")) })
     output$genGytTable <- DT::renderDT({ m <- rv$res$gyt; shiny::req(isTRUE(m$ok))
-      .hstat_gen_dt(m$table, tr("GYT : indice de supériorité rendement × caractère")) })
+      .hstat_gen_dt(m$table, tr("GYT : indice de supériorité caractère principal × autres caractères")) })
 
     # ENVIRONNEMENT x GENOTYPE
     output$genCovNote <- shiny::renderUI({
