@@ -26688,3 +26688,53 @@ test_that("Selection genetique : un seul reglage de decimales, sous le caractere
   m <- matrix(c(1, 0.123456789, 0.123456789, 1), 2, dimnames = list(c("a", "b"), c("a", "b")))
   expect_equal(.hstat_gen_mat_df(m)$a[2], 0.123456789)
 })
+
+test_that("Selection genetique : la palette colore les groupes et les roles, le contour des barres se regle", {
+  skip_if_not_installed("ggplot2")
+  couleurs <- function(p) unique(toupper(stats::na.omit(unlist(lapply(ggplot2::ggplot_build(p)$data,
+    function(d) c(d$colour, d$fill))))))
+  # Les roles sans sens propre suivent la palette ; un choix explicite l'emporte.
+  C <- hstat_gen_couleurs_roles(list(), "Set1")
+  expect_false(identical(C[["genotype"]], HSTAT_GEN_COULEURS[["genotype"]]))
+  expect_identical(C[["favorable"]], HSTAT_GEN_COULEURS[["favorable"]])
+  expect_identical(hstat_gen_couleurs_roles(list(genotype = "#123456"), "Set1")[["genotype"]], "#123456")
+  expect_identical(hstat_gen_couleurs_roles(list(), "module"), HSTAT_GEN_COULEURS)
+  df <- .hstat_test_met()
+  vals <- shiny::reactiveValues(data = df, resetSignal = 0)
+  shiny::testServer(mod_genetique_server, args = list(values = vals), {
+    session$setInputs(genGen = "Variete", genLoc = "Loc", genAnnee = "Annee", genRep = "Bloc",
+      genTraits = c("Rendement", "Fibre_pct"), genCov = character(0), genMinimiser = character(0),
+      genPrincipal = "Rendement", genSI = 20, genAlpha = "0.05", genF = 1, genPoidsY = 50,
+      genSvp = "symetrique", genEchelle = FALSE, genType = "", genGroupe = "", genP1 = "", genP2 = "")
+    session$setInputs(genCalculer = 1)
+    # Une figure sans groupe (le biplot) change elle aussi de couleurs.
+    for (q in c("gge_base", "moyennes_env", "mgidi")) {
+      session$setInputs(genGraphique = q, genPalette = "module")
+      avant <- couleurs(graphique())
+      session$setInputs(genPalette = "Set1")
+      apres <- couleurs(graphique())
+      expect_false(setequal(avant, apres), label = q)
+    }
+  })
+  # Le contour des barres suit le reglage ; 0 l'efface.
+  dd <- .hstat_test_diallele(TRUE)
+  vals2 <- shiny::reactiveValues(data = dd, resetSignal = 0)
+  shiny::testServer(mod_genetique_server, args = list(values = vals2), {
+    session$setInputs(genGen = "G", genLoc = "", genAnnee = "", genRep = "R", genTraits = "Y",
+      genCov = character(0), genMinimiser = character(0), genPrincipal = "Y",
+      genSI = 15, genAlpha = "0.05", genF = 1, genPoidsY = 50, genSvp = "symetrique",
+      genEchelle = FALSE, genType = "", genGroupe = "", genP1 = "P1", genP2 = "P2")
+    session$setInputs(genCalculer = 1, genGraphique = "agc")
+    barres <- function() {
+      b <- ggplot2::ggplot_build(graphique())
+      i <- which(vapply(graphique()$layers, function(l) inherits(l$geom, "GeomCol"), logical(1)))[1]
+      b$data[[i]]
+    }
+    session$setInputs(genContour = 1.8)
+    expect_equal(unique(barres()$linewidth), 1.8)
+    session$setInputs(genContour = 0.6)
+    expect_equal(unique(barres()$linewidth), 0.6)
+    session$setInputs(genContour = 0)
+    expect_true(all(is.na(barres()$colour)))
+  })
+})

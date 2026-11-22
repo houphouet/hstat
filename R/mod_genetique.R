@@ -1452,10 +1452,47 @@ HSTAT_GEN_GRAPHIQUES <- c(
   "Corrélations génotypiques"                    = "correlations",
   "Coefficients de piste (effets directs)"       = "pistes")
 
-# Les figures dont les couleurs suivent la palette choisie ; les autres
-# portent un code fixe (favorable / defavorable, genotypes / environnements)
-# ou une echelle continue, qu'une palette qualitative ferait tomber.
-HSTAT_GEN_GRAPHIQUES_PALETTE <- c("moyennes_env", "finlay")
+# La palette colore les groupes (types, environnements, genotypes) et les
+# roles sans sens propre (genotypes, environnements, selection). Favorable,
+# defavorable et non significatif portent un sens : ils gardent leurs couleurs.
+HSTAT_GEN_PALETTE_ROLES <- c("genotype", "environnement", "selection")
+hstat_gen_palettes_choix <- function()
+  c(list("Couleurs du module" = c("Couleurs du module (défaut)" = "module")), hstat_palettes_choix())
+
+# Les couleurs des roles : celle choisie par l'utilisateur l'emporte ; laissee
+# a son defaut, elle suit la palette.
+hstat_gen_couleurs_roles <- function(saisies, palette = "module") {
+  C <- HSTAT_GEN_COULEURS
+  for (k in names(C)) {
+    v <- as.character(saisies[[k]] %||% NA_character_)[1]
+    if (!is.na(v) && grepl("^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$", v)) C[[k]] <- v
+  }
+  pal <- as.character(palette %||% "module")[1]
+  if (is.na(pal) || identical(pal, "module")) return(C)
+  cols <- tryCatch(hstat_palette_couleurs(pal, length(HSTAT_GEN_PALETTE_ROLES)), error = function(e) NULL)
+  if (length(cols) < length(HSTAT_GEN_PALETTE_ROLES)) return(C)
+  for (i in seq_along(HSTAT_GEN_PALETTE_ROLES)) {
+    k <- HSTAT_GEN_PALETTE_ROLES[i]
+    if (identical(toupper(C[[k]]), toupper(HSTAT_GEN_COULEURS[[k]]))) C[[k]] <- substr(cols[i], 1, 7)
+  }
+  C
+}
+
+# Les groupes d'une figure (couleur ou remplissage discret qu'elle ne fixe pas
+# elle-meme) suivent la palette. Une echelle que la figure pose deja (code
+# favorable / defavorable, degrade continu) n'est pas touchee.
+hstat_gen_appliquer_palette <- function(p, palette) {
+  pal <- as.character(palette %||% "module")[1]
+  if (is.na(pal) || identical(pal, "module") || !inherits(p, "ggplot")) return(p)
+  libres <- c("colour", "fill")[!vapply(c("colour", "fill"), function(a) p$scales$has_scale(a), logical(1))]
+  if (!length(libres)) return(p)
+  ech <- hstat_scales_palette(pal, fill = "fill" %in% libres, colour = "colour" %in% libres)
+  if (is.null(ech)) return(p)
+  q <- p + ech
+  # Une esthetique continue refuse une echelle discrete : la figure reste alors telle quelle.
+  ok <- tryCatch({ suppressMessages(ggplot2::ggplot_build(q)); TRUE }, error = function(e) FALSE)
+  if (ok) q else p
+}
 
 # Les heritabilites que la figure peut porter.
 HSTAT_GEN_HERITABILITES <- c("Les deux" = "deux", "Au sens large (H²)" = "large",
@@ -1702,11 +1739,16 @@ mod_genetique_ui <- function(id) {
                   shiny::sliderInput(ns("genGradSize"), "Taille des graduations",
                     min = 5, max = 20, value = 9, step = 1, ticks = FALSE),
                   shiny::sliderInput(ns("genTraitSize"), "Épaisseur des traits",
-                    min = 0.1, max = 3, value = 0.5, step = 0.1, ticks = FALSE))),
+                    min = 0.1, max = 3, value = 0.5, step = 0.1, ticks = FALSE),
+                  shiny::sliderInput(ns("genContour"), "Épaisseur du contour des barres",
+                    min = 0, max = 3, value = 0.3, step = 0.1, ticks = FALSE))),
               shiny::column(4,
                 .hstat_opt_carte("Couleurs", "palette", "sarcelle",
                   shiny::selectInput(ns("genStyle"), "Rendu des figures", choices = HSTAT_GEN_STYLES),
-                  shiny::selectInput(ns("genPalette"), "Palette", choices = hstat_palettes_choix()),
+                  shiny::selectInput(ns("genPalette"), "Palette", choices = hstat_gen_palettes_choix(),
+                    selected = "module"),
+                  shiny::tags$small(style = "color:#5f6b7a;",
+                    "La palette colore les génotypes, les environnements, la sélection et les groupes. Les effets favorables, défavorables et non significatifs gardent leurs couleurs propres, réglables ci-dessous."),
                   shiny::checkboxInput(ns("genEtiquettes"), "Nommer les points", value = TRUE),
                   shiny::checkboxInput(ns("genEllipses"), "Entourer chaque type de matériel", value = TRUE),
                   shiny::selectInput(ns("genLegendePos"), "Position de la légende",
@@ -2018,6 +2060,10 @@ hstat_gen_lecture_stabilite <- function(st) {
 hstat_gen_figure <- function(quoi, res, trait, opt = list(etiq = TRUE, taille = 3.2, point = 2.5)) {
   C <- opt$couleurs %||% HSTAT_GEN_COULEURS
   al <- opt$alpha %||% 1; lw <- opt$trait %||% 0.5
+  # Le contour des barres : 0 l'efface.
+  ct <- opt$contour %||% 0.3
+  ct_col <- if (ct > 0) "black" else NA
+  ct_lw <- max(ct, 0.01)
   dec <- opt$dec %||% 2
   val_txt <- function(v) formatC(v, format = "f", digits = dec)
   absent <- function(m) .hstat_gen_pas_dispo(m %||% tr("Cette figure n'est pas disponible avec les données et les colonnes choisies."))
@@ -2133,7 +2179,7 @@ hstat_gen_figure <- function(quoi, res, trait, opt = list(etiq = TRUE, taille = 
         dd <- data.frame(Caractere = factor(cp$Caractere, levels = lv), Valeur = v, Classe = classes)
         dd <- dd[is.finite(dd$Valeur), , drop = FALSE]
         ggplot2::ggplot(dd, ggplot2::aes(Caractere, Valeur, fill = Classe)) +
-          ggplot2::geom_col(width = 0.7, alpha = al, colour = "black", linewidth = 0.3) +
+          ggplot2::geom_col(width = 0.7, alpha = al, colour = ct_col, linewidth = ct_lw) +
           bornes +
           (if (!isFALSE(opt$valeurs)) ggplot2::geom_text(ggplot2::aes(label = val_txt(Valeur)), hjust = -0.15, size = opt$taille)) +
           ggplot2::scale_fill_manual(values = stats::setNames(c(def, "#c98a12", fav), libelles),
@@ -2161,7 +2207,7 @@ hstat_gen_figure <- function(quoi, res, trait, opt = list(etiq = TRUE, taille = 
         dd$Mesure <- factor(dd$Mesure, levels = c(n_s, n_l))
         pos <- ggplot2::position_dodge(width = 0.8)
         ggplot2::ggplot(dd, ggplot2::aes(Caractere, Valeur, fill = Mesure)) +
-          ggplot2::geom_col(position = pos, width = 0.75, alpha = al, colour = "black", linewidth = 0.3) +
+          ggplot2::geom_col(position = pos, width = 0.75, alpha = al, colour = ct_col, linewidth = ct_lw) +
           bornes +
           (if (!isFALSE(opt$valeurs)) ggplot2::geom_text(ggplot2::aes(label = val_txt(Valeur)), position = pos,
                                                          hjust = -0.15, size = opt$taille)) +
@@ -2182,7 +2228,7 @@ hstat_gen_figure <- function(quoi, res, trait, opt = list(etiq = TRUE, taille = 
       roles <- if (!is.null(a$Role))
         ggplot2::facet_grid(Role ~ ., scales = "free_y", space = "free_y")
       ggplot2::ggplot(a, ggplot2::aes(Parent, AGC, fill = Bon)) + roles +
-        ggplot2::geom_col(width = 0.7, alpha = al, colour = "black", linewidth = 0.3) +
+        ggplot2::geom_col(width = 0.7, alpha = al, colour = ct_col, linewidth = ct_lw) +
         # La moitie exterieure de la barre d'erreur : celle qui s'eloigne de zero.
         ggplot2::geom_errorbar(ggplot2::aes(ymin = AGC, ymax = AGC + sign(AGC) * Erreur_type),
                                width = 0.25, linewidth = 0.4) +
@@ -2247,7 +2293,7 @@ hstat_gen_figure <- function(quoi, res, trait, opt = list(etiq = TRUE, taille = 
                        Part = 100 * as.numeric(ct))
       dd$Genotype <- factor(dd$Genotype, levels = rev(gens))
       ggplot2::ggplot(dd, ggplot2::aes(Part, Genotype, fill = Facteur)) +
-        ggplot2::geom_col(width = 0.75, alpha = al, colour = "black", linewidth = 0.3) +
+        ggplot2::geom_col(width = 0.75, alpha = al, colour = ct_col, linewidth = ct_lw) +
         ggplot2::labs(title = tr("Forces et faiblesses : part de chaque facteur dans la distance à l'idéotype"),
                       subtitle = tr("Une petite part est une force, une grande part une faiblesse."),
                       x = tr("Contribution (%)"), y = NULL, fill = tr("Facteur"))
@@ -2264,7 +2310,7 @@ hstat_gen_figure <- function(quoi, res, trait, opt = list(etiq = TRUE, taille = 
       if (is.null(cv) || !nrow(cv)) return(absent(tr("Aucune covariable exploitable pour ce caractère.")))
       cv$Variable <- factor(cv$Variable, levels = cv$Variable[order(sgn * cv$Effet_standardise)])
       ggplot2::ggplot(cv, ggplot2::aes(Effet_standardise, Variable, fill = Effet)) +
-        ggplot2::geom_col(width = 0.7, alpha = al, colour = "black", linewidth = 0.3) +
+        ggplot2::geom_col(width = 0.7, alpha = al, colour = ct_col, linewidth = ct_lw) +
         ggplot2::geom_vline(xintercept = 0) +
         ggplot2::geom_text(ggplot2::aes(label = paste0("p = ", hstat_p_txt(p)),
                                         hjust = ifelse(Effet_standardise >= 0, -0.1, 1.1)), size = opt$taille * 0.9) +
@@ -2329,7 +2375,7 @@ hstat_gen_figure <- function(quoi, res, trait, opt = list(etiq = TRUE, taille = 
       dd$Caractere <- factor(dd$Caractere, levels = tb$Caractere[order(tb$Effet_direct)])
       ggplot2::ggplot(dd, ggplot2::aes(Valeur, Caractere, fill = Type)) +
         ggplot2::geom_col(position = ggplot2::position_dodge(width = 0.75), width = 0.7, alpha = al,
-                          colour = "black", linewidth = 0.3) +
+                          colour = ct_col, linewidth = ct_lw) +
         ggplot2::geom_vline(xintercept = 0) +
         (if (!isFALSE(opt$valeurs)) ggplot2::geom_text(ggplot2::aes(label = val_txt(Valeur),
            hjust = ifelse(Valeur >= 0, -0.15, 1.15)), position = ggplot2::position_dodge(width = 0.75),
@@ -2920,10 +2966,7 @@ mod_genetique_server <- function(id, values) {
       shiny::req(rv$res)
       quoi <- input$genGraphique %||% "ammi1"
       x <- pt(); tr_ <- trait_aff()
-      coul <- function(id, cle) {
-        v <- as.character(input[[id]] %||% "")[1]
-        if (!is.na(v) && grepl("^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$", v)) v else HSTAT_GEN_COULEURS[[cle]]
-      }
+      palette <- input$genPalette %||% "module"
       opt <- list(etiq = isTRUE(input$genEtiquettes), ellipses = !isFALSE(input$genEllipses),
                   heritabilite = input$genHeritAffiche %||% "deux",
                   taille = hstat_borne_client(input$genEtiqSize, 3.2, 1, 8),
@@ -2933,12 +2976,11 @@ mod_genetique_server <- function(id, values) {
                   valeurs = !isFALSE(input$genValeurs),
                   dec = hstat_borne_client(input$genValeursDec, 2, 0, 6),
                   etiq_coul = !isFALSE(input$genEtiqCouleur),
-                  couleurs = c(genotype = coul("genCoulGeno", "genotype"),
-                               environnement = coul("genCoulEnv", "environnement"),
-                               favorable = coul("genCoulFav", "favorable"),
-                               defavorable = coul("genCoulDef", "defavorable"),
-                               neutre = coul("genCoulNeutre", "neutre"),
-                               selection = coul("genCoulSel", "selection")))
+                  contour = hstat_borne_client(input$genContour, 0.3, 0, 3),
+                  couleurs = hstat_gen_couleurs_roles(list(
+                    genotype = input$genCoulGeno, environnement = input$genCoulEnv,
+                    favorable = input$genCoulFav, defavorable = input$genCoulDef,
+                    neutre = input$genCoulNeutre, selection = input$genCoulSel), palette))
       p <- hstat_gen_figure(quoi, rv$res, tr_, opt)
       shiny::validate(shiny::need(!inherits(p, "hstat_gen_absent"), attr(p, "motif")))
       extras <- hstat_plot_extras_lire(input, "genX", familles = HSTAT_PLOT_EXTRAS_FAMILLES)
@@ -2948,10 +2990,7 @@ mod_genetique_server <- function(id, values) {
       if (nzchar(st)) p <- p + ggplot2::labs(subtitle = st)
       if (nzchar(lx)) p <- p + ggplot2::labs(x = lx)
       if (nzchar(ly)) p <- p + ggplot2::labs(y = ly)
-      if (quoi %in% HSTAT_GEN_GRAPHIQUES_PALETTE) {
-        ech <- hstat_scales_palette(input$genPalette %||% unname(HSTAT_PALETTE_GG))
-        if (!is.null(ech)) p <- p + ech
-      }
+      p <- hstat_gen_appliquer_palette(p, palette)
       propre <- p$theme
       titre_pos <- suppressWarnings(as.numeric(input$genTitrePos %||% "0.5")[1])
       if (!isTRUE(titre_pos %in% c(0, 0.5, 1))) titre_pos <- 0.5
