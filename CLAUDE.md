@@ -12196,3 +12196,31 @@ Le test relève désormais la liste des entrées du menu rendu et exige que
 `genetique` soit **l'entrée qui suit** `multivariate`, et que les deux restent
 entre les titres des sections 3 et 4. Les deux mutations échouent. Le titre
 du test nomme aussi la sélection génétique, qu'il garde.
+
+### Une barre des analyses, et la sélection ne porte pas que sur le rendement (1.61.0)
+
+Demandé à l'écran, trois changements.
+
+**La barre des analyses.** Les onglets de « Résultats de la sélection »
+(synthèse, variance et héritabilité, comparaisons, diallèle, AMMI, GGE,
+stabilité, sélection multicaractère, environnement, corrélations, graphique)
+passent dans une barre au-dessus des deux colonnes (`genNav`, des pastilles
+sans contenu). Les panneaux vivent dans un `tabsetPanel(type = "hidden")`
+(`genOnglets`) ; un observateur du serveur passe de l'un à l'autre. Le test
+exige la barre avant les deux boîtes, chaque analyse dans la barre et dans les
+résultats, et le changement de panneau au clic — il échoue si l'on retire
+l'observateur. `.hstat-gen-nav` a sa règle dans la feuille de style.
+
+**« Couleurs des éléments » suit « Titres et libellés »**, dans la même colonne
+des options du graphique.
+
+**Le caractère principal n'est pas forcément le rendement.** Le sélecteur
+s'appelait « Caractère principal (rendement) », et le GYT, la synthèse (« Rendement
+et stabilité (YSI) ») et la note de l'AMMI (« rang du rendement ») parlaient du
+rendement quel que soit le caractère choisi. Ils disent désormais « caractère
+principal » et nomment le caractère retenu ; une aide sous le sélecteur dit
+que tout caractère mesuré peut l'être. L'argument de `hstat_gen_gyt()` s'appelle
+`principal`. Le test choisit la teneur en fibre et exige un GYT croisé sur elle
+et une synthèse qui la nomme. Le rendement reste proposé d'office quand une
+colonne le porte : ce n'est qu'une proposition.
+

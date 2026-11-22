@@ -706,3 +706,15 @@ table.dataTable.hstat-fixedcols td { vertical-align: middle; }
 .bg-green                { background-color: #007f46 !important; }
 .bg-yellow, .bg-orange   { background-color: #a95600 !important; }
 .bg-red                  { background-color: #c0392b !important; }
+
+/* Sélection génétique : la barre des analyses, au-dessus des deux colonnes */
+.hstat-gen-nav {
+  background: #ffffff; border: 1px solid #dfe5ec; border-radius: 6px;
+  padding: 8px 10px; margin: 0 0 15px 0;
+}
+.hstat-gen-nav .nav-pills > li > a { padding: 6px 12px; margin: 2px; color: #1f2d3d; }
+.hstat-gen-nav .nav-pills > li > a:hover { background-color: #e7f3ec; }
+.hstat-gen-nav .nav-pills > li.active > a,
+.hstat-gen-nav .nav-pills > li.active > a:hover,
+.hstat-gen-nav .nav-pills > li.active > a:focus { background-color: #1b7a43; color: #ffffff; }
+.hstat-gen-nav > .tabbable > .tab-content { display: none; }
