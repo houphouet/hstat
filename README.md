@@ -60,7 +60,7 @@ absent says so and names an alternative.
 | **Describe** | Descriptive statistics, 14 chart types, correlations |
 | **Test** | t-test (Student *and* Welch, each under its own name), ANOVA (Fisher, Welch, repeated measures), non-parametric tests, chi-square, post-hoc comparisons protected by the omnibus test, tests against a reference value |
 | **Explore** | PCA, CA, MCA, FAMD, clustering, HCPC, DFA, PLS, SEM/CFA, MANOVA/PERMANOVA — 14 multivariate analyses |
-| **Genetic selection** | Varieties, lines, parents, crosses, hybrids and breeds across sites and years: variance components and heritabilities, genetic advance and selective accuracy, Griffing diallel (GCA/SCA, Baker ratio, heterosis), multi-trait ranking of crosses, AMMI (ASV, YSI, WAAS), GGE biplot (which-won-where, mean vs stability, environments), Eberhart-Russell, Wricke, Shukla and Lin-Binns stability, MGIDI, MTSI and GYT biplot, environmental covariates and factorial regression, genotypic correlations and path analysis, and a final list of what improves or depreciates the target trait |
+| **Genetic selection** | Varieties, lines, parents, crosses, hybrids and breeds across sites and years: variance components and heritabilities, genetic advance and selective accuracy, combining ability (GCA/SCA) from a Griffing diallel or a Kempthorne line × tester design, Baker ratio, heterosis, multi-trait ranking of crosses, AMMI (ASV, YSI, WAAS), GGE biplot (which-won-where, mean vs stability, environments), Eberhart-Russell, Wricke, Shukla and Lin-Binns stability, MGIDI, MTSI and GYT biplot, environmental covariates and factorial regression, genotypic correlations and path analysis, and a final list of what improves or depreciates the target trait |
 | **Model** | Machine learning, deep learning, time series and forecasting |
 | **Qualitative** | Frequency and cross-tabulation, Likert scales, text analysis, CAQDAS coding workbench |
 | **Agronomy** | Yield and yield gain against an untreated control, efficacy thresholds (Abbott's formula), harvest-loss and relative-yield indicators |
@@ -225,7 +225,7 @@ citation("HStat")
 Or use one of the following:
 
 **Text**
-> KOUADIO, Houphouet & Claude Code (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 1.61.0. https://github.com/houphouet/hstat
+> KOUADIO, Houphouet & Claude Code (2026). HStat: Application Shiny interactive pour l'analyse statistique. Version 1.62.0. https://github.com/houphouet/hstat
 
 **BibTeX**
 ```bibtex
@@ -233,7 +233,7 @@ Or use one of the following:
   title  = {HStat: Application Shiny interactive pour l'analyse statistique},
   author = {Houphouet KOUADIO and {Claude Code}},
   year   = {2026},
-  note   = {Version 1.61.0},
+  note   = {Version 1.62.0},
   url    = {https://github.com/houphouet/hstat},
 }
 ```
