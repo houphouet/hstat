@@ -1070,7 +1070,7 @@ hstat_gen_mgidi <- function(moyennes, traits, directions = NULL, si = 15, h2 = N
   gk <- res$genotypes
   tab <- data.frame(Genotype = gk, MGIDI = res$indice, Rang = res$rang,
                     Selectionne = gk %in% res$selection,
-                    round(res$contributions * 100, 2), stringsAsFactors = FALSE,
+                    res$contributions * 100, stringsAsFactors = FALSE,
                     check.names = FALSE)
   names(tab)[5:ncol(tab)] <- paste0("Contribution_", colnames(res$contributions), "_pct")
   tab <- tab[order(tab$Rang), , drop = FALSE]; rownames(tab) <- NULL
@@ -1127,7 +1127,7 @@ hstat_gen_mtsi <- function(ammi_liste, directions = NULL, poids_performance = 50
   res <- .hstat_gen_ideotype(W, si)
   if (!isTRUE(res$ok)) return(res)
   tab <- data.frame(Genotype = gens, MTSI = res$indice, Rang = res$rang,
-                    Selectionne = gens %in% res$selection, round(W, 2),
+                    Selectionne = gens %in% res$selection, W,
                     stringsAsFactors = FALSE, check.names = FALSE)
   names(tab)[-(1:4)] <- paste0("WAASY_", traits)
   tab <- tab[order(tab$Rang), , drop = FALSE]; rownames(tab) <- NULL
@@ -1165,7 +1165,7 @@ hstat_gen_gyt <- function(moyennes, principal, traits, directions = NULL) {
   Zs <- scale(M, center = TRUE, scale = s)
   idx <- rowMeans(Zs)
   tab <- data.frame(Genotype = rownames(M), Indice_superiorite = idx,
-                    Rang = rank(-idx, ties.method = "min"), round(Zs, 3),
+                    Rang = rank(-idx, ties.method = "min"), Zs,
                     stringsAsFactors = FALSE, check.names = FALSE)
   tab <- tab[order(tab$Rang), , drop = FALSE]; rownames(tab) <- NULL
   out <- list(ok = TRUE, table = tab, Z = Zs, ecartes = ecartes)
@@ -1362,7 +1362,7 @@ hstat_gen_synthese_facteurs <- function(trait, direction = "augmenter",
       else trf("Une hausse de « %s » déprécie « %s ».", cv$Variable, trait)
       if (nzchar(cv$Detail) && grepl(tr("Meilleure modalité"), cv$Detail, fixed = TRUE)) lec <- cv$Detail
       aj(tr("Variable environnementale ou pratique"), cv$Variable, cv$Effet,
-         round(cv$Effet_standardise, 3), tr("Effet standardisé de la covariable"),
+         cv$Effet_standardise, tr("Effet standardisé de la covariable"),
          paste0("p = ", hstat_p_txt(cv$p)), lec)
     }
   }
@@ -1386,7 +1386,7 @@ hstat_gen_synthese_facteurs <- function(trait, direction = "augmenter",
                     else trf("Effet direct de sens contraire à la corrélation (colinéarité) : une hausse de « %s » accompagne une dépréciation de « %s ».", ca, trait))
       mes <- if (s$base == "direct") tr("Effet direct (analyse des pistes)")
              else tr("Corrélation avec le caractère principal")
-      aj(tr("Caractère associé"), ca, eff, round(s$valeur, 3), mes,
+      aj(tr("Caractère associé"), ca, eff, s$valeur, mes,
          trf("effet direct %s ; r = %s ; rg = %s", format(round(d, 3)),
              format(round(r, 3)), format(round(rg[i], 3))), lec,
          rang = if (s$base == "direct") 1L else 2L)
@@ -1398,7 +1398,7 @@ hstat_gen_synthese_facteurs <- function(trait, direction = "augmenter",
       if (!is.finite(a$p[i]) || a$p[i] >= alpha) next
       fav <- sgn * a$AGC[i] > 0
       aj(tr("Parent (aptitude générale)"), a$Parent[i],
-         if (fav) tr("Favorable") else tr("Défavorable"), round(a$AGC[i], 3),
+         if (fav) tr("Favorable") else tr("Défavorable"), a$AGC[i],
          tr("Aptitude générale à la combinaison (AGC)"),
          paste0("p = ", hstat_p_txt(a$p[i])),
          if (fav) trf("« %s » transmet à sa descendance une valeur élevée du caractère.", a$Parent[i])
@@ -1452,10 +1452,47 @@ HSTAT_GEN_GRAPHIQUES <- c(
   "Corrélations génotypiques"                    = "correlations",
   "Coefficients de piste (effets directs)"       = "pistes")
 
-# Les figures dont les couleurs suivent la palette choisie ; les autres
-# portent un code fixe (favorable / defavorable, genotypes / environnements)
-# ou une echelle continue, qu'une palette qualitative ferait tomber.
-HSTAT_GEN_GRAPHIQUES_PALETTE <- c("moyennes_env", "finlay")
+# La palette colore les groupes (types, environnements, genotypes) et les
+# roles sans sens propre (genotypes, environnements, selection). Favorable,
+# defavorable et non significatif portent un sens : ils gardent leurs couleurs.
+HSTAT_GEN_PALETTE_ROLES <- c("genotype", "environnement", "selection")
+hstat_gen_palettes_choix <- function()
+  c(list("Couleurs du module" = c("Couleurs du module (défaut)" = "module")), hstat_palettes_choix())
+
+# Les couleurs des roles : celle choisie par l'utilisateur l'emporte ; laissee
+# a son defaut, elle suit la palette.
+hstat_gen_couleurs_roles <- function(saisies, palette = "module") {
+  C <- HSTAT_GEN_COULEURS
+  for (k in names(C)) {
+    v <- as.character(saisies[[k]] %||% NA_character_)[1]
+    if (!is.na(v) && grepl("^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$", v)) C[[k]] <- v
+  }
+  pal <- as.character(palette %||% "module")[1]
+  if (is.na(pal) || identical(pal, "module")) return(C)
+  cols <- tryCatch(hstat_palette_couleurs(pal, length(HSTAT_GEN_PALETTE_ROLES)), error = function(e) NULL)
+  if (length(cols) < length(HSTAT_GEN_PALETTE_ROLES)) return(C)
+  for (i in seq_along(HSTAT_GEN_PALETTE_ROLES)) {
+    k <- HSTAT_GEN_PALETTE_ROLES[i]
+    if (identical(toupper(C[[k]]), toupper(HSTAT_GEN_COULEURS[[k]]))) C[[k]] <- substr(cols[i], 1, 7)
+  }
+  C
+}
+
+# Les groupes d'une figure (couleur ou remplissage discret qu'elle ne fixe pas
+# elle-meme) suivent la palette. Une echelle que la figure pose deja (code
+# favorable / defavorable, degrade continu) n'est pas touchee.
+hstat_gen_appliquer_palette <- function(p, palette) {
+  pal <- as.character(palette %||% "module")[1]
+  if (is.na(pal) || identical(pal, "module") || !inherits(p, "ggplot")) return(p)
+  libres <- c("colour", "fill")[!vapply(c("colour", "fill"), function(a) p$scales$has_scale(a), logical(1))]
+  if (!length(libres)) return(p)
+  ech <- hstat_scales_palette(pal, fill = "fill" %in% libres, colour = "colour" %in% libres)
+  if (is.null(ech)) return(p)
+  q <- p + ech
+  # Une esthetique continue refuse une echelle discrete : la figure reste alors telle quelle.
+  ok <- tryCatch({ suppressMessages(ggplot2::ggplot_build(q)); TRUE }, error = function(e) FALSE)
+  if (ok) q else p
+}
 
 # Les heritabilites que la figure peut porter.
 HSTAT_GEN_HERITABILITES <- c("Les deux" = "deux", "Au sens large (H²)" = "large",
@@ -1572,6 +1609,9 @@ mod_genetique_ui <- function(id) {
             status = "success", solidHeader = TRUE, width = 12,
             shiny::selectInput(ns("genTraitAffiche"), "Caractère affiché", choices = NULL,
                                width = "100%"),
+            shiny::numericInput(ns("genDecimales"), "Décimales des tableaux",
+              value = HSTAT_GEN_DECIMALES_DEFAUT, min = 0, max = HSTAT_GEN_DECIMALES_MAX,
+              step = 1, width = "220px"),
             shiny::tabsetPanel(id = ns("genOnglets"), type = "hidden",
               shiny::tabPanelBody("synthese",
                 shiny::br(), shiny::uiOutput(ns("genSyntheseUI")),
@@ -1593,12 +1633,10 @@ mod_genetique_ui <- function(id) {
                 DT::DTOutput(ns("genCompTable")), shiny::tags$hr(),
                 shiny::h4(shiny::icon("table-list"), " Synthèse : tous les caractères"),
                 shiny::fluidRow(
-                  shiny::column(4, shiny::radioButtons(ns("genSynthDisp"), "Dispersion",
+                  shiny::column(5, shiny::radioButtons(ns("genSynthDisp"), "Dispersion",
                     choices = c("Écart-type" = "ecart_type", "Erreur-type" = "erreur_type"),
                     inline = TRUE)),
-                  shiny::column(2, shiny::numericInput(ns("genSynthDec"), "Décimales",
-                    value = 2, min = 0, max = 6, step = 1)),
-                  shiny::column(6, shiny::radioButtons(ns("genSynthForme"), "Présentation",
+                  shiny::column(7, shiny::radioButtons(ns("genSynthForme"), "Présentation",
                     choices = c("Tableau" = "tableau", "Graphique (cases colorées par groupe)" = "graphique"),
                     inline = TRUE))),
                 shiny::conditionalPanel(ns = ns, condition = "input.genSynthForme != 'graphique'",
@@ -1701,11 +1739,16 @@ mod_genetique_ui <- function(id) {
                   shiny::sliderInput(ns("genGradSize"), "Taille des graduations",
                     min = 5, max = 20, value = 9, step = 1, ticks = FALSE),
                   shiny::sliderInput(ns("genTraitSize"), "Épaisseur des traits",
-                    min = 0.1, max = 3, value = 0.5, step = 0.1, ticks = FALSE))),
+                    min = 0.1, max = 3, value = 0.5, step = 0.1, ticks = FALSE),
+                  shiny::sliderInput(ns("genContour"), "Épaisseur du contour des barres",
+                    min = 0, max = 3, value = 0.3, step = 0.1, ticks = FALSE))),
               shiny::column(4,
                 .hstat_opt_carte("Couleurs", "palette", "sarcelle",
                   shiny::selectInput(ns("genStyle"), "Rendu des figures", choices = HSTAT_GEN_STYLES),
-                  shiny::selectInput(ns("genPalette"), "Palette", choices = hstat_palettes_choix()),
+                  shiny::selectInput(ns("genPalette"), "Palette", choices = hstat_gen_palettes_choix(),
+                    selected = "module"),
+                  shiny::tags$small(style = "color:#5f6b7a;",
+                    "La palette colore les génotypes, les environnements, la sélection et les groupes. Les effets favorables, défavorables et non significatifs gardent leurs couleurs propres, réglables ci-dessous."),
                   shiny::checkboxInput(ns("genEtiquettes"), "Nommer les points", value = TRUE),
                   shiny::checkboxInput(ns("genEllipses"), "Entourer chaque type de matériel", value = TRUE),
                   shiny::selectInput(ns("genLegendePos"), "Position de la légende",
@@ -2017,6 +2060,10 @@ hstat_gen_lecture_stabilite <- function(st) {
 hstat_gen_figure <- function(quoi, res, trait, opt = list(etiq = TRUE, taille = 3.2, point = 2.5)) {
   C <- opt$couleurs %||% HSTAT_GEN_COULEURS
   al <- opt$alpha %||% 1; lw <- opt$trait %||% 0.5
+  # Le contour des barres : 0 l'efface.
+  ct <- opt$contour %||% 0.3
+  ct_col <- if (ct > 0) "black" else NA
+  ct_lw <- max(ct, 0.01)
   dec <- opt$dec %||% 2
   val_txt <- function(v) formatC(v, format = "f", digits = dec)
   absent <- function(m) .hstat_gen_pas_dispo(m %||% tr("Cette figure n'est pas disponible avec les données et les colonnes choisies."))
@@ -2132,7 +2179,7 @@ hstat_gen_figure <- function(quoi, res, trait, opt = list(etiq = TRUE, taille = 
         dd <- data.frame(Caractere = factor(cp$Caractere, levels = lv), Valeur = v, Classe = classes)
         dd <- dd[is.finite(dd$Valeur), , drop = FALSE]
         ggplot2::ggplot(dd, ggplot2::aes(Caractere, Valeur, fill = Classe)) +
-          ggplot2::geom_col(width = 0.7, alpha = al, colour = "black", linewidth = 0.3) +
+          ggplot2::geom_col(width = 0.7, alpha = al, colour = ct_col, linewidth = ct_lw) +
           bornes +
           (if (!isFALSE(opt$valeurs)) ggplot2::geom_text(ggplot2::aes(label = val_txt(Valeur)), hjust = -0.15, size = opt$taille)) +
           ggplot2::scale_fill_manual(values = stats::setNames(c(def, "#c98a12", fav), libelles),
@@ -2160,7 +2207,7 @@ hstat_gen_figure <- function(quoi, res, trait, opt = list(etiq = TRUE, taille = 
         dd$Mesure <- factor(dd$Mesure, levels = c(n_s, n_l))
         pos <- ggplot2::position_dodge(width = 0.8)
         ggplot2::ggplot(dd, ggplot2::aes(Caractere, Valeur, fill = Mesure)) +
-          ggplot2::geom_col(position = pos, width = 0.75, alpha = al, colour = "black", linewidth = 0.3) +
+          ggplot2::geom_col(position = pos, width = 0.75, alpha = al, colour = ct_col, linewidth = ct_lw) +
           bornes +
           (if (!isFALSE(opt$valeurs)) ggplot2::geom_text(ggplot2::aes(label = val_txt(Valeur)), position = pos,
                                                          hjust = -0.15, size = opt$taille)) +
@@ -2181,7 +2228,7 @@ hstat_gen_figure <- function(quoi, res, trait, opt = list(etiq = TRUE, taille = 
       roles <- if (!is.null(a$Role))
         ggplot2::facet_grid(Role ~ ., scales = "free_y", space = "free_y")
       ggplot2::ggplot(a, ggplot2::aes(Parent, AGC, fill = Bon)) + roles +
-        ggplot2::geom_col(width = 0.7, alpha = al, colour = "black", linewidth = 0.3) +
+        ggplot2::geom_col(width = 0.7, alpha = al, colour = ct_col, linewidth = ct_lw) +
         # La moitie exterieure de la barre d'erreur : celle qui s'eloigne de zero.
         ggplot2::geom_errorbar(ggplot2::aes(ymin = AGC, ymax = AGC + sign(AGC) * Erreur_type),
                                width = 0.25, linewidth = 0.4) +
@@ -2246,7 +2293,7 @@ hstat_gen_figure <- function(quoi, res, trait, opt = list(etiq = TRUE, taille = 
                        Part = 100 * as.numeric(ct))
       dd$Genotype <- factor(dd$Genotype, levels = rev(gens))
       ggplot2::ggplot(dd, ggplot2::aes(Part, Genotype, fill = Facteur)) +
-        ggplot2::geom_col(width = 0.75, alpha = al, colour = "black", linewidth = 0.3) +
+        ggplot2::geom_col(width = 0.75, alpha = al, colour = ct_col, linewidth = ct_lw) +
         ggplot2::labs(title = tr("Forces et faiblesses : part de chaque facteur dans la distance à l'idéotype"),
                       subtitle = tr("Une petite part est une force, une grande part une faiblesse."),
                       x = tr("Contribution (%)"), y = NULL, fill = tr("Facteur"))
@@ -2263,7 +2310,7 @@ hstat_gen_figure <- function(quoi, res, trait, opt = list(etiq = TRUE, taille = 
       if (is.null(cv) || !nrow(cv)) return(absent(tr("Aucune covariable exploitable pour ce caractère.")))
       cv$Variable <- factor(cv$Variable, levels = cv$Variable[order(sgn * cv$Effet_standardise)])
       ggplot2::ggplot(cv, ggplot2::aes(Effet_standardise, Variable, fill = Effet)) +
-        ggplot2::geom_col(width = 0.7, alpha = al, colour = "black", linewidth = 0.3) +
+        ggplot2::geom_col(width = 0.7, alpha = al, colour = ct_col, linewidth = ct_lw) +
         ggplot2::geom_vline(xintercept = 0) +
         ggplot2::geom_text(ggplot2::aes(label = paste0("p = ", hstat_p_txt(p)),
                                         hjust = ifelse(Effet_standardise >= 0, -0.1, 1.1)), size = opt$taille * 0.9) +
@@ -2328,7 +2375,7 @@ hstat_gen_figure <- function(quoi, res, trait, opt = list(etiq = TRUE, taille = 
       dd$Caractere <- factor(dd$Caractere, levels = tb$Caractere[order(tb$Effet_direct)])
       ggplot2::ggplot(dd, ggplot2::aes(Valeur, Caractere, fill = Type)) +
         ggplot2::geom_col(position = ggplot2::position_dodge(width = 0.75), width = 0.7, alpha = al,
-                          colour = "black", linewidth = 0.3) +
+                          colour = ct_col, linewidth = ct_lw) +
         ggplot2::geom_vline(xintercept = 0) +
         (if (!isFALSE(opt$valeurs)) ggplot2::geom_text(ggplot2::aes(label = val_txt(Valeur),
            hjust = ifelse(Valeur >= 0, -0.15, 1.15)), position = ggplot2::position_dodge(width = 0.75),
@@ -2345,9 +2392,15 @@ hstat_gen_figure <- function(quoi, res, trait, opt = list(etiq = TRUE, taille = 
   p
 }
 
+# Le nombre de decimales des tableaux, un seul reglage pour tout le module.
+HSTAT_GEN_DECIMALES_DEFAUT <- 3L
+HSTAT_GEN_DECIMALES_MAX <- 8L
+hstat_gen_decimales <- function(x)
+  hstat_borne_client(x, HSTAT_GEN_DECIMALES_DEFAUT, 0, HSTAT_GEN_DECIMALES_MAX)
+
 # Un tableau affiche : les p-values en clair, le reste arrondi, les comptages
 # sans decimales.
-.hstat_gen_dt <- function(df, titre, digits = 4) {
+.hstat_gen_dt <- function(df, titre, digits = HSTAT_GEN_DECIMALES_DEFAUT) {
   if (is.null(df) || !nrow(df)) return(NULL)
   aff <- df
   for (k in names(aff)[grepl("^p$|^p_|_p$", names(aff))])
@@ -2362,7 +2415,7 @@ hstat_gen_figure <- function(quoi, res, trait, opt = list(etiq = TRUE, taille = 
 # Une matrice de correlations en tableau.
 .hstat_gen_mat_df <- function(m, nom = "Caractere") {
   if (is.null(m)) return(NULL)
-  out <- data.frame(x = rownames(m), round(m, 4), check.names = FALSE, stringsAsFactors = FALSE)
+  out <- data.frame(x = rownames(m), m, check.names = FALSE, stringsAsFactors = FALSE)
   names(out)[1] <- nom
   rownames(out) <- NULL
   out
@@ -2387,6 +2440,8 @@ HSTAT_GEN_CORREL_MAX <- 15L
 
 mod_genetique_server <- function(id, values) {
   shiny::moduleServer(id, function(input, output, session) {
+    # Tous les tableaux du module lisent le meme reglage de decimales.
+    gen_dt <- function(df, titre) .hstat_gen_dt(df, titre, hstat_gen_decimales(input$genDecimales))
     ns <- session$ns
     rv <- shiny::reactiveValues(res = NULL, message = NULL)
 
@@ -2705,19 +2760,19 @@ mod_genetique_server <- function(id, values) {
 
     output$genConsensusTable <- DT::renderDT({
       shiny::req(rv$res$consensus)
-      .hstat_gen_dt(rv$res$consensus, tr("Génotypes retenus par chaque méthode de classement"))
+      gen_dt(rv$res$consensus, tr("Génotypes retenus par chaque méthode de classement"))
     })
     output$genFacteursTable <- DT::renderDT({
       shiny::req(rv$res)
       shiny::validate(shiny::need(!is.null(rv$res$facteurs),
         tr("Aucun facteur significatif : ajoutez des covariables, des caractères associés ou des parents.")))
-      .hstat_gen_dt(rv$res$facteurs, trf("Facteurs qui améliorent ou déprécient « %s »", rv$res$principal))
+      gen_dt(rv$res$facteurs, trf("Facteurs qui améliorent ou déprécient « %s »", rv$res$principal))
     })
 
     # VARIANCE ET HERITABILITE
     output$genComposantesTable <- DT::renderDT({
       shiny::req(rv$res$composantes)
-      .hstat_gen_dt(rv$res$composantes, tr("Composantes de variance, héritabilités et paramètres de sélection"))
+      gen_dt(rv$res$composantes, tr("Composantes de variance, héritabilités et paramètres de sélection"))
     })
     output$genAnovaNote <- shiny::renderUI({
       x <- pt(); if (is.null(x)) return(NULL)
@@ -2726,27 +2781,27 @@ mod_genetique_server <- function(id, values) {
     })
     output$genAnovaTable <- DT::renderDT({
       x <- pt(); shiny::req(isTRUE(x$anova$ok))
-      .hstat_gen_dt(x$anova$anova, trf("Analyse de variance de « %s »", trait_aff()))
+      gen_dt(x$anova$anova, trf("Analyse de variance de « %s »", trait_aff()))
     })
     output$genValeursTable <- DT::renderDT({
       x <- pt(); shiny::req(isTRUE(x$anova$ok))
       v <- x$anova$valeurs
       v$Rang <- rank(-.hstat_gen_signe(rv$res$dirs[[trait_aff()]]) * v$Valeur_genetique, ties.method = "min")
-      .hstat_gen_dt(v[order(v$Rang), ], trf("Moyennes et valeurs génétiques prédites de « %s »", trait_aff()))
+      gen_dt(v[order(v$Rang), ], trf("Moyennes et valeurs génétiques prédites de « %s »", trait_aff()))
     })
     output$genTypesTable <- DT::renderDT({
       shiny::req(rv$res$types)
-      .hstat_gen_dt(rv$res$types, tr("Comparaison des types de matériel"))
+      gen_dt(rv$res$types, tr("Comparaison des types de matériel"))
     })
 
     # LECTURE DES METRIQUES
     output$genInterpTable <- DT::renderDT({
       shiny::req(rv$res$interpretation)
       it <- rv$res$interpretation
-      .hstat_gen_dt(it, tr("Valeur, classe et signification génétique de chaque métrique"))
+      gen_dt(it, tr("Valeur, classe et signification génétique de chaque métrique"))
     })
     output$genGrilleTable <- DT::renderDT(
-      .hstat_gen_dt(hstat_gen_grille_metriques(), tr("Seuils d'interprétation des métriques génétiques")))
+      gen_dt(hstat_gen_grille_metriques(), tr("Seuils d'interprétation des métriques génétiques")))
 
     # COMPARAISONS ET SYNTHESE COLOREE
     synth_tabs <- shiny::reactive({
@@ -2755,7 +2810,7 @@ mod_genetique_server <- function(id, values) {
       shiny::validate(shiny::need(!is.null(b) && nrow(b),
         tr("Aucune comparaison de génotypes calculable : il faut une erreur estimable (répétitions ou plusieurs environnements).")))
       hstat_posthoc_synthese(b, if (identical(input$genSynthDisp, "erreur_type")) "erreur_type" else "ecart_type",
-                             hstat_borne_client(input$genSynthDec, 2, 0, 6))
+                             hstat_gen_decimales(input$genDecimales))
     })
     synth_couleurs <- shiny::reactive({
       b <- rv$res$comp_blocs
@@ -2773,7 +2828,7 @@ mod_genetique_server <- function(id, values) {
       x <- pt(); shiny::req(isTRUE(x$comp$ok))
       tb <- x$comp$table
       coul <- synth_couleurs()
-      d <- .hstat_gen_dt(tb, trf("Comparaison des moyennes de génotypes : « %s »", trait_aff()))
+      d <- gen_dt(tb, trf("Comparaison des moyennes de génotypes : « %s »", trait_aff()))
       if (length(coul))
         d <- DT::formatStyle(d, "groups", target = "row",
           backgroundColor = DT::styleEqual(names(coul), unname(coul)))
@@ -2808,19 +2863,19 @@ mod_genetique_server <- function(id, values) {
       note(c(tete, g$action, g$notes))
     })
     griff <- shiny::reactive({ g <- pt()$griffing; shiny::req(isTRUE(g$ok)); g })
-    output$genGriffAnova <- DT::renderDT(.hstat_gen_dt(griff()$anova,
+    output$genGriffAnova <- DT::renderDT(gen_dt(griff()$anova,
       if (identical(griff()$plan, "ligne_testeur")) trf("Analyse de variance lignées × testeurs : « %s »", trait_aff())
       else trf("Analyse de variance du diallèle : « %s »", trait_aff())))
-    output$genGriffVar <- DT::renderDT(.hstat_gen_dt(griff()$variances, tr("Composantes génétiques, ratio de Baker et héritabilités")))
-    output$genGriffAgc <- DT::renderDT(.hstat_gen_dt(griff()$agc, tr("Effets d'aptitude générale à la combinaison (AGC) des parents")))
-    output$genGriffAsc <- DT::renderDT(.hstat_gen_dt(griff()$croisements, tr("Effets d'aptitude spécifique (ASC) et hétérosis des croisements")))
+    output$genGriffVar <- DT::renderDT(gen_dt(griff()$variances, tr("Composantes génétiques, ratio de Baker et héritabilités")))
+    output$genGriffAgc <- DT::renderDT(gen_dt(griff()$agc, tr("Effets d'aptitude générale à la combinaison (AGC) des parents")))
+    output$genGriffAsc <- DT::renderDT(gen_dt(griff()$croisements, tr("Effets d'aptitude spécifique (ASC) et hétérosis des croisements")))
     output$genGriffRec <- DT::renderDT({
       shiny::req(griff()$reciproques)
-      .hstat_gen_dt(griff()$reciproques, tr("Effets réciproques (maternels)"))
+      gen_dt(griff()$reciproques, tr("Effets réciproques (maternels)"))
     })
     output$genClassementTable <- DT::renderDT({
       shiny::req(rv$res$classement)
-      .hstat_gen_dt(rv$res$classement, tr("Classement multicritère des croisements (tous caractères)"))
+      gen_dt(rv$res$classement, tr("Classement multicritère des croisements (tous caractères)"))
     })
 
     # AMMI, GGE, STABILITE
@@ -2835,8 +2890,8 @@ mod_genetique_server <- function(id, values) {
       note(paste(tete, tr("ASV : valeur de stabilité AMMI (Purchase 2000), plus petite = plus stable ; YSI : rang de la moyenne du caractère + rang de l'ASV ; WAAS : moyenne pondérée des scores absolus (Olivoto 2019).")))
     })
     ammi <- shiny::reactive({ a <- pt()$ammi; shiny::req(isTRUE(a$ok)); a })
-    output$genAmmiAnova <- DT::renderDT(.hstat_gen_dt(ammi()$anova, trf("Analyse AMMI de « %s »", trait_aff())))
-    output$genAmmiStab <- DT::renderDT(.hstat_gen_dt(ammi()$stabilite, tr("Stabilité AMMI : ASV, YSI et WAAS")))
+    output$genAmmiAnova <- DT::renderDT(gen_dt(ammi()$anova, trf("Analyse AMMI de « %s »", trait_aff())))
+    output$genAmmiStab <- DT::renderDT(gen_dt(ammi()$stabilite, tr("Stabilité AMMI : ASV, YSI et WAAS")))
     output$genGgeNote <- shiny::renderUI({
       g <- pt()$gge
       if (!isTRUE(g$ok)) return(refus(g))
@@ -2844,13 +2899,13 @@ mod_genetique_server <- function(id, values) {
                format(round(g$pct[1], 1)), format(round(g$pct[2], 1))))
     })
     gge <- shiny::reactive({ g <- pt()$gge; shiny::req(isTRUE(g$ok)); g })
-    output$genGgeMega <- DT::renderDT(.hstat_gen_dt(gge()$mega, tr("Méga-environnements et génotypes gagnants")))
-    output$genGgeGen <- DT::renderDT(.hstat_gen_dt(gge()$genotypes, tr("Génotypes : moyenne, stabilité et distance au génotype idéal")))
-    output$genGgeEnv <- DT::renderDT(.hstat_gen_dt(gge()$environnements, tr("Environnements : pouvoir discriminant et représentativité")))
+    output$genGgeMega <- DT::renderDT(gen_dt(gge()$mega, tr("Méga-environnements et génotypes gagnants")))
+    output$genGgeGen <- DT::renderDT(gen_dt(gge()$genotypes, tr("Génotypes : moyenne, stabilité et distance au génotype idéal")))
+    output$genGgeEnv <- DT::renderDT(gen_dt(gge()$environnements, tr("Environnements : pouvoir discriminant et représentativité")))
     output$genStabTable <- DT::renderDT({
       s <- pt()$stab
       shiny::validate(shiny::need(!is.null(s), tr("La stabilité demande au moins trois environnements et un tableau complet.")))
-      .hstat_gen_dt(s$table, tr("Indices de stabilité : Eberhart-Russell, Wricke, Shukla, Lin-Binns"))
+      gen_dt(s$table, tr("Indices de stabilité : Eberhart-Russell, Wricke, Shukla, Lin-Binns"))
     })
 
     # MULTICARACTERE
@@ -2864,17 +2919,17 @@ mod_genetique_server <- function(id, values) {
                  format(rv$res$si), rv$res$n_sel)))
     })
     output$genMgidiTable <- DT::renderDT({ m <- rv$res$mgidi; shiny::req(isTRUE(m$ok))
-      .hstat_gen_dt(m$table, tr("MGIDI : indice de distance génotype-idéotype multicaractère")) })
+      gen_dt(m$table, tr("MGIDI : indice de distance génotype-idéotype multicaractère")) })
     output$genGainsTable <- DT::renderDT({ m <- rv$res$mgidi; shiny::req(isTRUE(m$ok))
-      .hstat_gen_dt(m$gains, tr("Différentiels et gains de sélection attendus (MGIDI)")) })
+      gen_dt(m$gains, tr("Différentiels et gains de sélection attendus (MGIDI)")) })
     output$genChargesTable <- DT::renderDT({ m <- rv$res$mgidi; shiny::req(isTRUE(m$ok))
-      .hstat_gen_dt(m$charges, tr("Analyse factorielle : charges, communalités et facteurs")) })
+      gen_dt(m$charges, tr("Analyse factorielle : charges, communalités et facteurs")) })
     output$genForcesTable <- DT::renderDT({ m <- rv$res$mgidi; shiny::req(isTRUE(m$ok), !is.null(m$forces))
-      .hstat_gen_dt(m$forces, tr("Forces et faiblesses des génotypes (MGIDI)")) })
+      gen_dt(m$forces, tr("Forces et faiblesses des génotypes (MGIDI)")) })
     output$genMtsiTable <- DT::renderDT({ m <- rv$res$mtsi; shiny::req(isTRUE(m$ok))
-      .hstat_gen_dt(m$table, tr("MTSI : indice de stabilité multicaractère (WAASY)")) })
+      gen_dt(m$table, tr("MTSI : indice de stabilité multicaractère (WAASY)")) })
     output$genGytTable <- DT::renderDT({ m <- rv$res$gyt; shiny::req(isTRUE(m$ok))
-      .hstat_gen_dt(m$table, tr("GYT : indice de supériorité caractère principal × autres caractères")) })
+      gen_dt(m$table, tr("GYT : indice de supériorité caractère principal × autres caractères")) })
 
     # ENVIRONNEMENT x GENOTYPE
     output$genCovNote <- shiny::renderUI({
@@ -2885,17 +2940,17 @@ mod_genetique_server <- function(id, values) {
       NULL
     })
     output$genCovTable <- DT::renderDT({ shiny::req(pt()$cov)
-      .hstat_gen_dt(pt()$cov, trf("Effet des variables environnementales sur « %s »", trait_aff())) })
+      gen_dt(pt()$cov, trf("Effet des variables environnementales sur « %s »", trait_aff())) })
     output$genFrTable <- DT::renderDT({ shiny::req(pt()$fr)
-      .hstat_gen_dt(pt()$fr$tests, tr("Régression factorielle : part de l'interaction G × E expliquée par chaque covariable")) })
+      gen_dt(pt()$fr$tests, tr("Régression factorielle : part de l'interaction G × E expliquée par chaque covariable")) })
     output$genSensTable <- DT::renderDT({ shiny::req(pt()$fr)
-      .hstat_gen_dt(pt()$fr$sensibilites, tr("Sensibilité de chaque génotype aux covariables (pente de son interaction)")) })
+      gen_dt(pt()$fr$sensibilites, tr("Sensibilité de chaque génotype aux covariables (pente de son interaction)")) })
 
     # CORRELATIONS ET PISTES
     output$genCorGTable <- DT::renderDT({ shiny::req(rv$res$correlations)
-      .hstat_gen_dt(.hstat_gen_mat_df(rv$res$correlations$genotypique), tr("Corrélations génotypiques")) })
+      gen_dt(.hstat_gen_mat_df(rv$res$correlations$genotypique), tr("Corrélations génotypiques")) })
     output$genCorPTable <- DT::renderDT({ shiny::req(rv$res$correlations)
-      .hstat_gen_dt(.hstat_gen_mat_df(rv$res$correlations$phenotypique), tr("Corrélations phénotypiques")) })
+      gen_dt(.hstat_gen_mat_df(rv$res$correlations$phenotypique), tr("Corrélations phénotypiques")) })
     output$genPistesNote <- shiny::renderUI({
       shiny::req(rv$res)
       p <- rv$res$pistes
@@ -2904,17 +2959,14 @@ mod_genetique_server <- function(id, values) {
              if (rv$res$tronque_cor) trf("Corrélations limitées aux %d premiers caractères.", HSTAT_GEN_CORREL_MAX)))
     })
     output$genPistesTable <- DT::renderDT({ p <- rv$res$pistes; shiny::req(isTRUE(p$ok))
-      .hstat_gen_dt(p$table, tr("Effets directs et indirects sur le caractère principal")) })
+      gen_dt(p$table, tr("Effets directs et indirects sur le caractère principal")) })
 
     # GRAPHIQUE
     graphique <- shiny::reactive({
       shiny::req(rv$res)
       quoi <- input$genGraphique %||% "ammi1"
       x <- pt(); tr_ <- trait_aff()
-      coul <- function(id, cle) {
-        v <- as.character(input[[id]] %||% "")[1]
-        if (!is.na(v) && grepl("^#[0-9A-Fa-f]{6}([0-9A-Fa-f]{2})?$", v)) v else HSTAT_GEN_COULEURS[[cle]]
-      }
+      palette <- input$genPalette %||% "module"
       opt <- list(etiq = isTRUE(input$genEtiquettes), ellipses = !isFALSE(input$genEllipses),
                   heritabilite = input$genHeritAffiche %||% "deux",
                   taille = hstat_borne_client(input$genEtiqSize, 3.2, 1, 8),
@@ -2924,12 +2976,11 @@ mod_genetique_server <- function(id, values) {
                   valeurs = !isFALSE(input$genValeurs),
                   dec = hstat_borne_client(input$genValeursDec, 2, 0, 6),
                   etiq_coul = !isFALSE(input$genEtiqCouleur),
-                  couleurs = c(genotype = coul("genCoulGeno", "genotype"),
-                               environnement = coul("genCoulEnv", "environnement"),
-                               favorable = coul("genCoulFav", "favorable"),
-                               defavorable = coul("genCoulDef", "defavorable"),
-                               neutre = coul("genCoulNeutre", "neutre"),
-                               selection = coul("genCoulSel", "selection")))
+                  contour = hstat_borne_client(input$genContour, 0.3, 0, 3),
+                  couleurs = hstat_gen_couleurs_roles(list(
+                    genotype = input$genCoulGeno, environnement = input$genCoulEnv,
+                    favorable = input$genCoulFav, defavorable = input$genCoulDef,
+                    neutre = input$genCoulNeutre, selection = input$genCoulSel), palette))
       p <- hstat_gen_figure(quoi, rv$res, tr_, opt)
       shiny::validate(shiny::need(!inherits(p, "hstat_gen_absent"), attr(p, "motif")))
       extras <- hstat_plot_extras_lire(input, "genX", familles = HSTAT_PLOT_EXTRAS_FAMILLES)
@@ -2939,10 +2990,7 @@ mod_genetique_server <- function(id, values) {
       if (nzchar(st)) p <- p + ggplot2::labs(subtitle = st)
       if (nzchar(lx)) p <- p + ggplot2::labs(x = lx)
       if (nzchar(ly)) p <- p + ggplot2::labs(y = ly)
-      if (quoi %in% HSTAT_GEN_GRAPHIQUES_PALETTE) {
-        ech <- hstat_scales_palette(input$genPalette %||% unname(HSTAT_PALETTE_GG))
-        if (!is.null(ech)) p <- p + ech
-      }
+      p <- hstat_gen_appliquer_palette(p, palette)
       propre <- p$theme
       titre_pos <- suppressWarnings(as.numeric(input$genTitrePos %||% "0.5")[1])
       if (!isTRUE(titre_pos %in% c(0, 0.5, 1))) titre_pos <- 0.5
@@ -3019,7 +3067,7 @@ mod_genetique_server <- function(id, values) {
         Pistes = ok(r$pistes)$table)
       if (!is.null(r$comp_blocs) && nrow(r$comp_blocs))
         l <- c(l, hstat_posthoc_synthese_feuilles(r$comp_blocs,
-                                                  hstat_borne_client(input$genSynthDec, 2, 0, 6)))
+                                                  hstat_gen_decimales(input$genDecimales)))
       hstat_tables_non_vides(l)
     }
     hstat_export_tables_handlers(output, "genT", tables_export,
