@@ -1,6 +1,6 @@
 # MODULE : SELECTION GENETIQUE DES VARIETES ET DES RACES
-# Composantes de variance et heritabilites, diallele de Griffing (AGC, ASC,
-# ratio de Baker), interaction genotype x environnement (AMMI, ASV, YSI, WAAS,
+# Composantes de variance et heritabilites, aptitudes a la combinaison (AGC,
+# ASC, ratio de Baker) d'un diallele ou d'un plan lignees x testeurs, interaction genotype x environnement (AMMI, ASV, YSI, WAAS,
 # GGE biplot, stabilite), selection multicaractere (MGIDI, MTSI, GYT) et
 # covariables environnementales. Les calculs vivent ici, au premier niveau,
 # pour etre testables ; le serveur ne fait que choisir et afficher.
@@ -376,7 +376,8 @@ HSTAT_GEN_METHODES_GRIFFING <- c(
   "1" = "Méthode 1 : parents, F1 et réciproques",
   "2" = "Méthode 2 : parents et F1",
   "3" = "Méthode 3 : F1 et réciproques",
-  "4" = "Méthode 4 : F1 seuls")
+  "4" = "Méthode 4 : F1 seuls",
+  "LT" = "Plan lignées × testeurs (Kempthorne 1957)")
 
 # Les cellules du diallele : une moyenne par couple de parents.
 .hstat_gen_cellules <- function(d, trait) {
@@ -498,11 +499,7 @@ hstat_gen_griffing <- function(d, trait, F_consanguinite = 1, direction = "augme
   s2sca <- ms_s - (if (is.finite(s2e_moy)) s2e_moy else 0)
   if (s2gca < 0) { notes <- c(notes, tr("Variance d'AGC estimée négative, ramenée à zéro.")); s2gca <- 0 }
   if (s2sca < 0) { notes <- c(notes, tr("Variance d'ASC estimée négative, ramenée à zéro.")); s2sca <- 0 }
-  s2A <- 4 * s2gca / (1 + Fc)
-  s2D <- 4 * s2sca / (1 + Fc)^2
   s2e_parcelle <- if (isTRUE(er$ok)) er$mse else NA_real_
-  tot <- s2A + s2D + (if (is.finite(s2e_parcelle)) s2e_parcelle else 0)
-  baker <- if ((2 * s2gca + s2sca) > 0) 2 * s2gca / (2 * s2gca + s2sca) else NA_real_
   Fv <- function(ms) if (is.finite(s2e_moy) && s2e_moy > 0) ms / s2e_moy else NA_real_
   pv <- function(f, df1) if (is.finite(f) && is.finite(df_err)) stats::pf(f, df1, df_err, lower.tail = FALSE) else NA_real_
   anova_tab <- data.frame(
@@ -524,20 +521,35 @@ hstat_gen_griffing <- function(d, trait, F_consanguinite = 1, direction = "augme
   agc$Rang <- rank(-sgn * agc$AGC, ties.method = "min")
   agc <- agc[order(agc$Rang), , drop = FALSE]
 
-  # Les croisements, avec leurs parents et l'heterosis quand les parents sont mesures.
   moy_par <- stats::setNames(y[a == b], a[a == b])
-  temoin_moy <- NA_real_
-  if (length(temoin) && nzchar(temoin[1])) {
-    v <- d[[trait]][as.character(d$G) == temoin[1]]
-    if (any(is.finite(v))) temoin_moy <- mean(v, na.rm = TRUE)
-    else notes <- c(notes, trf("Le témoin « %s » n'est pas mesuré : pas d'hétérosis standard.", temoin[1]))
-  }
   croix <- a != b
   g_of <- stats::setNames(gca, parents)
   tc <- data.frame(Croisement = paste(a, b, sep = " × "), Parent_1 = a, Parent_2 = b,
                    Moyenne = y, ASC = sca, Erreur_type = ts$se, t = ts$t, p = ts$p,
                    AGC_parent_1 = unname(g_of[a]), AGC_parent_2 = unname(g_of[b]),
                    stringsAsFactors = FALSE)[croix, , drop = FALSE]
+  fin <- .hstat_gen_croisements_finir(tc, moy_par, d, trait, temoin, sgn, alpha)
+  notes <- c(notes, fin$notes)
+  var_tab <- .hstat_gen_variances_ac(s2gca, s2sca, Fc, s2e_parcelle)
+  list(ok = TRUE, methode = methode, parents = parents, p = p, anova = anova_tab,
+       agc = agc, croisements = fin$table, reciproques = rec, variances = var_tab,
+       baker = attr(var_tab, "baker"), h2_strict = attr(var_tab, "h2_strict"),
+       h2_large = attr(var_tab, "h2_large"),
+       consanguinite = Fc, notes = notes,
+       action = .hstat_gen_action_genique(attr(var_tab, "baker")))
+}
+
+# Ce qui suit les effets, commun au diallele et aux lignees x testeurs : la
+# somme des AGC, l'heterosis quand les parents sont mesures, le profil des
+# parents et le sens de chaque ASC.
+.hstat_gen_croisements_finir <- function(tc, moy_par, d, trait, temoin, sgn, alpha) {
+  notes <- character(0)
+  temoin_moy <- NA_real_
+  if (length(temoin) && nzchar(temoin[1])) {
+    v <- d[[trait]][as.character(d$G) == temoin[1]]
+    if (any(is.finite(v))) temoin_moy <- mean(v, na.rm = TRUE)
+    else notes <- c(notes, trf("Le témoin « %s » n'est pas mesuré : pas d'hétérosis standard.", temoin[1]))
+  }
   tc$Somme_AGC <- tc$AGC_parent_1 + tc$AGC_parent_2
   if (length(moy_par)) {
     m1 <- unname(moy_par[tc$Parent_1]); m2 <- unname(moy_par[tc$Parent_2])
@@ -549,7 +561,6 @@ hstat_gen_griffing <- function(d, trait, F_consanguinite = 1, direction = "augme
   }
   if (is.finite(temoin_moy) && temoin_moy != 0)
     tc$Heterosis_standard_pct <- 100 * (tc$Moyenne - temoin_moy) / abs(temoin_moy)
-  # Le profil des parents : la nature de l'action genique se lit sur les AGC.
   # Le profil s'ecrit en phrase entiere : « faible » seul n'entre pas au
   # dictionnaire.
   profils <- c(HH = tr("AGC élevée × AGC élevée"), HB = tr("AGC élevée × AGC faible"),
@@ -559,7 +570,16 @@ hstat_gen_griffing <- function(d, trait, F_consanguinite = 1, direction = "augme
   tc$Sens_ASC <- .hstat_gen_sens(tc$p, sgn * tc$ASC, alpha)
   tc <- tc[order(-sgn * tc$ASC), , drop = FALSE]
   rownames(tc) <- NULL
+  list(table = tc, notes = notes)
+}
 
+# Les composantes genetiques tirees des variances d'AGC et d'ASC :
+# s2A = 4 s2agc / (1 + F), s2D = 4 s2asc / (1 + F)^2.
+.hstat_gen_variances_ac <- function(s2gca, s2sca, Fc, s2e_parcelle) {
+  s2A <- 4 * s2gca / (1 + Fc)
+  s2D <- 4 * s2sca / (1 + Fc)^2
+  tot <- s2A + s2D + (if (is.finite(s2e_parcelle)) s2e_parcelle else 0)
+  baker <- if ((2 * s2gca + s2sca) > 0) 2 * s2gca / (2 * s2gca + s2sca) else NA_real_
   h2_strict <- if (tot > 0) s2A / tot else NA_real_
   h2_large <- if (tot > 0) (s2A + s2D) / tot else NA_real_
   var_tab <- data.frame(
@@ -576,11 +596,147 @@ hstat_gen_griffing <- function(d, trait, F_consanguinite = 1, direction = "augme
                h2_strict, h2_large,
                if (s2A > 0) sqrt(2 * s2D / s2A) else NA_real_),
     stringsAsFactors = FALSE)
-  list(ok = TRUE, methode = methode, parents = parents, p = p, anova = anova_tab,
-       agc = agc, croisements = tc, reciproques = rec, variances = var_tab,
-       baker = baker, h2_strict = h2_strict, h2_large = h2_large,
-       consanguinite = Fc, notes = notes,
-       action = .hstat_gen_action_genique(baker))
+  structure(var_tab, baker = baker, h2_strict = h2_strict, h2_large = h2_large)
+}
+
+# PLAN LIGNEES x TESTEURS (Kempthorne 1957)
+# Chaque lignee (femelle, Parent 1) est croisee avec chaque testeur (male,
+# Parent 2), et les deux groupes sont distincts. Sur les moyennes des
+# croisements : g_i = y_i. - y.., g_j = y.j - y.., s_ij = y_ij - y_i. - y.j + y..
+# Les erreurs-types sont celles de Singh & Chaudhary (1985).
+HSTAT_GEN_PLANS_CROISEMENT <- c(
+  "Automatique (selon les croisements)" = "auto",
+  "Diallèle (Griffing)" = "diallele",
+  "Lignées × testeurs (Kempthorne)" = "ligne_testeur")
+
+# Le plan se lit sur les croisements : des Parents 1 et des Parents 2
+# disjoints, au moins deux de chaque, c'est un plan lignees x testeurs ; un
+# diallele, meme demi, fait figurer un meme parent des deux cotes.
+hstat_gen_plan_croisement <- function(d, trait) {
+  cel <- .hstat_gen_cellules(d, trait)
+  cr <- cel[cel$P1 != cel$P2, , drop = FALSE]
+  l <- unique(cr$P1); t <- unique(cr$P2)
+  if (length(l) >= 2 && length(t) >= 2 && !length(intersect(l, t))) "ligne_testeur" else "diallele"
+}
+
+hstat_gen_ligne_testeur <- function(d, trait, F_consanguinite = 1, direction = "augmenter",
+                                    temoin = NULL, alpha = 0.05) {
+  refus <- function(m) list(ok = FALSE, motif = m)
+  if (all(is.na(d$P1)) && all(is.na(d$P2)))
+    return(refus(tr("Indiquez la colonne des lignées (Parent 1) et celle des testeurs (Parent 2).")))
+  cel <- .hstat_gen_cellules(d, trait)
+  cr <- cel[cel$P1 != cel$P2, , drop = FALSE]
+  if (!nrow(cr)) return(refus(tr("Aucun croisement mesuré pour ce caractère.")))
+  lignees <- sort(unique(cr$P1)); testeurs <- sort(unique(cr$P2))
+  communs <- intersect(lignees, testeurs)
+  if (length(communs))
+    return(refus(trf("« %s » est à la fois lignée et testeur : c'est un diallèle, pas un plan lignées × testeurs.",
+                     communs[1])))
+  nl <- length(lignees); nt <- length(testeurs)
+  if (nl < 2 || nt < 2)
+    return(refus(tr("Un plan lignées × testeurs demande au moins deux lignées et deux testeurs.")))
+  if (nl + nt > HSTAT_GEN_PARENTS_MAX)
+    return(refus(trf("%d parents : au-delà de %d, la colonne choisie n'est sans doute pas celle des parents.",
+                     nl + nt, HSTAT_GEN_PARENTS_MAX)))
+  notes <- character(0)
+  inc <- attr(cel, "incomplets")
+  if (length(inc))
+    notes <- c(notes, trf("%d génotype(s) écarté(s) du plan, un seul de leurs parents étant renseigné : %s.",
+                          length(inc), hstat_lignes_compactes(inc, max = 10L)))
+  M <- tapply(cr$y, list(factor(cr$P1, lignees), factor(cr$P2, testeurs)), mean)
+  if (anyNA(M)) {
+    k <- which(is.na(M), arr.ind = TRUE)[1, ]
+    return(refus(trf("Le croisement « %s × %s » n'est pas mesuré : le plan lignées × testeurs doit être complet.",
+                     lignees[k[1]], testeurs[k[2]])))
+  }
+  Fc <- suppressWarnings(as.numeric(F_consanguinite)[1])
+  if (!is.finite(Fc) || Fc < 0 || Fc > 1) Fc <- 1
+
+  # L'erreur : celle d'une moyenne de croisement, par le modele d'ensemble.
+  de <- data.frame(G = factor(paste(cr$P1, cr$P2, sep = " × ")), E = factor(cr$E),
+                   R = cr$R, stringsAsFactors = FALSE)
+  de[[trait]] <- cr$y
+  er <- hstat_gen_anova(de, trait)
+  s2e_moy <- if (isTRUE(er$ok)) er$n_par_moyenne else NA_real_
+  df_err <- if (isTRUE(er$ok)) er$df_den else NA_real_
+  if (!is.finite(s2e_moy))
+    notes <- c(notes, tr("Sans répétition, l'erreur n'est pas estimable : les effets sont donnés sans test."))
+
+  mu <- mean(M)
+  gl <- rowMeans(M) - mu; gt <- colMeans(M) - mu
+  S <- M - outer(rowMeans(M), colMeans(M), "+") + mu
+  ss_l <- nt * sum(gl^2); ss_t <- nl * sum(gt^2); ss_s <- sum(S^2)
+  df_l <- nl - 1; df_t <- nt - 1; df_s <- df_l * df_t
+  ms_l <- ss_l / df_l; ms_t <- ss_t / df_t; ms_s <- ss_s / df_s
+  Fv <- function(ms) if (is.finite(s2e_moy) && s2e_moy > 0) ms / s2e_moy else NA_real_
+  pv <- function(f, df1) if (is.finite(f) && is.finite(df_err)) stats::pf(f, df1, df_err, lower.tail = FALSE) else NA_real_
+  ss_c <- ss_l + ss_t + ss_s
+  part <- function(x) if (ss_c > 0) 100 * x / ss_c else NA_real_
+  anova_tab <- data.frame(
+    Source = c(tr("Lignées (AGC des lignées)"), tr("Testeurs (AGC des testeurs)"),
+               tr("Lignées × testeurs (ASC)"), tr("Erreur (moyennes)")),
+    ddl = c(df_l, df_t, df_s, df_err), SC = c(ss_l, ss_t, ss_s, NA_real_),
+    CM = c(ms_l, ms_t, ms_s, s2e_moy),
+    F = c(Fv(ms_l), Fv(ms_t), Fv(ms_s), NA_real_),
+    p = c(pv(Fv(ms_l), df_l), pv(Fv(ms_t), df_t), pv(Fv(ms_s), df_s), NA_real_),
+    Contribution_pct = c(part(ss_l), part(ss_t), part(ss_s), NA_real_),
+    stringsAsFactors = FALSE)
+
+  test <- function(est, var) {
+    se <- if (is.finite(s2e_moy)) rep(sqrt(var * s2e_moy), length(est)) else rep(NA_real_, length(est))
+    t <- est / se
+    list(se = se, t = t, p = if (is.finite(df_err)) 2 * stats::pt(-abs(t), df_err) else rep(NA_real_, length(est)))
+  }
+  tl <- test(gl, 1 / nt); tt <- test(gt, 1 / nl)
+  sgn <- .hstat_gen_signe(direction)
+  alpha <- suppressWarnings(as.numeric(alpha)[1])
+  if (!is.finite(alpha) || alpha <= 0 || alpha >= 1) alpha <- 0.05
+  agc <- data.frame(Parent = c(lignees, testeurs),
+                    Role = c(rep(tr("Lignée (Parent 1)"), nl), rep(tr("Testeur (Parent 2)"), nt)),
+                    AGC = c(unname(gl), unname(gt)), Erreur_type = c(tl$se, tt$se),
+                    t = c(tl$t, tt$t), p = c(tl$p, tt$p), stringsAsFactors = FALSE)
+  agc$Sens <- .hstat_gen_sens(agc$p, sgn * agc$AGC, alpha)
+  agc$Rang <- stats::ave(-sgn * agc$AGC, agc$Role, FUN = function(v) rank(v, ties.method = "min"))
+  agc <- agc[order(agc$Role != tr("Lignée (Parent 1)"), agc$Rang), , drop = FALSE]
+  rownames(agc) <- NULL
+
+  a <- rep(lignees, times = nt); b <- rep(testeurs, each = nl)
+  ts <- test(as.vector(S), 1)
+  tc <- data.frame(Croisement = paste(a, b, sep = " × "), Parent_1 = a, Parent_2 = b,
+                   Moyenne = as.vector(M), ASC = as.vector(S), Erreur_type = ts$se,
+                   t = ts$t, p = ts$p, AGC_parent_1 = unname(gl[a]), AGC_parent_2 = unname(gt[b]),
+                   stringsAsFactors = FALSE)
+  par <- cel[cel$P1 == cel$P2, , drop = FALSE]
+  moy_par <- if (nrow(par)) tapply(par$y, par$P1, mean) else numeric(0)
+  fin <- .hstat_gen_croisements_finir(tc, moy_par, d, trait, temoin, sgn, alpha)
+  notes <- c(notes, fin$notes)
+
+  # Composantes, sur la base d'une moyenne de croisement (Kempthorne 1957).
+  s2gca_l <- (ms_l - ms_s) / nt
+  s2gca_t <- (ms_t - ms_s) / nl
+  s2gca <- (((nl - 1) * ms_l + (nt - 1) * ms_t) / (nl + nt - 2) - ms_s) / (2 * nl * nt - nl - nt)
+  s2sca <- ms_s - (if (is.finite(s2e_moy)) s2e_moy else 0)
+  if (s2gca < 0) { notes <- c(notes, tr("Variance d'AGC estimée négative, ramenée à zéro.")); s2gca <- 0 }
+  if (s2sca < 0) { notes <- c(notes, tr("Variance d'ASC estimée négative, ramenée à zéro.")); s2sca <- 0 }
+  vb <- .hstat_gen_variances_ac(s2gca, s2sca, Fc, if (isTRUE(er$ok)) er$mse else NA_real_)
+  bk <- attr(vb, "baker"); h2s <- attr(vb, "h2_strict"); h2l <- attr(vb, "h2_large")
+  var_tab <- rbind(data.frame(
+    Parametre = c(tr("Variance d'AGC des lignées"), tr("Variance d'AGC des testeurs")),
+    Valeur = c(max(s2gca_l, 0), max(s2gca_t, 0)), stringsAsFactors = FALSE), vb)
+  list(ok = TRUE, methode = "LT", plan = "ligne_testeur", parents = c(lignees, testeurs),
+       lignees = lignees, testeurs = testeurs, p = nl + nt, anova = anova_tab,
+       agc = agc, croisements = fin$table, reciproques = NULL, variances = var_tab,
+       baker = bk, h2_strict = h2s, h2_large = h2l, consanguinite = Fc, notes = notes,
+       action = .hstat_gen_action_genique(bk))
+}
+
+# L'analyse des aptitudes a la combinaison, selon le plan demande ou lu sur
+# les croisements.
+hstat_gen_aptitudes <- function(d, trait, plan = "auto", ...) {
+  if (!isTRUE(plan %in% HSTAT_GEN_PLANS_CROISEMENT) || plan == "auto")
+    plan <- hstat_gen_plan_croisement(d, trait)
+  if (plan == "ligne_testeur") hstat_gen_ligne_testeur(d, trait, ...)
+  else { g <- hstat_gen_griffing(d, trait, ...); if (isTRUE(g$ok)) g$plan <- "diallele"; g }
 }
 
 # La lecture du ratio de Baker : proche de 1, l'action est additive et la
@@ -1350,7 +1506,7 @@ mod_genetique_ui <- function(id) {
         shiny::tabPanel(shiny::tagList(shiny::icon("flag-checkered"), " Synthèse et recommandations"), value = "synthese"),
         shiny::tabPanel(shiny::tagList(shiny::icon("percent"), " Variance et héritabilité"), value = "variance"),
         shiny::tabPanel(shiny::tagList(shiny::icon("layer-group"), " Comparaisons des génotypes"), value = "comparaisons"),
-        shiny::tabPanel(shiny::tagList(shiny::icon("sitemap"), " Diallèle de Griffing"), value = "griffing"),
+        shiny::tabPanel(shiny::tagList(shiny::icon("sitemap"), " Aptitudes à la combinaison (AGC, ASC)"), value = "griffing"),
         shiny::tabPanel(shiny::tagList(shiny::icon("chart-line"), " AMMI, ASV et YSI"), value = "ammi"),
         shiny::tabPanel(shiny::tagList(shiny::icon("draw-polygon"), " GGE biplot"), value = "gge"),
         shiny::tabPanel(shiny::tagList(shiny::icon("scale-balanced"), " Stabilité"), value = "stabilite"),
@@ -1378,7 +1534,9 @@ mod_genetique_ui <- function(id) {
               value = 15, min = 5, max = 50, step = 1),
             shiny::selectInput(ns("genAlpha"), "Seuil de signification",
               choices = c("5 %" = "0.05", "1 %" = "0.01", "10 %" = "0.1"), selected = "0.05"),
-            shiny::numericInput(ns("genF"), "Consanguinité des parents (F, diallèle)",
+            shiny::selectInput(ns("genPlanCroisement"), "Plan de croisement (AGC, ASC)",
+              choices = HSTAT_GEN_PLANS_CROISEMENT, selected = "auto"),
+            shiny::numericInput(ns("genF"), "Consanguinité des parents (F, croisements)",
               value = 1, min = 0, max = 1, step = 0.25),
             shiny::sliderInput(ns("genPoidsY"), "Poids de la performance dans le MTSI (%)",
               min = 0, max = 100, value = 50, step = 5, ticks = FALSE),
@@ -1401,7 +1559,7 @@ mod_genetique_ui <- function(id) {
             shiny::tags$p("Choisissez la colonne des génotypes (variétés, lignées, hybrides ou races), le dispositif (localités, années, répétitions), les caractères mesurés et, si vous en avez, les colonnes des parents et les variables environnementales. Une seule analyse produit :"),
             shiny::tags$ul(
               shiny::tags$li("les composantes de variance, l'héritabilité, la précision sélective et le gain génétique attendu de chaque caractère ;"),
-              shiny::tags$li("le diallèle de Griffing : AGC, ASC, ratio de Baker, hétérosis et classement multicritère des croisements ;"),
+              shiny::tags$li("les aptitudes générale (AGC) et spécifique (ASC) à la combinaison, d'un diallèle (Griffing) ou d'un plan lignées × testeurs (Kempthorne) : ratio de Baker, hétérosis et classement multicritère des croisements ;"),
               shiny::tags$li("l'interaction génotype × environnement : AMMI, ASV, YSI, WAAS, GGE biplot et indices de stabilité ;"),
               shiny::tags$li("la sélection multicaractère : MGIDI, MTSI et GYT biplot ;"),
               shiny::tags$li("l'effet des variables environnementales et des pratiques, et la sensibilité de chaque génotype à ces variables ;"),
@@ -1964,7 +2122,7 @@ hstat_gen_figure <- function(quoi, res, trait, opt = list(etiq = TRUE, taille = 
       quoi_h <- opt$heritabilite %||% "deux"
       if (!quoi_h %in% HSTAT_GEN_HERITABILITES) quoi_h <- "deux"
       a_h2 <- "h2_strict" %in% names(cp) && any(is.finite(cp$h2_strict))
-      manque_h2 <- tr("L'héritabilité au sens strict demande un diallèle : indiquez les colonnes Parent 1 et Parent 2.")
+      manque_h2 <- tr("L'héritabilité au sens strict demande un plan de croisement (diallèle ou lignées × testeurs) : indiquez les colonnes Parent 1 et Parent 2.")
       if (quoi_h == "strict" && !a_h2) return(absent(manque_h2))
       lv <- cp$Caractere[order(cp$H2_moyenne)]
       bornes <- ggplot2::geom_hline(yintercept = HSTAT_GEN_GRILLES$H2$bornes, linetype = 2, colour = "#5f6b7a")
@@ -1988,12 +2146,12 @@ hstat_gen_figure <- function(quoi, res, trait, opt = list(etiq = TRUE, taille = 
             if (!a_h2) manque_h2)
       } else if (quoi_h == "strict") {
         une(cp$h2_strict, cp$Classe_h2, vapply(HSTAT_GEN_METRIQUES$h2_strict$classes, tr, ""),
-            tr("Héritabilité au sens strict (diallèle)"), "h²",
+            tr("Héritabilité au sens strict (croisements)"), "h²",
             tr("h² = σ²A / σ²P : la part additive, celle qui se transmet des parents aux descendants."))
       } else {
         # Les deux heritabilites cote a cote : la part additive (h²) dans la
         # part genetique totale (H²).
-        n_l <- tr("H² au sens large (base moyenne)"); n_s <- tr("h² au sens strict (diallèle)")
+        n_l <- tr("H² au sens large (base moyenne)"); n_s <- tr("h² au sens strict (croisements)")
         dd <- rbind(data.frame(Caractere = cp$Caractere, Mesure = n_l, Valeur = cp$H2_moyenne),
                     data.frame(Caractere = cp$Caractere, Mesure = n_s, Valeur = cp$h2_strict))
         dd <- dd[is.finite(dd$Valeur), , drop = FALSE]
@@ -2016,10 +2174,13 @@ hstat_gen_figure <- function(quoi, res, trait, opt = list(etiq = TRUE, taille = 
     },
     agc = {
       g <- x$griffing
-      if (!isTRUE(g$ok)) return(absent(g$motif %||% tr("Indiquez les colonnes Parent 1 et Parent 2 pour analyser un diallèle (parents et F1, avec ou sans réciproques).")))
+      if (!isTRUE(g$ok)) return(absent(g$motif %||% tr("Indiquez les colonnes Parent 1 et Parent 2 pour estimer les aptitudes à la combinaison : diallèle (parents et F1, avec ou sans réciproques) ou plan lignées × testeurs.")))
       a <- g$agc; a$Bon <- sgn * a$AGC > 0
       a$Parent <- factor(a$Parent, levels = a$Parent[order(sgn * a$AGC)])
-      ggplot2::ggplot(a, ggplot2::aes(Parent, AGC, fill = Bon)) +
+      # Lignees et testeurs ne se comparent pas : chacun son panneau.
+      roles <- if (!is.null(a$Role))
+        ggplot2::facet_grid(Role ~ ., scales = "free_y", space = "free_y")
+      ggplot2::ggplot(a, ggplot2::aes(Parent, AGC, fill = Bon)) + roles +
         ggplot2::geom_col(width = 0.7, alpha = al, colour = "black", linewidth = 0.3) +
         # La moitie exterieure de la barre d'erreur : celle qui s'eloigne de zero.
         ggplot2::geom_errorbar(ggplot2::aes(ymin = AGC, ymax = AGC + sign(AGC) * Erreur_type),
@@ -2036,12 +2197,15 @@ hstat_gen_figure <- function(quoi, res, trait, opt = list(etiq = TRUE, taille = 
     },
     asc = {
       g <- x$griffing
-      if (!isTRUE(g$ok)) return(absent(g$motif %||% tr("Indiquez les colonnes Parent 1 et Parent 2 pour analyser un diallèle (parents et F1, avec ou sans réciproques).")))
+      if (!isTRUE(g$ok)) return(absent(g$motif %||% tr("Indiquez les colonnes Parent 1 et Parent 2 pour estimer les aptitudes à la combinaison : diallèle (parents et F1, avec ou sans réciproques) ou plan lignées × testeurs.")))
       cr <- g$croisements
-      dd <- rbind(data.frame(P1 = cr$Parent_1, P2 = cr$Parent_2, ASC = cr$ASC),
-                  data.frame(P1 = cr$Parent_2, P2 = cr$Parent_1, ASC = cr$ASC))
+      lt <- identical(g$plan, "ligne_testeur")
+      dd <- if (lt) data.frame(P1 = cr$Parent_1, P2 = cr$Parent_2, ASC = cr$ASC)
+            else rbind(data.frame(P1 = cr$Parent_1, P2 = cr$Parent_2, ASC = cr$ASC),
+                       data.frame(P1 = cr$Parent_2, P2 = cr$Parent_1, ASC = cr$ASC))
       dd <- dd[dd$P1 != dd$P2, , drop = FALSE]
-      dd$P1 <- factor(dd$P1, levels = g$parents); dd$P2 <- factor(dd$P2, levels = rev(g$parents))
+      dd$P1 <- factor(dd$P1, levels = if (lt) g$lignees else g$parents)
+      dd$P2 <- factor(dd$P2, levels = rev(if (lt) g$testeurs else g$parents))
       lim <- max(abs(dd$ASC), na.rm = TRUE)
       ggplot2::ggplot(dd, ggplot2::aes(P1, P2, fill = sgn * ASC)) +
         .hstat_gen_tuiles() +
@@ -2052,7 +2216,8 @@ hstat_gen_figure <- function(quoi, res, trait, opt = list(etiq = TRUE, taille = 
         ggplot2::scale_fill_gradient2(low = def, mid = "#f7f7f7", high = fav, limits = c(-lim, lim),
                                       name = tr("ASC favorable")) +
         ggplot2::labs(title = trf("Aptitude spécifique des croisements : « %s »", trait),
-                      x = tr("Parent"), y = tr("Parent"))
+                      x = if (lt) tr("Lignée (Parent 1)") else tr("Parent"),
+                      y = if (lt) tr("Testeur (Parent 2)") else tr("Parent"))
     },
     mgidi = , mtsi = {
       m <- if (quoi == "mgidi") res$mgidi else res$mtsi
@@ -2269,9 +2434,9 @@ mod_genetique_server <- function(id, values) {
             choices = c(aucun, cols), selected = ""),
           shiny::uiOutput(ns("genGroupeUI")),
           shiny::fluidRow(
-            shiny::column(6, shiny::selectInput(ns("genP1"), "Parent 1 (diallèle)",
+            shiny::column(6, shiny::selectInput(ns("genP1"), "Parent 1 (femelle, lignée)",
               choices = c(aucun, cols), selected = p1)),
-            shiny::column(6, shiny::selectInput(ns("genP2"), "Parent 2 (diallèle)",
+            shiny::column(6, shiny::selectInput(ns("genP2"), "Parent 2 (mâle, testeur)",
               choices = c(aucun, cols), selected = p2))),
           shiny::uiOutput(ns("genTemoinUI"))),
         .hstat_opt_carte("Dispositif et environnements", "map-location-dot", "bleu",
@@ -2344,6 +2509,7 @@ mod_genetique_server <- function(id, values) {
       wy  <- hstat_borne_client(input$genPoidsY, 50, 0, 100)
       svp <- if (isTRUE(input$genSvp %in% HSTAT_GEN_GGE_SVP)) input$genSvp else "symetrique"
       meth_cmp <- if (isTRUE(input$genComparaison %in% HSTAT_GEN_COMPARAISONS)) input$genComparaison else "tukey"
+      plan <- if (isTRUE(input$genPlanCroisement %in% HSTAT_GEN_PLANS_CROISEMENT)) input$genPlanCroisement else "auto"
       traits <- pr$traits
       vers <- function(x) unname(pr$noms[intersect(as.character(x), names(pr$noms))])
       dirs <- stats::setNames(ifelse(traits %in% vers(input$genMinimiser), "diminuer", "augmenter"), traits)
@@ -2377,7 +2543,7 @@ mod_genetique_server <- function(id, values) {
               if (!is.null(st)) st$table <- hstat_gen_lecture_stabilite(st$table)
               st
             }),
-            griffing = if (a_diallele) sur(hstat_gen_griffing(d, t, Fc, dirs[[t]], temoin, alpha), echoue),
+            griffing = if (a_diallele) sur(hstat_gen_aptitudes(d, t, plan, Fc, dirs[[t]], temoin, alpha), echoue),
             cov = sur(hstat_gen_covariables(d, t, pr$covariables, dirs[[t]], alpha)),
             fr = sur(hstat_gen_regression_factorielle(d, t, pr$covariables, Y = Y, mse = mse, r = r)))
           shiny::incProgress(0.8 / length(traits))
@@ -2507,7 +2673,7 @@ mod_genetique_server <- function(id, values) {
         li[[length(li) + 1]] <- trf("MTSI (performance et stabilité) : %s.", paste(r$mtsi$selection, collapse = ", "))
       if (isTRUE(pp$griffing$ok)) {
         g <- pp$griffing
-        li[[length(li) + 1]] <- trf("Diallèle (%s) : ratio de Baker %s. %s",
+        li[[length(li) + 1]] <- trf("Aptitudes à la combinaison (%s) : ratio de Baker %s. %s",
           tr(HSTAT_GEN_METHODES_GRIFFING[[g$methode]]), format(round(g$baker, 3)), g$action)
         bons <- g$agc$Parent[g$agc$Sens == tr("Favorable")]
         if (length(bons)) li[[length(li) + 1]] <- trf("Meilleurs parents (AGC favorable et significative) : %s.", paste(bons, collapse = ", "))
@@ -2632,14 +2798,19 @@ mod_genetique_server <- function(id, values) {
     output$genGriffingNote <- shiny::renderUI({
       shiny::req(rv$res)
       if (!rv$res$a_diallele)
-        return(note(tr("Indiquez les colonnes Parent 1 et Parent 2 pour analyser un diallèle (parents et F1, avec ou sans réciproques).")))
+        return(note(tr("Indiquez les colonnes Parent 1 et Parent 2 pour estimer les aptitudes à la combinaison : diallèle (parents et F1, avec ou sans réciproques) ou plan lignées × testeurs.")))
       g <- pt()$griffing
       if (!isTRUE(g$ok)) return(refus(g))
-      note(c(trf("%s, %d parents.", tr(HSTAT_GEN_METHODES_GRIFFING[[g$methode]]), g$p),
-             g$action, g$notes))
+      tete <- if (identical(g$plan, "ligne_testeur"))
+        trf("%s : %d lignées, %d testeurs.", tr(HSTAT_GEN_METHODES_GRIFFING[[g$methode]]),
+            length(g$lignees), length(g$testeurs))
+      else trf("Diallèle de Griffing, %s, %d parents.", tr(HSTAT_GEN_METHODES_GRIFFING[[g$methode]]), g$p)
+      note(c(tete, g$action, g$notes))
     })
     griff <- shiny::reactive({ g <- pt()$griffing; shiny::req(isTRUE(g$ok)); g })
-    output$genGriffAnova <- DT::renderDT(.hstat_gen_dt(griff()$anova, trf("Analyse de variance du diallèle : « %s »", trait_aff())))
+    output$genGriffAnova <- DT::renderDT(.hstat_gen_dt(griff()$anova,
+      if (identical(griff()$plan, "ligne_testeur")) trf("Analyse de variance lignées × testeurs : « %s »", trait_aff())
+      else trf("Analyse de variance du diallèle : « %s »", trait_aff())))
     output$genGriffVar <- DT::renderDT(.hstat_gen_dt(griff()$variances, tr("Composantes génétiques, ratio de Baker et héritabilités")))
     output$genGriffAgc <- DT::renderDT(.hstat_gen_dt(griff()$agc, tr("Effets d'aptitude générale à la combinaison (AGC) des parents")))
     output$genGriffAsc <- DT::renderDT(.hstat_gen_dt(griff()$croisements, tr("Effets d'aptitude spécifique (ASC) et hétérosis des croisements")))
@@ -2826,8 +2997,8 @@ mod_genetique_server <- function(id, values) {
         Lecture_metriques = r$interpretation,
         Grille_seuils = hstat_gen_grille_metriques(),
         Comparaisons_genotypes = .hstat_gen_empile(pt_, function(x) ok(x$comp)$table),
-        Griffing_ANOVA = .hstat_gen_empile(pt_, function(x) ok(x$griffing)$anova),
-        Griffing_variances = .hstat_gen_empile(pt_, function(x) ok(x$griffing)$variances),
+        AGC_ASC_ANOVA = .hstat_gen_empile(pt_, function(x) ok(x$griffing)$anova),
+        AGC_ASC_variances = .hstat_gen_empile(pt_, function(x) ok(x$griffing)$variances),
         AGC = .hstat_gen_empile(pt_, function(x) ok(x$griffing)$agc),
         ASC_heterosis = .hstat_gen_empile(pt_, function(x) ok(x$griffing)$croisements),
         Classement_croisements = r$classement,

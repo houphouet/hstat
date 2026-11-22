@@ -25911,6 +25911,105 @@ test_that("Griffing : sans parents identifiables, le diallele est refuse et nomm
   expect_true(nzchar(g$motif))
 })
 
+.hstat_test_lt <- function(parents = TRUE, nl = 5, nt = 3) {
+  set.seed(2)
+  L <- paste0("L", seq_len(nl)); T <- paste0("T", seq_len(nt))
+  gl <- stats::setNames(rnorm(nl, 0, 3), L); gt <- stats::setNames(rnorm(nt, 0, 2), T)
+  rows <- list()
+  for (i in L) for (j in T) for (r in 1:3)
+    rows[[length(rows) + 1]] <- data.frame(P1 = i, P2 = j, R = r,
+      Y = 60 + gl[i] + gt[j] + rnorm(1, 0, 1.5))
+  if (parents) for (pp in c(L, T)) for (r in 1:3)
+    rows[[length(rows) + 1]] <- data.frame(P1 = pp, P2 = pp, R = r, Y = 55 + rnorm(1))
+  d <- do.call(rbind, rows)
+  d$G <- ifelse(d$P1 == d$P2, d$P1, paste(d$P1, d$P2, sep = "x"))
+  d
+}
+
+test_that("Lignees x testeurs : F, AGC, ASC et erreurs-types retrouvent Kempthorne et l'ANOVA des parcelles", {
+  df <- .hstat_test_lt()
+  pr <- hstat_gen_preparer(df, "G", "Y", var_rep = "R", var_p1 = "P1", var_p2 = "P2")
+  expect_identical(hstat_gen_plan_croisement(pr$data, "Y"), "ligne_testeur")
+  g <- hstat_gen_aptitudes(pr$data, "Y")
+  expect_true(g$ok)
+  expect_identical(g$plan, "ligne_testeur")
+  cr <- df[df$P1 != df$P2, ]
+  cr$L <- factor(cr$P1); cr$T <- factor(cr$P2); cr$R <- factor(cr$R)
+  ref <- summary(stats::aov(Y ~ R + L * T, cr))[[1]]
+  rn <- trimws(rownames(ref))
+  # Les F et les ddl sont ceux de l'analyse des parcelles.
+  expect_equal(g$anova$F[1:3], ref[["F value"]][match(c("L", "T", "L:T"), rn)], tolerance = 1e-8)
+  expect_equal(g$anova$ddl[1:4], ref$Df[match(c("L", "T", "L:T", "Residuals"), rn)])
+  # Les effets : moyennes marginales des croisements.
+  M <- tapply(cr$Y, list(cr$P1, cr$P2), mean); mu <- mean(M)
+  a <- g$agc
+  expect_equal(a$AGC[match(rownames(M), a$Parent)], unname(rowMeans(M) - mu), tolerance = 1e-10)
+  expect_equal(a$AGC[match(colnames(M), a$Parent)], unname(colMeans(M) - mu), tolerance = 1e-10)
+  S <- M - outer(rowMeans(M), colMeans(M), "+") + mu
+  c1 <- g$croisements[g$croisements$Croisement == "L2 × T3", ]
+  expect_equal(c1$ASC, S["L2", "T3"], tolerance = 1e-10)
+  # Erreurs-types de Singh & Chaudhary (1985), r = 3 repetitions.
+  mse <- ref[["Mean Sq"]][rn == "Residuals"]
+  expect_equal(unique(a$Erreur_type[a$Parent %in% rownames(M)]), sqrt(mse / (3 * ncol(M))), tolerance = 1e-8)
+  expect_equal(unique(a$Erreur_type[a$Parent %in% colnames(M)]), sqrt(mse / (3 * nrow(M))), tolerance = 1e-8)
+  expect_equal(c1$Erreur_type, sqrt(mse / 3), tolerance = 1e-8)
+  # Les composantes de Kempthorne, ici sur la base des parcelles divisee par r.
+  ms <- function(k) ref[["Mean Sq"]][rn == k]
+  v <- stats::setNames(g$variances$Valeur, g$variances$Parametre)
+  expect_equal(unname(v["Variance d'AGC des lignées"]), (ms("L") - ms("L:T")) / (3 * ncol(M)), tolerance = 1e-8)
+  expect_equal(unname(v["Variance d'AGC des testeurs"]), (ms("T") - ms("L:T")) / (3 * nrow(M)), tolerance = 1e-8)
+  # Les contributions somment a 100 %, et lignees et testeurs se rangent a part.
+  expect_equal(sum(g$anova$Contribution_pct, na.rm = TRUE), 100)
+  expect_setequal(a$Rang[a$Parent %in% colnames(M)], seq_len(ncol(M)))
+  expect_true(all(is.finite(g$croisements$Heterosis_moyenne_parents_pct)))
+  expect_true(is.finite(g$h2_strict))
+})
+
+test_that("Lignees x testeurs : un diallele reste un diallele, et les plans fautifs sont refuses et nommes", {
+  # Un demi-diallele fait figurer un meme parent des deux cotes.
+  dd <- .hstat_test_diallele(FALSE)
+  prd <- hstat_gen_preparer(dd, "G", "Y", var_rep = "R", var_p1 = "P1", var_p2 = "P2")
+  expect_identical(hstat_gen_plan_croisement(prd$data, "Y"), "diallele")
+  expect_identical(hstat_gen_aptitudes(prd$data, "Y")$plan, "diallele")
+  r <- hstat_gen_aptitudes(prd$data, "Y", plan = "ligne_testeur")
+  expect_false(isTRUE(r$ok)); expect_match(r$motif, "à la fois lignée et testeur")
+  # Un croisement manquant : le plan est incomplet, le croisement nomme.
+  df <- .hstat_test_lt()
+  df <- df[!(df$P1 == "L4" & df$P2 == "T2"), ]
+  pr <- hstat_gen_preparer(df, "G", "Y", var_rep = "R", var_p1 = "P1", var_p2 = "P2")
+  r <- hstat_gen_ligne_testeur(pr$data, "Y")
+  expect_false(isTRUE(r$ok)); expect_match(r$motif, "L4 × T2", fixed = TRUE)
+  # Un seul testeur ne separe rien.
+  pr1 <- hstat_gen_preparer(.hstat_test_lt(nt = 1), "G", "Y", var_rep = "R", var_p1 = "P1", var_p2 = "P2")
+  r <- hstat_gen_ligne_testeur(pr1$data, "Y")
+  expect_false(isTRUE(r$ok)); expect_match(r$motif, "deux testeurs")
+})
+
+test_that("Lignees x testeurs : le serveur choisit le plan, et ses figures se construisent", {
+  skip_if_not_installed("ggplot2")
+  df <- .hstat_test_lt()
+  vals <- shiny::reactiveValues(data = df, resetSignal = 0)
+  shiny::testServer(mod_genetique_server, args = list(values = vals), {
+    session$setInputs(genGen = "G", genLoc = "", genAnnee = "", genRep = "R", genTraits = "Y",
+      genCov = character(0), genMinimiser = character(0), genPrincipal = "Y",
+      genSI = 15, genAlpha = "0.05", genF = 1, genPoidsY = 50, genSvp = "symetrique",
+      genEchelle = FALSE, genType = "", genGroupe = "", genP1 = "P1", genP2 = "P2",
+      genPlanCroisement = "auto",
+      genEtiquettes = TRUE, genEtiqSize = 3, genPointSize = 2.5, genTitreSize = 15)
+    session$setInputs(genCalculer = 1)
+    g <- rv$res$par_trait$Y$griffing
+    expect_true(isTRUE(g$ok)); expect_identical(g$plan, "ligne_testeur")
+    expect_true(is.finite(rv$res$composantes$h2_strict[1]))
+    for (q in c("agc", "asc")) {
+      session$setInputs(genGraphique = q)
+      expect_silent(ggplot2::ggplot_build(graphique()))
+    }
+    # Le plan demande l'emporte sur celui que les croisements suggerent.
+    session$setInputs(genPlanCroisement = "diallele", genCalculer = 2)
+    expect_identical(rv$res$par_trait$Y$griffing$plan, "diallele")
+  })
+})
+
 test_that("Composantes de variance : H2, CV et precision coherents, G teste contre G x E", {
   d <- hstat_gen_preparer(.hstat_test_met(), "Variete", c("Rendement", "Fibre_pct"),
                           var_loc = "Loc", var_annee = "Annee", var_rep = "Bloc")$data
@@ -26485,7 +26584,7 @@ test_that("Selection genetique : la barre des analyses vient au-dessus des deux 
     expect_true(grepl(sprintf('data-value="%s"', k), resultats, fixed = TRUE), label = paste("panneau", k))
   }
   # Les onglets des resultats ne s'affichent plus : la barre les remplace.
-  expect_false(grepl("Diallèle de Griffing", resultats, fixed = TRUE))
+  expect_false(grepl("Aptitudes à la combinaison (AGC, ASC)", resultats, fixed = TRUE))
   # Le clic dans la barre change le panneau affiche.
   df <- .hstat_test_met()
   vals <- shiny::reactiveValues(data = df, resetSignal = 0)

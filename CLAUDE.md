@@ -12224,3 +12224,48 @@ que tout caractère mesuré peut l'être. L'argument de `hstat_gen_gyt()` s'appe
 et une synthèse qui la nomme. Le rendement reste proposé d'office quand une
 colonne le porte : ce n'est qu'une proposition.
 
+
+### Lignées × testeurs : l'AGC et l'ASC hors du diallèle (1.62.0)
+
+Demandé à l'écran : intégrer les calculs d'aptitude générale (AGC) et
+spécifique (ASC) à la combinaison. Le diallèle de Griffing les portait déjà ;
+ce qui manquait, c'est l'autre plan du sélectionneur, **lignées × testeurs**
+(Kempthorne 1957) : chaque lignée (femelle, Parent 1) croisée avec chaque
+testeur (mâle, Parent 2), deux groupes distincts. Le modèle de Griffing les
+mettait dans un même lot et ne séparait ni lignées, ni testeurs, ni L × T.
+
+`hstat_gen_ligne_testeur()` rend la **même forme** que `hstat_gen_griffing()`
+(`agc`, `croisements`, `anova`, `variances`, `baker`, `h2_strict`) : synthèse,
+h² au sens strict, classement des croisements, figures et export suivent sans
+une ligne de plus. Les parties communes — hétérosis, profil des AGC, sens des
+ASC, table des composantes — vivent dans `.hstat_gen_croisements_finir()` et
+`.hstat_gen_variances_ac()`, appelées par les deux.
+
+| Grandeur | Formule, sur les moyennes des croisements |
+|---|---|
+| AGC d'une lignée, d'un testeur | ȳi. − ȳ.., ȳ.j − ȳ.. |
+| ASC | ȳij − ȳi. − ȳ.j + ȳ.. |
+| erreurs-types | √(CMe / rt), √(CMe / rl), √(CMe / r) (Singh & Chaudhary 1985) |
+| σ²agc lignées, testeurs | (CM_L − CM_LT) / t, (CM_T − CM_LT) / l |
+| σ²agc moyenne | [((l−1)CM_L + (t−1)CM_T)/(l+t−2) − CM_LT] / (2lt − l − t) |
+
+Les F et les ddl sont ceux de `aov(Y ~ R + L * T)` sur les parcelles, au
+chiffre près, et le test le vérifie avec les erreurs-types et les composantes.
+Lignées et testeurs se rangent **chacun à part**, et la figure des AGC les met
+en deux panneaux : une lignée ne se compare pas à un testeur. La part de chaque
+source dans la variance des croisements (`Contribution_pct`) est donnée.
+
+Le plan se choisit (`genPlanCroisement`) : automatique par défaut, lu sur les
+croisements — des Parents 1 et des Parents 2 **disjoints**, au moins deux de
+chaque, c'est un plan lignées × testeurs ; un diallèle, même demi, fait figurer
+un même parent des deux côtés. Un plan demandé l'emporte : forcé en diallèle,
+un plan lignées × testeurs s'analyse comme un diallèle incomplet. Un parent des
+deux côtés, un croisement manquant (nommé) ou moins de deux lignées ou testeurs
+refusent le plan. Quatre mutations — erreurs-types échangées, détection sans
+l'intersection, rang commun aux deux groupes, variance des lignées divisée par
+l — sont attrapées.
+
+L'onglet s'appelle « Aptitudes à la combinaison (AGC, ASC) », les sélecteurs
+« Parent 1 (femelle, lignée) » et « Parent 2 (mâle, testeur) ». Les rôles
+s'écrivent « Lignée (Parent 1) » et « Testeur (Parent 2) » : « Lignée » seul
+est une modalité plausible d'une colonne de type de matériel.
