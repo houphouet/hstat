@@ -1609,9 +1609,14 @@ mod_genetique_ui <- function(id) {
             status = "success", solidHeader = TRUE, width = 12,
             shiny::selectInput(ns("genTraitAffiche"), "Caractère affiché", choices = NULL,
                                width = "100%"),
-            shiny::numericInput(ns("genDecimales"), "Décimales des tableaux",
-              value = HSTAT_GEN_DECIMALES_DEFAUT, min = 0, max = HSTAT_GEN_DECIMALES_MAX,
-              step = 1, width = "220px"),
+            shiny::checkboxInput(ns("genArrondir"), "Décimales des tableaux", value = FALSE),
+            shiny::conditionalPanel(
+              ns = ns, condition = "input.genArrondir == true",
+              shiny::numericInput(ns("genDecimales"), "Nombre de décimales :",
+                value = HSTAT_GEN_DECIMALES_DEFAUT, min = 0, max = HSTAT_GEN_DECIMALES_MAX,
+                step = 1, width = "220px")),
+            shiny::helpText(style = "font-size: 11px; color: #5f6b7a;",
+              "Si décoché, les tableaux affichent les valeurs sans arrondi."),
             shiny::tabsetPanel(id = ns("genOnglets"), type = "hidden",
               shiny::tabPanelBody("synthese",
                 shiny::br(), shiny::uiOutput(ns("genSyntheseUI")),
@@ -2395,12 +2400,15 @@ hstat_gen_figure <- function(quoi, res, trait, opt = list(etiq = TRUE, taille = 
 # Le nombre de decimales des tableaux, un seul reglage pour tout le module.
 HSTAT_GEN_DECIMALES_DEFAUT <- 3L
 HSTAT_GEN_DECIMALES_MAX <- 8L
-hstat_gen_decimales <- function(x)
+# Decoche : NA, les tableaux portent les valeurs sans arrondi.
+hstat_gen_decimales <- function(arrondir, x) {
+  if (!isTRUE(arrondir)) return(NA_integer_)
   hstat_borne_client(x, HSTAT_GEN_DECIMALES_DEFAUT, 0, HSTAT_GEN_DECIMALES_MAX)
+}
 
-# Un tableau affiche : les p-values en clair, le reste arrondi, les comptages
+# Un tableau affiche : les p-values en clair, le reste arrondi sur demande, les comptages
 # sans decimales.
-.hstat_gen_dt <- function(df, titre, digits = HSTAT_GEN_DECIMALES_DEFAUT) {
+.hstat_gen_dt <- function(df, titre, digits = NA_integer_) {
   if (is.null(df) || !nrow(df)) return(NULL)
   aff <- df
   for (k in names(aff)[grepl("^p$|^p_|_p$", names(aff))])
@@ -2409,7 +2417,7 @@ hstat_gen_decimales <- function(x)
     options = list(pageLength = 12, scrollX = TRUE, dom = "Bfrtip",
                    buttons = .hstat_dt_buttons(titre)),
     caption = htmltools::tags$caption(style = "caption-side: top; font-weight: 600;", titre))
-  hstat_dt_arrondi(d, aff, digits)
+  if (is.na(digits)) d else hstat_dt_arrondi(d, aff, digits)
 }
 
 # Une matrice de correlations en tableau.
@@ -2441,7 +2449,7 @@ HSTAT_GEN_CORREL_MAX <- 15L
 mod_genetique_server <- function(id, values) {
   shiny::moduleServer(id, function(input, output, session) {
     # Tous les tableaux du module lisent le meme reglage de decimales.
-    gen_dt <- function(df, titre) .hstat_gen_dt(df, titre, hstat_gen_decimales(input$genDecimales))
+    gen_dt <- function(df, titre) .hstat_gen_dt(df, titre, hstat_gen_decimales(input$genArrondir, input$genDecimales))
     ns <- session$ns
     rv <- shiny::reactiveValues(res = NULL, message = NULL)
 
@@ -2810,7 +2818,7 @@ mod_genetique_server <- function(id, values) {
       shiny::validate(shiny::need(!is.null(b) && nrow(b),
         tr("Aucune comparaison de génotypes calculable : il faut une erreur estimable (répétitions ou plusieurs environnements).")))
       hstat_posthoc_synthese(b, if (identical(input$genSynthDisp, "erreur_type")) "erreur_type" else "ecart_type",
-                             hstat_gen_decimales(input$genDecimales))
+                             hstat_gen_decimales(input$genArrondir, input$genDecimales))
     })
     synth_couleurs <- shiny::reactive({
       b <- rv$res$comp_blocs
@@ -3067,7 +3075,7 @@ mod_genetique_server <- function(id, values) {
         Pistes = ok(r$pistes)$table)
       if (!is.null(r$comp_blocs) && nrow(r$comp_blocs))
         l <- c(l, hstat_posthoc_synthese_feuilles(r$comp_blocs,
-                                                  hstat_gen_decimales(input$genDecimales)))
+                                                  hstat_gen_decimales(input$genArrondir, input$genDecimales)))
       hstat_tables_non_vides(l)
     }
     hstat_export_tables_handlers(output, "genT", tables_export,

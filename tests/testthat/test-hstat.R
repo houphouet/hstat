@@ -26636,14 +26636,18 @@ test_that("Selection genetique : le caractere principal n'est pas forcement le r
   })
 })
 
-test_that("Selection genetique : un seul reglage de decimales, sous le caractere affiche, pour tous les tableaux", {
+test_that("Selection genetique : decimales des tableaux, decochees les valeurs reelles, cochees un nombre choisi", {
   skip_if_not_installed("DT")
   html <- as.character(mod_genetique_ui("g"))
   ids <- regmatches(html, gregexpr('id="g-[A-Za-z0-9_]+"', html))[[1]]
   ids <- sub('^id="g-', "", sub('"$', "", ids))
   i <- match("genTraitAffiche", ids)
-  # Juste sous le caractere affiche : c'est le champ qui le suit.
-  expect_identical(ids[i + 1L], "genDecimales")
+  # Juste sous le caractere affiche : la case, puis le nombre qu'elle ouvre.
+  expect_identical(ids[i + 1L], "genArrondir")
+  expect_identical(ids[i + 2L], "genDecimales")
+  expect_match(html, 'data-display-if="input.genArrondir == true"', fixed = TRUE)
+  # Decochee par defaut, comme dans les tests statistiques.
+  expect_false(grepl('id="g-genArrondir" checked', html, fixed = TRUE))
   # Pas de doublon : la synthese n'a plus son propre reglage.
   expect_false("genSynthDec" %in% ids)
   expect_equal(sum(ids == "genDecimales"), 1L)
@@ -26661,6 +26665,8 @@ test_that("Selection genetique : un seul reglage de decimales, sous le caractere
     }
     NA_integer_
   }
+  expect_true(is.na(hstat_gen_decimales(FALSE, 4)))
+  expect_true(is.na(hstat_gen_decimales(NULL, 4)))
   df <- .hstat_test_met()
   vals <- shiny::reactiveValues(data = df, resetSignal = 0)
   shiny::testServer(mod_genetique_server, args = list(values = vals), {
@@ -26671,10 +26677,16 @@ test_that("Selection genetique : un seul reglage de decimales, sous le caractere
       genGroupe = "", genP1 = "", genP2 = "", genSynthDisp = "ecart_type")
     session$setInputs(genCalculer = 1)
     cp <- rv$res$composantes
+    # Decochee : aucun arrondi, ni dans les tableaux ni dans la synthese.
+    session$setInputs(genArrondir = FALSE, genDecimales = 2)
+    expect_true(is.na(decimales(gen_dt(cp, "x"), "H2_moyenne", names(cp))))
+    cel <- as.character(synth_tabs()[[1]][1, 2])
+    expect_gt(nchar(sub(" .*", "", sub("^[^.]*\\.", "", cel))), 2L)
+    # Cochee : le nombre choisi.
+    session$setInputs(genArrondir = TRUE)
     for (k in c(1L, 5L)) {
       session$setInputs(genDecimales = k)
       expect_identical(decimales(gen_dt(cp, "x"), "H2_moyenne", names(cp)), k)
-      # La synthese lit le meme reglage.
       cel <- as.character(synth_tabs()[[1]][1, 2])
       expect_identical(nchar(sub(" .*", "", sub("^[^.]*\\.", "", cel))), k)
     }
@@ -26684,7 +26696,7 @@ test_that("Selection genetique : un seul reglage de decimales, sous le caractere
     session$setInputs(genDecimales = 99)
     expect_identical(decimales(gen_dt(cp, "x"), "H2_moyenne", names(cp)), HSTAT_GEN_DECIMALES_MAX)
   })
-  # Les colonnes ne sont plus arrondies au calcul : c'est l'affichage qui decide.
+  # Les colonnes ne sont pas arrondies au calcul : c'est l'affichage qui decide.
   m <- matrix(c(1, 0.123456789, 0.123456789, 1), 2, dimnames = list(c("a", "b"), c("a", "b")))
   expect_equal(.hstat_gen_mat_df(m)$a[2], 0.123456789)
 })

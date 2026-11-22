@@ -12321,3 +12321,14 @@ Demandé à l'écran : « Épaisseur du contour des barres » (`genContour`, 0 �
 0,3 par défaut) règle le trait des six figures en barres ; 0 l'efface
 (`colour = NA`). Deux mutations (palette ignorée, contour figé) font échouer
 le test.
+
+### Les décimales des tableaux se cochent, comme dans les tests statistiques (1.65.0)
+
+Demandé à l'écran : le réglage fonctionne comme « Arrondir les résultats » des
+tests statistiques. La case « Décimales des tableaux » (`genArrondir`) est
+**décochée** par défaut : les tableaux et la synthèse portent les valeurs
+réelles, sans arrondi. Cochée, elle ouvre « Nombre de décimales »
+(`genDecimales`, 3 par défaut, 0 à 8). `hstat_gen_decimales(arrondir, x)` rend
+`NA` tant que la case est décochée, et `.hstat_gen_dt()` ne pose alors aucun
+`formatRound`. Le test exige l'absence d'arrondi décochée, puis le nombre choisi
+cochée, sur les tableaux comme sur la synthèse.
