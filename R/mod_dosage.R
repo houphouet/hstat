@@ -2025,7 +2025,12 @@ mod_dosage_server <- function(id, values) {
       saisie(d)
     })
 
-    shiny::observeEvent(input$dilVider, saisie(hstat_dilution_table_vide(0)))
+    # Vider la saisie vide aussi les resultats : une gamme affichee sans les
+    # produits qui l'ont produite se lirait comme un calcul en cours.
+    shiny::observeEvent(input$dilVider, {
+      saisie(hstat_dilution_table_vide(0))
+      dilution(NULL)
+    })
 
     output$dilSaisie <- DT::renderDT({
       DT::datatable(hstat_dilution_affichage(saisie()), rownames = FALSE,
@@ -2048,7 +2053,8 @@ mod_dosage_server <- function(id, values) {
       saisie(d)
     })
 
-    dilution <- shiny::eventReactive(input$dilCalculer, hstat_dilution_calcul(saisie()))
+    dilution <- shiny::reactiveVal(NULL)
+    shiny::observeEvent(input$dilCalculer, dilution(hstat_dilution_calcul(saisie())))
 
     # Deux bandeaux distincts : l'echec (rien n'est calcule) et l'avertissement
     # (le calcul tient, mais le plan de gamme ne se realise pas a la paillasse).

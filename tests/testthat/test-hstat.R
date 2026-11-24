@@ -26887,6 +26887,13 @@ test_that("Solutions filles : chaque matiere active reprise a sa gamme, sa class
     expect_true(all(is.na(d$Concentration_fille_conv[d$Produit == "Deltamethrin"])))
     # Une feuille par matiere active a l'export.
     expect_true(all(c("Deltamethrin", "Spinosad") %in% names(dil_tables())))
+    # Vider la saisie vide aussi les solutions filles calculees.
+    session$setInputs(dilVider = 1)
+    expect_equal(nrow(saisie()), 0L)
+    expect_null(dilution())
+    expect_null(dil_brut())
+    expect_null(dil_tables())
+    expect_error(output$dilTable, "Ajoutez un produit")
   })
   # La conversion pour tout le tableau reste celle d'avant.
   x <- hstat_dilution_calcul(data.frame(Produit = "P", Matiere_active = "M",
