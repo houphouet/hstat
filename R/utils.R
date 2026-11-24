@@ -1280,6 +1280,7 @@ interpret_test_results <- function(test_type, p_value, test_object = NULL) {
          "durbin"           = trf("Le test de Durbin montre une différence %s entre les périodes (p = %s)", significance, round(p_value, 8)),
          "kruskal.test"     = trf("Le test de Kruskal-Wallis montre une différence %s entre les groupes (p = %s)", significance, round(p_value, 8)),
          "scheirerRayHare"  = trf("Le test de Scheirer-Ray-Hare montre une différence %s entre les groupes (p = %s)", significance, round(p_value, 8)),
+         "art"              = trf("L'ART-ANOVA montre une différence %s pour cet effet (p = %s)", significance, round(p_value, 8)),
          "manova"           = trf("La MANOVA montre une différence multivariée %s entre les groupes (p = %s)", significance, round(p_value, 8)),
          "permanova"        = trf("La PERMANOVA montre une différence multivariée %s entre les groupes (p = %s)", significance, round(p_value, 8)),
          "chisq.test"       = trf("Le test du chi² montre une association %s entre les variables (p = %s)", significance, round(p_value, 8)),
@@ -3679,6 +3680,153 @@ hstat_pmat_comparaisons <- function(etiquettes, p, niveaux, sep = "-") {
   pmat
 }
 
+# ART-ANOVA (Wobbrock et al. 2011) et contrastes ART-C (Elkin et al. 2021), par
+# ARTool. Le modele est TOUJOURS factoriel complet : ARTool l'exige.
+HSTAT_ART_FACTEURS_MAX <- 5L
+
+# Les noms de colonnes et les modalites sont recodes (f1, n1...) : une etiquette
+# de contraste se lit alors sans ambiguite, quel que soit le nom d'origine.
+.hstat_art_donnees <- function(df, var, facteurs) {
+  facteurs <- unique(as.character(facteurs))
+  refus <- function(m) list(ok = FALSE, motif = m)
+  if (!length(facteurs)) return(refus(tr("Choisissez au moins un facteur.")))
+  if (length(facteurs) > HSTAT_ART_FACTEURS_MAX)
+    return(refus(trf("L'ART-ANOVA ajuste un modèle par effet : %d facteurs au plus (%d choisis).",
+                     HSTAT_ART_FACTEURS_MAX, length(facteurs))))
+  if (!is.data.frame(df) || !all(c(var, facteurs) %in% names(df)))
+    return(refus(tr("Colonnes introuvables dans les données.")))
+  codes <- paste0("f", seq_along(facteurs))
+  d <- data.frame(y = suppressWarnings(as.numeric(df[[var]])))
+  for (k in seq_along(facteurs)) {
+    x <- df[[facteurs[k]]]
+    if (inherits(x, c("Date", "POSIXct", "POSIXlt"))) x <- format(x, "%Y-%m-%d")
+    # Un facteur numerique garde l'ordre des nombres.
+    d[[codes[k]]] <- if (is.factor(x)) x else factor(x)
+  }
+  garde <- is.finite(d$y) & stats::complete.cases(d)
+  d <- d[garde, , drop = FALSE]
+  if (nrow(d) < 4)
+    return(refus(tr("Moins de quatre observations complètes : l'ART-ANOVA ne peut pas être ajustée.")))
+  if (length(unique(d$y)) < 2)
+    return(refus(tr("Toutes les valeurs de la variable réponse sont identiques : rien à comparer.")))
+  niveaux <- list()
+  for (k in seq_along(codes)) {
+    f <- droplevels(d[[codes[k]]])
+    if (nlevels(f) < 2)
+      return(refus(trf("Le facteur « %s » n'a qu'une modalité après retrait des valeurs manquantes.",
+                       facteurs[k])))
+    niveaux[[codes[k]]] <- levels(f)
+    d[[codes[k]]] <- factor(paste0("n", as.integer(f)),
+                            levels = paste0("n", seq_len(nlevels(f))))
+  }
+  list(ok = TRUE, data = d, codes = codes, facteurs = facteurs,
+       niveaux = niveaux, ecartees = sum(!garde))
+}
+
+# Nom d'origine d'un terme code (« f1:f2 » -> « A:B »).
+.hstat_art_terme <- function(terme, codes, facteurs) {
+  vapply(strsplit(as.character(terme), ":", fixed = TRUE), function(p)
+    paste(facteurs[match(p, codes)], collapse = ":"), character(1))
+}
+
+# ART-ANOVA factorielle complete : une ligne par effet et interaction.
+hstat_art_anova <- function(df, var, facteurs) {
+  if (!requireNamespace("ARTool", quietly = TRUE))
+    return(list(ok = FALSE, motif = hstat_pkg_manquant("ARTool", "ART-ANOVA")))
+  prep <- .hstat_art_donnees(df, var, facteurs)
+  if (!isTRUE(prep$ok)) return(prep)
+  form <- stats::as.formula(paste("y ~", paste(prep$codes, collapse = " * ")))
+  m <- tryCatch(suppressMessages(ARTool::art(form, data = prep$data)),
+                error = function(e) e)
+  if (inherits(m, "error")) return(list(ok = FALSE, motif = hstat_err_fr(m)))
+  a <- tryCatch(as.data.frame(suppressMessages(stats::anova(m))), error = function(e) e)
+  if (inherits(a, "error")) return(list(ok = FALSE, motif = hstat_err_fr(a)))
+  tab <- data.frame(
+    Facteur = .hstat_art_terme(a$Term, prep$codes, prep$facteurs),
+    Terme = as.character(a$Term),
+    Statistique = a[["F value"]],
+    ddl_num = a$Df, ddl_den = a$Df.res,
+    p_value = a[["Pr(>F)"]],
+    stringsAsFactors = FALSE)
+  list(ok = TRUE, table = tab, modele = m, prep = prep)
+}
+
+# Le test global d'un effet, sous la forme de hstat_omnibus().
+hstat_art_omnibus <- function(fit, facteur) {
+  vide <- list(p = NA_real_, test = "ART-ANOVA", statistique = NA_real_,
+               ddl = NA_character_, message = NULL)
+  if (!isTRUE(fit$ok)) { vide$message <- fit$motif; return(vide) }
+  ligne <- fit$table[fit$table$Facteur == facteur, , drop = FALSE]
+  if (!nrow(ligne)) return(vide)
+  list(p = ligne$p_value[1], test = "ART-ANOVA", statistique = ligne$Statistique[1],
+       ddl = paste(ligne$ddl_num[1], ",", ligne$ddl_den[1]), message = NULL)
+}
+
+.hstat_art_lettres <- function(pmat) {
+  noms <- rownames(pmat)
+  if (length(noms) < 2) return(stats::setNames("a", noms))
+  multcompView::multcompLetters(pmat, threshold = 0.05)$Letters[noms]
+}
+
+# ART-C d'un effet principal : comparaisons deux a deux, ajustees, et lettres.
+hstat_art_posthoc <- function(fit, facteur, adjust = "holm") {
+  if (!isTRUE(fit$ok)) return(list(ok = FALSE, motif = fit$motif))
+  prep <- fit$prep
+  code <- prep$codes[match(facteur, prep$facteurs)]
+  if (is.na(code)) return(list(ok = FALSE, motif = tr("Facteur absent du modèle ART.")))
+  ct <- tryCatch(suppressMessages(as.data.frame(
+    ARTool::art.con(fit$modele, code, adjust = adjust))), error = function(e) e)
+  if (inherits(ct, "error")) return(list(ok = FALSE, motif = hstat_err_fr(ct)))
+  niv <- levels(prep$data[[code]])
+  orig <- stats::setNames(prep$niveaux[[code]], niv)
+  pmat <- hstat_pmat_comparaisons(as.character(ct$contrast), ct$p.value, niv, sep = " - ")
+  lettres <- .hstat_art_lettres(pmat)
+  paires <- do.call(rbind, lapply(seq_len(nrow(ct)), function(i) {
+    p <- hstat_paire_niveaux(as.character(ct$contrast[i]), niv, " - ")
+    if (is.null(p)) return(NULL)
+    data.frame(Niveau1 = orig[[p[1]]], Niveau2 = orig[[p[2]]],
+               Estimation = ct$estimate[i], Erreur_type = ct$SE[i], ddl = ct$df[i],
+               t = ct$t.ratio[i], p_ajustee = ct$p.value[i], stringsAsFactors = FALSE)
+  }))
+  groups <- data.frame(groups = as.character(lettres), stringsAsFactors = FALSE)
+  groups[[facteur]] <- unname(orig[names(lettres)])
+  list(ok = TRUE, groups = groups, paires = paires, ajustement = adjust,
+       omnibus = hstat_art_omnibus(fit, facteur))
+}
+
+# ART-C d'un effet simple : facteur1 a un niveau de facteur2, sur le terme
+# facteur1:facteur2 du modele, l'ajustement portant sur les paires du niveau.
+hstat_art_effet_simple <- function(fit, facteur1, facteur2, niveau2, adjust = "holm") {
+  if (!isTRUE(fit$ok)) return(list(ok = FALSE, motif = fit$motif))
+  prep <- fit$prep
+  c1 <- prep$codes[match(facteur1, prep$facteurs)]
+  c2 <- prep$codes[match(facteur2, prep$facteurs)]
+  if (is.na(c1) || is.na(c2)) return(list(ok = FALSE, motif = tr("Facteur absent du modèle ART.")))
+  n2 <- levels(prep$data[[c2]])[match(as.character(niveau2), prep$niveaux[[c2]])]
+  if (is.na(n2)) return(list(ok = FALSE, motif = tr("Niveau absent du modèle ART.")))
+  ordre <- c(c1, c2)[order(match(c(c1, c2), prep$codes))]
+  ct <- tryCatch(suppressMessages(as.data.frame(
+    ARTool::art.con(fit$modele, paste(ordre, collapse = ":"), adjust = "none"))),
+    error = function(e) e)
+  if (inherits(ct, "error")) return(list(ok = FALSE, motif = hstat_err_fr(ct)))
+  n1 <- levels(prep$data[[c1]])
+  cellule <- function(a) if (identical(ordre[1], c1)) paste(a, n2, sep = ",") else paste(n2, a, sep = ",")
+  toutes <- as.vector(outer(levels(prep$data[[ordre[1]]]), levels(prep$data[[ordre[2]]]),
+                            function(a, b) paste(a, b, sep = ",")))
+  pmat <- hstat_pmat_comparaisons(as.character(ct$contrast), ct$p.value, toutes, sep = " - ")
+  sous <- pmat[cellule(n1), cellule(n1), drop = FALSE]
+  dimnames(sous) <- list(n1, n1)
+  haut <- upper.tri(sous)
+  sous[haut] <- stats::p.adjust(sous[haut], method = adjust)
+  sous[lower.tri(sous)] <- t(sous)[lower.tri(sous)]
+  lettres <- .hstat_art_lettres(sous)
+  groups <- data.frame(groups = as.character(lettres), stringsAsFactors = FALSE)
+  groups[[facteur1]] <- prep$niveaux[[c1]][match(names(lettres), n1)]
+  pmat_orig <- sous
+  dimnames(pmat_orig) <- list(prep$niveaux[[c1]], prep$niveaux[[c1]])
+  list(ok = TRUE, groups = groups, pmat = pmat_orig, ajustement = adjust)
+}
+
 #' Construit la matrice de p-values à partir d'un data.frame de paires
 #' (utilisé pour générer les lettres CLD via multcompView)
 #' @param pairs_df data.frame avec colonnes Niveau1, Niveau2, p_adj
@@ -4250,7 +4398,7 @@ hstat_dec_affichage <- function(round_on, decimals = 2) {
 
 # SYNTHESE POST-HOC « comme dans un article ».
 HSTAT_POSTHOC_SYMBOLES <- c("ANOVA" = "F", "ANOVA de Welch" = "W",
-                            "Kruskal-Wallis" = "H")
+                            "Kruskal-Wallis" = "H", "ART-ANOVA" = "F")
 
 # LE COEFFICIENT DE VARIATION D'UNE COLONNE est celui de l'essai : l'ecart-type
 # INTRA-GROUPE mis en commun, rapporte a la moyenne generale.
