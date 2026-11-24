@@ -217,6 +217,7 @@ mod_tests_ui <- function(id) {
                                        shiny::HTML(tr("Le « Test de Wilcoxon » ci-dessus compare deux groupes indépendants (Mann-Whitney). Deux mesures sur la même unité relèvent des tests appariés : Wilcoxon apparié si les différences sont symétriques, test du signe sinon."))),
                                    shiny::actionButton(ns("testKruskal"),         "Test de Kruskal-Wallis",     class = "btn-primary btn-block", icon = shiny::icon("check")),
                                    shiny::actionButton(ns("testScheirerRayHare"), "Test de Scheirer-Ray-Hare",  class = "btn-primary btn-block", icon = shiny::icon("check")),
+                                   shiny::actionButton(ns("testART"), "ART-ANOVA (rangs alignés)", class = "btn-primary btn-block", icon = shiny::icon("check")),
                                    shiny::actionButton(ns("testRMNonParam"), "Non paramétrique répété",  class = "btn-primary btn-block", icon = shiny::icon("repeat")),
                                    shiny::actionButton(ns("testPERMANOVA"),       "PERMANOVA (>= 2 réponses)",  class = "btn-primary btn-block", icon = shiny::icon("layer-group"))
                                ),
@@ -879,6 +880,7 @@ mod_posthoc_ui <- function(id) {
                                           "Dunn" = "dunn",
                                           "Conover" = "conover",
                                           "Nemenyi" = "nemenyi",
+                                          "ART-C (contrastes de l'ART-ANOVA)" = "artc",
                                           "PERMANOVA pairwise (multivarié, >= 2 réponses)" = "permanova"
                                         ),
                                         selected = "dunn"
@@ -889,7 +891,14 @@ mod_posthoc_ui <- function(id) {
                                                     "BH (FDR)" = "BH", "BY" = "BY",
                                                     "Hochberg" = "hochberg", "Hommel" = "hommel",
                                                     "Aucun" = "none"),
-                                        selected = "holm")
+                                        selected = "holm"),
+                            shiny::conditionalPanel(
+                              ns = ns,
+                              condition = "input.multiTestNonParam == 'artc'",
+                              shiny::div(style = "font-size:11px;color:#5f6b7a;margin-top:-6px;margin-bottom:8px;",
+                                  shiny::icon("info-circle"), " ",
+                                  shiny::HTML(tr("ART-C compare les modalités sur le modèle ART factoriel complet de tous les facteurs choisis ; l'ajustement ci-dessus porte sur les comparaisons de chaque effet.")))
+                            )
                           ),
                           # Option retro-transformation -- visible uniquement si des variables
                           # transformées sont sélectionnées dans multiResponse
@@ -3285,6 +3294,49 @@ mod_tests_server <- function(id, values) {
     }
   })
   
+  # ART-ANOVA : modele factoriel complet, un nombre quelconque de facteurs.
+  shiny::observeEvent(input$testART, {
+    shiny::req(input$responseVar, input$factorVar)
+    results_list <- list()
+    motifs <- character(0)
+    for (var in input$responseVar) {
+      fit <- hstat_art_anova(values$filteredData, var, input$factorVar)
+      if (!isTRUE(fit$ok)) {
+        motifs <- c(motifs, paste0(var, " : ", fit$motif))
+        results_list[[var]] <- data.frame(
+          Test = "ART-ANOVA", Variable = var,
+          Facteur = paste(input$factorVar, collapse = " * "),
+          Statistique = NA, ddl = NA, p_value = NA,
+          Interpretation = fit$motif, stringsAsFactors = FALSE)
+        next
+      }
+      tab <- fit$table
+      if (isTRUE(fit$prep$ecartees > 0))
+        motifs <- c(motifs, trf("%s : %d ligne(s) incomplète(s) écartée(s).", var, fit$prep$ecartees))
+      for (i in seq_len(nrow(tab))) {
+        results_list[[paste(var, tab$Facteur[i], sep = "_")]] <- data.frame(
+          Test = "ART-ANOVA", Variable = var, Facteur = tab$Facteur[i],
+          Statistique = round(tab$Statistique[i], 4),
+          ddl = paste(tab$ddl_num[i], ",", tab$ddl_den[i]),
+          p_value = tab$p_value[i],
+          Interpretation = interpret_test_results("art", tab$p_value[i]),
+          stringsAsFactors = FALSE)
+      }
+    }
+    if (length(motifs))
+      shiny::showNotification(paste(motifs, collapse = "\n"), type = "warning", duration = 10)
+    if (length(results_list)) {
+      values$testResultsDF <- do.call(rbind, results_list)
+      values$normalityResults <- NULL
+      values$homogeneityResults <- NULL
+      values$currentTestType <- "non-parametric"
+      if (length(input$factorVar) > 1)
+        shiny::showNotification(
+          tr("L'ART-ANOVA ajuste toujours le modèle factoriel complet : tous les effets et toutes leurs interactions sont testés."),
+          type = "message", duration = 6)
+    }
+  })
+
   # ANOVA DE WELCH : la reference des methodes a variances inegales.
   shiny::observeEvent(input$testANOVAWelch, {
     shiny::req(input$responseVar, input$factorVar)
@@ -6183,7 +6235,13 @@ mod_tests_server <- function(id, values) {
           groups[[factor1]] <- names(groups_letters)
         }
       } else {  # NON-PARAMÉTRIQUE 
-        if (test_method == "kruskal") {
+        if (test_method == "artc") {
+          fit_se <- hstat_art_anova(df, var, c(factor1, factor2))
+          se <- hstat_art_effet_simple(fit_se, factor1, factor2, level,
+                                       input$multiNonParamAdjust %||% "holm")
+          if (!isTRUE(se$ok)) return(NULL)
+          groups <- se$groups
+        } else if (test_method == "kruskal") {
           mc <- agricolae::kruskal(df_subset[[var]], df_subset[[factor1]], group = TRUE)
           groups <- mc$groups
           colnames(groups)[1:2] <- c("means", "groups")
@@ -6218,7 +6276,9 @@ mod_tests_server <- function(id, values) {
       if (is.null(groups)) return(NULL)
       
       # MEME PROTECTION QUE LES COMPARAISONS MULTIPLES, et pour la meme raison.
-      omni_se <- hstat_omnibus(
+      omni_se <- if (identical(test_type, "nonparam") && identical(test_method, "artc"))
+        hstat_art_omnibus(hstat_art_anova(df_subset, var, factor1), factor1) else
+        hstat_omnibus(
         df_subset, var, factor1,
         parametric = identical(test_type, "param"),
         variances = hstat_omnibus_variances(test_method))
@@ -6423,9 +6483,11 @@ mod_tests_server <- function(id, values) {
       }
     }
     
+    art_fits <- list()
     for (var in input$multiResponse) {
       
       for (fvar in input$multiFactor) {
+        art_omni <- NULL
         tryCatch({
           # Guard: variable réponse doit être numérique
           if (!is.numeric(df[[var]])) {
@@ -6549,6 +6611,19 @@ mod_tests_server <- function(id, values) {
                 colnames(gdf)[1:2] <- c("means", "groups")
                 gdf[[fvar]] <- rownames(gdf); gdf
               })
+            } else if (input$multiTestNonParam == "artc") {
+              # UN SEUL MODELE ART par variable, sur tous les facteurs choisis.
+              if (is.null(art_fits[[var]]))
+                art_fits[[var]] <- hstat_art_anova(df, var, input$multiFactor)
+              ph <- hstat_art_posthoc(art_fits[[var]], fvar,
+                                      input$multiNonParamAdjust %||% "holm")
+              if (!isTRUE(ph$ok)) {
+                shiny::showNotification(paste0(var, " x ", fvar, " : ", ph$motif),
+                                        type = "warning", duration = 10)
+                next
+              }
+              groups <- ph$groups
+              art_omni <- ph$omnibus
             } else if (input$multiTestNonParam == "nemenyi") {
               groups <- tryCatch({
                 mc <- PMCMRplus::kwAllPairsNemenyiTest(df_var[[var]], df_var[[fvar]])
@@ -6567,7 +6642,8 @@ mod_tests_server <- function(id, values) {
           }
           
           # LE TEST GLOBAL D'ABORD.
-          omni <- hstat_omnibus(
+          # ART-C se juge sur l'effet de l'ART-ANOVA, pas sur Kruskal-Wallis.
+          omni <- if (!is.null(art_omni)) art_omni else hstat_omnibus(
             if (exists("df_var") && !is.null(df_var)) df_var else df,
             var, fvar, parametric = identical(input$testType, "param"),
             variances = hstat_omnibus_variances(input$multiTest))
@@ -6661,6 +6737,12 @@ mod_tests_server <- function(id, values) {
                 if (!is.na(pos)) {
                   interaction_pvalue <- anova_res[pos, "Pr(>F)"]
                 }
+              }
+            } else if (identical(input$multiTestNonParam, "artc")) {
+              fit_i <- hstat_art_anova(df_temp, var, c(fvar1, fvar2))
+              if (isTRUE(fit_i$ok)) {
+                li <- fit_i$table[fit_i$table$Facteur == interaction_term, , drop = FALSE]
+                if (nrow(li)) interaction_pvalue <- li$p_value[1]
               }
             } else { 
               
@@ -7578,7 +7660,7 @@ mod_tests_server <- function(id, values) {
     } else {
       switch(input$multiTestNonParam %||% "dunn",
              kruskal = "Kruskal-Wallis", dunn = "Dunn", conover = "Conover",
-             nemenyi = "Nemenyi", permanova = "PERMANOVA", input$multiTestNonParam)
+             nemenyi = "Nemenyi", artc = "ART-C", permanova = "PERMANOVA", input$multiTestNonParam)
     }
     adj_used <- if (is_param) input$multiParamAdjust %||% "holm" else input$multiNonParamAdjust %||% "holm"
     adj_lab <- switch(adj_used, holm = "Holm", bonferroni = "Bonferroni", BH = "BH (FDR)",

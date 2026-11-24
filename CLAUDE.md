@@ -12383,3 +12383,44 @@ Demandé à l'écran : après « Vider le tableau » des produits saisis, la bo�
 produits qui l'ont produite, que l'export emportait aussi. Le résultat est un
 `reactiveVal` posé par « Calculer » et remis à `NULL` par « Vider » ; le tableau
 retombe sur son invite, et les téléchargements sur leur fichier de motif.
+
+## ART-ANOVA et ART-C, par ARTool (1.67.0)
+
+Demandé à l'écran : sous Scheirer-Ray-Hare, une ART-ANOVA qui prenne plus de
+deux facteurs, et son post-hoc ART-C avec ajustement. Le calcul vit dans le
+socle (`R/utils.R`) :
+
+| Fonction | Rôle |
+|---|---|
+| `hstat_art_anova()` | `ARTool::art()` sur le plan factoriel **complet** des facteurs choisis, puis `anova()` : une ligne par effet et par interaction |
+| `hstat_art_posthoc()` | ART-C d'un effet principal (`art.con(m, facteur, adjust =)`), comparaisons, lettres, et le test global de l'effet |
+| `hstat_art_effet_simple()` | ART-C d'un effet simple sur le terme `f1:f2`, l'ajustement portant sur les seules paires du niveau fixé |
+| `hstat_art_omnibus()` | le test global d'un effet, sous la forme de `hstat_omnibus()` |
+
+Quatre décisions, chacune testée :
+
+1. **Le modèle est toujours factoriel complet** : ARTool refuse un modèle
+   additif (« Model must include all combinations of interactions »). La case
+   « Inclure les interactions » ne le concerne donc pas, et une notification le
+   dit. Au-delà de `HSTAT_ART_FACTEURS_MAX` (5) facteurs, refus nommé : ART
+   ajuste un modèle aligné par effet, soit 2^k − 1.
+2. **Colonnes et modalités sont recodées** (`f1`, `n1`…) avant l'ajustement :
+   emmeans met entre parenthèses une modalité qui porte un tiret (« (T-1) »),
+   et l'étiquette de contraste ne se rapprocherait plus des niveaux. Les noms
+   d'origine reviennent sur les tableaux. Un facteur numérique garde l'ordre
+   des nombres.
+3. **ART-C se protège par l'effet de l'ART-ANOVA**, pas par Kruskal-Wallis :
+   `Test_global` vaut « ART-ANOVA » et la synthèse écrit F. Les effets
+   principaux sont comparés sur un seul modèle par variable, de **tous** les
+   facteurs choisis ; l'analyse des interactions ajuste le modèle à deux
+   facteurs de la paire, comme le fait la branche paramétrique.
+4. **L'ajustement de l'effet simple porte sur ses paires**, pas sur toutes les
+   cellules : `art.con(..., adjust = "none")`, puis `p.adjust` sur la
+   sous-matrice du niveau. Le test compare les p-values elles-mêmes — sur le
+   jeu d'essai les lettres coïncident avec ou sans ajustement.
+
+Les résultats sont confrontés à `ARTool::anova()` et `ARTool::art.con()` au
+chiffre près ; quatre mutations (ajustement ignoré sur l'effet principal, sur
+l'effet simple, ajustement sur toutes les cellules, protection par
+Kruskal-Wallis) sont attrapées. ARTool est installé ici depuis le miroir CRAN
+de GitHub (0.11.2).

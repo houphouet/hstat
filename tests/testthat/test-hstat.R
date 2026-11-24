@@ -22311,7 +22311,7 @@ test_that("les tests paramétriques sont verts, les non paramétriques bleus", {
   param <- c("testT", "testTStudent", "testTPaired", "testANOVA", "testANOVAWelch",
              "testMANOVA", "testLM", "testGLM", "testLMM", "testGLMM", "testRMAnova")
   nonparam <- c("testWilcox", "testWilcoxPaired", "testSignPaired", "testKruskal",
-                "testScheirerRayHare", "testRMNonParam", "testPERMANOVA")
+                "testScheirerRayHare", "testART", "testRMNonParam", "testPERMANOVA")
   for (id in param) {
     cl <- .hstat_classe_de(html, paste0("tests-", id))
     expect_true(grepl("btn-success", cl, fixed = TRUE), info = id)
@@ -26903,4 +26903,126 @@ test_that("Solutions filles : chaque matiere active reprise a sa gamme, sa class
   expect_equal(y$Volume_a_prelever_conv, 100)
   expect_equal(y$Concentration_fille_conv, 100)
   expect_identical(y$Unite_volume_conv, "ml")
+})
+
+test_that("ART-ANOVA : modèle factoriel complet à trois facteurs, identique à ARTool", {
+  skip_if_not_installed("ARTool")
+  set.seed(1)
+  d <- expand.grid(Trt = c("T-1", "T 2", "T(3)"), Bloc = c("b1", "b2"),
+                   Sol = c(10, 2), r = 1:4, stringsAsFactors = FALSE)
+  d$y <- stats::rexp(nrow(d)) + as.integer(factor(d$Trt)) * 0.8
+  f <- hstat_art_anova(d, "y", c("Trt", "Bloc", "Sol"))
+  expect_true(f$ok)
+  # Les sept effets du plan complet, sous leurs noms d'origine.
+  expect_identical(f$table$Facteur,
+    c("Trt", "Bloc", "Sol", "Trt:Bloc", "Trt:Sol", "Bloc:Sol", "Trt:Bloc:Sol"))
+  # Les noms recodés ne changent rien au calcul.
+  dd <- d; for (v in c("Trt", "Bloc", "Sol")) dd[[v]] <- factor(dd[[v]])
+  m <- ARTool::art(y ~ Trt * Bloc * Sol, data = dd)
+  ref <- stats::anova(m)
+  expect_equal(f$table$Statistique, ref[["F value"]], tolerance = 1e-10)
+  expect_equal(f$table$p_value, ref[["Pr(>F)"]], tolerance = 1e-10)
+  # Au-delà du plafond, un refus nommé.
+  d$D <- d$E <- d$G <- rep(c("x", "y"), length.out = nrow(d))
+  r <- hstat_art_anova(d, "y", c("Trt", "Bloc", "Sol", "D", "E", "G"))
+  expect_false(r$ok)
+  expect_match(r$motif, "5")
+  # Une réponse constante ne s'ajuste pas.
+  d$y <- 1
+  expect_false(hstat_art_anova(d, "y", "Trt")$ok)
+})
+
+test_that("ART-C : contrastes ajustés d'ARTool, effets principaux et simples", {
+  skip_if_not_installed("ARTool")
+  skip_if_not_installed("multcompView")
+  set.seed(1)
+  d <- expand.grid(Trt = c("T-1", "T 2", "T(3)"), Bloc = c("b1", "b2"),
+                   r = 1:6, stringsAsFactors = FALSE)
+  d$y <- stats::rexp(nrow(d)) + as.integer(factor(d$Trt)) * 0.8
+  f <- hstat_art_anova(d, "y", c("Trt", "Bloc"))
+  dd <- d; dd$Trt <- factor(dd$Trt); dd$Bloc <- factor(dd$Bloc)
+  m <- ARTool::art(y ~ Trt * Bloc, data = dd)
+  for (adj in c("holm", "bonferroni", "none")) {
+    ph <- hstat_art_posthoc(f, "Trt", adj)
+    ref <- suppressMessages(as.data.frame(ARTool::art.con(m, "Trt", adjust = adj)))
+    expect_equal(sort(ph$paires$p_ajustee), sort(ref$p.value), tolerance = 1e-10)
+  }
+  # L'ajustement change les p-values : sinon le réglage ne ferait rien.
+  expect_false(isTRUE(all.equal(hstat_art_posthoc(f, "Trt", "none")$paires$p_ajustee,
+                                hstat_art_posthoc(f, "Trt", "bonferroni")$paires$p_ajustee)))
+  ph <- hstat_art_posthoc(f, "Trt", "holm")
+  expect_setequal(ph$groups$Trt, c("T-1", "T 2", "T(3)"))
+  expect_equal(ph$omnibus$test, "ART-ANOVA")
+  expect_equal(ph$omnibus$p, f$table$p_value[f$table$Facteur == "Trt"])
+  # Effet simple : les paires du niveau b2, ajustées entre elles seulement.
+  # Des modalités sans tiret : emmeans en met un entre parenthèses, et
+  # l'étiquette de référence ne se lirait plus.
+  dp <- d; dp$Trt <- c("T-1" = "A", "T 2" = "B", "T(3)" = "C")[dp$Trt]
+  fp <- hstat_art_anova(dp, "y", c("Trt", "Bloc"))
+  se <- hstat_art_effet_simple(fp, "Trt", "Bloc", "b2", "holm")
+  expect_true(se$ok)
+  dq <- dp; dq$Trt <- factor(dq$Trt); dq$Bloc <- factor(dq$Bloc)
+  mq <- ARTool::art(y ~ Trt * Bloc, data = dq)
+  brut <- suppressMessages(as.data.frame(ARTool::art.con(mq, "Trt:Bloc", adjust = "none")))
+  garde <- grepl("^[^,]+,b2 - [^,]+,b2$", brut$contrast)
+  expect_equal(sum(garde), 3L)
+  attendu <- multcompView::multcompLetters(
+    hstat_pmat_comparaisons(gsub(",b2", "", brut$contrast[garde], fixed = TRUE),
+                            stats::p.adjust(brut$p.value[garde], "holm"),
+                            c("A", "B", "C"), sep = " - "))$Letters
+  expect_identical(unname(se$groups$groups[match(names(attendu), se$groups$Trt)]),
+                   unname(attendu))
+  # Les p-values elles-mêmes, pas seulement les lettres : sur ces données les
+  # lettres coïncident avec ou sans ajustement.
+  paires <- strsplit(gsub(",b2", "", brut$contrast[garde], fixed = TRUE), " - ", fixed = TRUE)
+  obtenu <- vapply(paires, function(p) se$pmat[p[1], p[2]], numeric(1))
+  expect_equal(obtenu, stats::p.adjust(brut$p.value[garde], "holm"), tolerance = 1e-10)
+  # Ajuster sur toutes les cellules (15 paires) au lieu des 3 du niveau
+  # rendrait d'autres p-values : la sous-matrice est bien celle du niveau.
+  expect_false(isTRUE(all.equal(stats::p.adjust(brut$p.value[garde], "holm"),
+                                stats::p.adjust(brut$p.value, "holm")[garde])))
+})
+
+test_that("le bouton ART-ANOVA et le post-hoc ART-C passent par le module", {
+  skip_if_not_installed("ARTool")
+  skip_if_not_installed("multcompView")
+  skip_if_not_installed("shinydashboard")
+  skip_if_not_installed("DT")
+  suppressMessages(hstat_installer_replis_ui())
+  html <- as.character(htmltools::renderTags(mod_tests_ui("tests"))$html)
+  # Le bouton vient juste après Scheirer-Ray-Hare.
+  expect_lt(regexpr('id="tests-testScheirerRayHare"', html),
+            regexpr('id="tests-testART"', html))
+  expect_lt(regexpr('id="tests-testART"', html),
+            regexpr('id="tests-testRMNonParam"', html))
+  html_ph <- as.character(htmltools::renderTags(mod_posthoc_ui("tests"))$html)
+  expect_match(html_ph, 'value="artc"', fixed = TRUE)
+  set.seed(2)
+  d <- expand.grid(Trt = c("A", "B", "C"), Bloc = c("b1", "b2"), Sol = c("s1", "s2"),
+                   r = 1:3, stringsAsFactors = FALSE)
+  d$y <- stats::rexp(nrow(d)) + as.integer(factor(d$Trt)) * 1.5
+  v <- shiny::reactiveValues(data = d, cleanData = d, filteredData = d)
+  res <- NULL; ph <- NULL
+  shiny::testServer(mod_tests_server, args = list(values = v), {
+    vider <- function() try(session$flushReact(), silent = TRUE)
+    session$setInputs(responseVar = "y", factorVar = c("Trt", "Bloc", "Sol")); vider()
+    session$setInputs(testART = 1); vider()
+    res <<- values$testResultsDF
+    session$setInputs(multiResponse = "y", multiFactor = c("Trt", "Bloc", "Sol"),
+                      testType = "nonparam", multiTestNonParam = "artc",
+                      multiNonParamAdjust = "holm", multiProtege = TRUE,
+                      posthocInteraction = FALSE, multiRoundResults = TRUE,
+                      multiDecimals = 2); vider()
+    session$setInputs(runMultiple = 1); vider()
+    ph <<- values$multiResultsMain
+  })
+  expect_equal(nrow(res), 7L)
+  expect_true(all(res$Test == "ART-ANOVA"))
+  expect_true("Trt:Bloc:Sol" %in% res$Facteur)
+  expect_false(is.null(ph))
+  trt <- ph[ph$Facteur == "Trt", ]
+  expect_equal(nrow(trt), 3L)
+  expect_true(all(trt$Test_global == "ART-ANOVA"))
+  ref <- hstat_art_posthoc(hstat_art_anova(d, "y", c("Trt", "Bloc", "Sol")), "Trt", "holm")
+  expect_identical(trt$groups[order(trt$Trt)], ref$groups$groups[order(ref$groups$Trt)])
 })
