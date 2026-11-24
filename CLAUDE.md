@@ -12375,3 +12375,11 @@ une matière active voyagent avec ses lignes (`attr(res, "conv_volume")`,
 `"conv_conc"`) et l'emportent sur celles du tableau entier, qui restent
 inchangées. Quatre mutations (conversion par ligne ignorée, conversion de masse
 retirée, classe perdue à l'ajout, classe non suivie) sont attrapées.
+
+### Vider les produits saisis vide aussi les solutions filles (1.66.1)
+
+Demandé à l'écran : après « Vider le tableau » des produits saisis, la boîte
+« Solutions filles » gardait la gamme du dernier calcul — une gamme sans les
+produits qui l'ont produite, que l'export emportait aussi. Le résultat est un
+`reactiveVal` posé par « Calculer » et remis à `NULL` par « Vider » ; le tableau
+retombe sur son invite, et les téléchargements sur leur fichier de motif.
