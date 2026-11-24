@@ -466,6 +466,9 @@ hstat_dilution_table_vide <- function(n = 3) {
     Unite_volume         = rep("l", n),
     Densite              = rep(NA_real_, n),
     Masse_molaire        = rep(NA_real_, n),
+    Classe               = rep("", n),
+    Conv_volume          = rep("", n),
+    Conv_conc            = rep("", n),
     stringsAsFactors     = FALSE)
 }
 
@@ -502,6 +505,12 @@ hstat_dilution_calcul <- function(df) {
   for (k in c("Densite", "Masse_molaire"))
     d[[k]] <- if (k %in% names(df)) suppressWarnings(as.numeric(df[[k]]))
               else rep(NA_real_, nrow(d))
+  # La classe et les unites de conversion propres a une matiere active.
+  for (k in c("Classe", "Conv_volume", "Conv_conc")) {
+    v <- if (k %in% names(df)) trimws(as.character(df[[k]])) else rep("", nrow(d))
+    v[is.na(v)] <- ""
+    d[[k]] <- v
+  }
 
   # Une ligne entierement vide est un reste de saisie, pas une erreur : on la
   # retire en silence.
@@ -642,7 +651,8 @@ hstat_dilution_calcul <- function(df) {
 
   # La colonne de depart DISPARAIT quand personne ne s'en sert : une colonne
   # vide fait croire a une information absente.
-  cols <- c("Produit", "Matiere_active", "Concentration_mere",
+  cols <- c("Produit", "Matiere_active", if (any(nzchar(d$Classe))) "Classe",
+            "Concentration_mere",
             if (emploie_depart) "Concentration_depart", "Unite",
             if (any(is.finite(d$Densite))) "Densite",
             if (any(is.finite(d$Masse_molaire))) "Masse_molaire",
@@ -652,6 +662,9 @@ hstat_dilution_calcul <- function(df) {
             "Concentration_totale_g_L", "Volume_mere_requis")
   res <- d[, cols, drop = FALSE]
   rownames(res) <- NULL
+  # Les conversions demandees pour une matiere active voyagent avec ses lignes.
+  if (any(nzchar(d$Conv_volume))) attr(res, "conv_volume") <- d$Conv_volume
+  if (any(nzchar(d$Conv_conc)))   attr(res, "conv_conc")   <- d$Conv_conc
   attr(res, "formules") <- unname(HSTAT_DOSE_FORMULES[
     c("conservation", "c_fille", "c_fille_n", "v_preleve", "v_eau",
       "v_mere", "c_totale")])
@@ -691,6 +704,9 @@ HSTAT_DILUTION_LIBELLES <- c(
   Volume_mere_requis        = "Solution mère nécessaire (total)",
   Densite                   = "Masse volumique de la mère (kg/l)",
   Masse_molaire             = "Masse molaire (g/mol)",
+  Classe                    = "Classe (IRAC, HRAC, FRAC)",
+  Conv_volume               = "Convertir les volumes en",
+  Conv_conc                 = "Convertir les concentrations en",
   Unite_conc_conv           = "Unité de concentration convertie",
   Concentration_mere_conv   = "Concentration mère convertie",
   Concentration_precedente_conv = "Concentration précédente convertie",
@@ -708,27 +724,39 @@ HSTAT_DILUTION_VOL_COLS <- c("Volume_final", "Volume_a_prelever",
 
 hstat_dilution_convertir <- function(d, unite = NULL, unite_conc = NULL) {
   if (!is.data.frame(d) || !nrow(d)) return(d)
-  d <- .hstat_dilution_convertir_conc(d, unite_conc)
-  if (is.null(unite) || !nzchar(unite) || !"Unite_volume" %in% names(d)) return(d)
-  vers <- .hstat_dose_facteur(unite, HSTAT_VOL_UNITES)
+  # L'unite d'une ligne : celle demandee pour sa matiere active, sinon celle de
+  # tout le tableau.
+  par_ligne <- function(a, globale) {
+    g <- as.character(globale %||% "")[1]
+    if (is.na(g)) g <- ""
+    v <- attr(d, a)
+    v <- if (length(v) == nrow(d)) as.character(v) else rep("", nrow(d))
+    v[is.na(v)] <- ""
+    ifelse(nzchar(v), v, g)
+  }
+  uv <- par_ligne("conv_volume", unite)
+  uc <- par_ligne("conv_conc", unite_conc)
+  d <- .hstat_dilution_convertir_conc(d, uc)
+  if (!any(nzchar(uv)) || !"Unite_volume" %in% names(d)) return(d)
   # Une unite inconnue ne doit pas rendre des volumes faux.
-  if (!isTRUE(is.finite(vers)) || vers == 0) return(d)
+  vers <- vapply(uv, function(u) if (nzchar(u)) .hstat_dose_facteur(u, HSTAT_VOL_UNITES)
+                                 else NA_real_, numeric(1), USE.NAMES = FALSE)
   depuis <- vapply(as.character(d$Unite_volume),
                    function(u) .hstat_dose_facteur(u, HSTAT_VOL_UNITES),
                    numeric(1), USE.NAMES = FALSE)
-  ok <- is.finite(depuis) & depuis > 0
+  ok <- is.finite(depuis) & depuis > 0 & is.finite(vers) & vers > 0
   if (!any(ok)) return(d)
 
   # LA CONVERSION AJOUTE, ELLE NE REMPLACE PAS.
   for (k in intersect(HSTAT_DILUTION_VOL_COLS, names(d))) {
     v <- rep(NA_real_, nrow(d))
-    v[ok] <- d[[k]][ok] * depuis[ok] / vers
+    v[ok] <- d[[k]][ok] * depuis[ok] / vers[ok]
     d <- .hstat_col_apres(d, k, paste0(k, "_conv"), v)
   }
   # L'unite convertie est une colonne A PART : `Unite_volume` continue de dire
   # dans quoi l'utilisateur a saisi.
   u <- rep(NA_character_, nrow(d))
-  u[ok] <- unite
+  u[ok] <- uv[ok]
   .hstat_col_apres(d, "Unite_volume", "Unite_volume_conv", u)
 }
 
@@ -737,18 +765,26 @@ HSTAT_DILUTION_CONC_COLS <- c("Concentration_mere", "Concentration_precedente",
                               "Concentration_fille")
 
 .hstat_dilution_convertir_conc <- function(d, unite_conc = NULL) {
-  if (is.null(unite_conc) || !nzchar(unite_conc[1]) || !"Unite" %in% names(d)) return(d)
-  b <- hstat_unite_info(unite_conc)
-  if (is.null(b) || !identical(b$categorie, "concentration")) return(d)
-  rho <- if ("Densite" %in% names(d)) d$Densite else rep(NA_real_, nrow(d))
-  M   <- if ("Masse_molaire" %in% names(d)) d$Masse_molaire else rep(NA_real_, nrow(d))
+  n <- nrow(d)
+  uc <- as.character(unite_conc %||% "")
+  uc <- if (length(uc) == n) uc else rep(uc[1], n)
+  uc[is.na(uc)] <- ""
+  if (!any(nzchar(uc)) || !"Unite" %in% names(d)) return(d)
+  cle <- vapply(uc, function(u) {
+    b <- if (nzchar(u)) hstat_unite_info(u) else NULL
+    if (is.null(b) || !identical(b$categorie, "concentration")) NA_character_ else b$unite
+  }, "", USE.NAMES = FALSE)
+  if (all(is.na(cle))) return(d)
+  rho <- if ("Densite" %in% names(d)) d$Densite else rep(NA_real_, n)
+  M   <- if ("Masse_molaire" %in% names(d)) d$Masse_molaire else rep(NA_real_, n)
   for (k in intersect(HSTAT_DILUTION_CONC_COLS, names(d))) {
-    v <- vapply(seq_len(nrow(d)), function(i)
-      hstat_unite_convertir(d[[k]][i], d$Unite[i], b$unite, rho[i], M[i])[1],
+    v <- vapply(seq_len(n), function(i)
+      if (is.na(cle[i])) NA_real_
+      else hstat_unite_convertir(d[[k]][i], d$Unite[i], cle[i], rho[i], M[i])[1],
       numeric(1))
     d <- .hstat_col_apres(d, k, paste0(k, "_conv"), v)
   }
-  .hstat_col_apres(d, "Unite", "Unite_conc_conv", rep(b$unite, nrow(d)))
+  .hstat_col_apres(d, "Unite", "Unite_conc_conv", cle)
 }
 
 # `.hstat_col_apres()` a rejoint le socle (`Utils.R`).
@@ -838,6 +874,7 @@ HSTAT_MERE_FORMULES <- c(
   tube_c      = "Concentration de la solution mère = C",
   tube_flacon = "Quantité par flacon (µg) = C (mg/l) × v (ml)",
   tube_prep   = "Q (mg) = C (mg/l) × volume (l) × 100 ÷ P (%)",
+  volume_conv = "Q' = Q × V' ÷ V : à concentration égale, la quantité suit le volume",
   abbott      = "Mortalité corrigée (%) = 100 × (mortalité traitement − mortalité témoin) ÷ (100 − mortalité témoin)")
 
 # Un nombre strictement positif et fini, ou NA.
@@ -953,6 +990,77 @@ HSTAT_MATIERES_ACTIVES <- c(
   "Spirotetramat", "Sulfoxaflor", "Tebuconazole", "Teflubenzuron",
   "Terbuthylazine", "Terbutryn", "Thiacloprid", "Thiamethoxam", "Thidiazuron",
   "Thiram", "Tolfenpyrad", "Trifloxysulfuron", "Trifloxysulfuron-sodium")
+
+# La classe de mode d'action : IRAC pour les insecticides et acaricides, HRAC
+# pour les herbicides, FRAC pour les fongicides. Une matiere active absente
+# (huile vegetale, regulateur de croissance, nom ambigu) n'a pas de classe : on
+# n'en invente pas.
+HSTAT_MA_CLASSES <- c(
+  "2,4-D (amine salt)" = "HRAC 4", "Abamectin" = "IRAC 6",
+  "Acetamiprid" = "IRAC 4A", "Alpha-cypermethrin" = "IRAC 3A",
+  "Ametryn" = "HRAC 5", "Azadirachtin" = "IRAC UN", "Azoxystrobin" = "FRAC 11",
+  "Bacillus thuringiensis" = "IRAC 11A",
+  "Bacillus thuringiensis subsp. kurstaki" = "IRAC 11A",
+  "Bacillus thuringiensis subsp. kurstaki strain EG2348" = "IRAC 11A",
+  "Bacillus thuringiensis subsp. kurstaki strain PB54" = "IRAC 11A",
+  "Beauveria bassiana" = "IRAC UNF", "Beta-cyfluthrin" = "IRAC 3A",
+  "Beta-cypermethrin" = "IRAC 3A", "Bifenazate" = "IRAC 20D",
+  "Bifenthrin" = "IRAC 3A", "Buprofezin" = "IRAC 16", "Butachlor" = "HRAC 15",
+  "Cadusafos" = "IRAC 1B", "Cartap" = "IRAC 14",
+  "Chlorantraniliprole" = "IRAC 28", "Chlorimuron-ethyl" = "HRAC 2",
+  "Chlorpyrifos" = "IRAC 1B", "Clethodim" = "HRAC 1",
+  "Cyantraniliprole" = "IRAC 28", "Cyfluthrin" = "IRAC 3A",
+  "Cyhalodiamide" = "IRAC 28", "Cypermethrin" = "IRAC 3A",
+  "Deltamethrin" = "IRAC 3A", "Diafenthiuron" = "IRAC 12A",
+  "Difenoconazole" = "FRAC 3", "Diflubenzuron" = "IRAC 15",
+  "Diflufenican" = "HRAC 12", "Dimethoate" = "IRAC 1B",
+  "Dinotefuran" = "IRAC 4A", "Diuron" = "HRAC 5", "Emamectin" = "IRAC 6",
+  "Emamectin benzoate" = "IRAC 6", "Etoxazole" = "IRAC 10B",
+  "Flonicamid" = "IRAC 29", "Fluazifop-P-butyl" = "HRAC 1",
+  "Flubendiamide" = "IRAC 28", "Fludioxonil" = "FRAC 12",
+  "Flufenacet" = "HRAC 15", "Fluometuron" = "HRAC 5",
+  "Flupyradifurone" = "IRAC 4D", "Fluxametamide" = "IRAC 30",
+  "Glyphosate" = "HRAC 9", "Glyphosate-isopropylamine" = "HRAC 9",
+  "Haloxyfop-P-ethyl" = "HRAC 1", "Haloxyfop-P-methyl" = "HRAC 1",
+  "Helicoverpa armigera nucleopolyhedrovirus" = "IRAC 31",
+  "Helicoverpa armigera single nucleopolyhedrovirus (HearSPNV)" = "IRAC 31",
+  "Imidacloprid" = "IRAC 4A", "Indoxacarb" = "IRAC 22A",
+  "Isaria fumosorosea strain FE9901" = "IRAC UNF",
+  "Isocycloseram" = "IRAC 30", "Lambda-cyhalothrin" = "IRAC 3A",
+  "Lufenuron" = "IRAC 15", "Malathion" = "IRAC 1B", "Mesotrione" = "HRAC 27",
+  "Metalaxyl" = "FRAC 4", "Metalaxyl-M" = "FRAC 4", "Metamifop" = "HRAC 1",
+  "Metolachlor" = "HRAC 15", "Nicosulfuron" = "HRAC 2",
+  "Nitenpyram" = "IRAC 4A", "Novaluron" = "IRAC 15", "Pencycuron" = "FRAC 20",
+  "Pendimethalin" = "HRAC 3", "Penoxsulam" = "HRAC 2",
+  "Permethrin" = "IRAC 3A", "Profenofos" = "IRAC 1B", "Prometryn" = "HRAC 5",
+  "Propaquizafop" = "HRAC 1", "Propiconazole" = "FRAC 3",
+  "Pyriproxyfen" = "IRAC 7C", "Pyrithiobac-sodium" = "HRAC 2",
+  "Quinalphos" = "IRAC 1B", "Quizalofop-P-ethyl" = "HRAC 1",
+  "Quizalofop-P-tefuryl" = "HRAC 1", "Rimsulfuron" = "HRAC 2",
+  "S-metolachlor" = "HRAC 15", "Spinetoram" = "IRAC 5", "Spinosad" = "IRAC 5",
+  "Spiromesifen" = "IRAC 23", "Spirotetramat" = "IRAC 23",
+  "Sulfoxaflor" = "IRAC 4C", "Tebuconazole" = "FRAC 3",
+  "Teflubenzuron" = "IRAC 15", "Terbuthylazine" = "HRAC 5",
+  "Terbutryn" = "HRAC 5", "Thiacloprid" = "IRAC 4A",
+  "Thiamethoxam" = "IRAC 4A", "Thiram" = "FRAC M3", "Tolfenpyrad" = "IRAC 21A",
+  "Trifloxysulfuron" = "HRAC 2", "Trifloxysulfuron-sodium" = "HRAC 2")
+
+# La classe d'une matiere active, casse ignoree ; "" quand elle n'est pas connue.
+hstat_ma_classe <- function(noms) {
+  noms <- trimws(as.character(noms))
+  i <- match(tolower(noms), tolower(names(HSTAT_MA_CLASSES)))
+  out <- unname(HSTAT_MA_CLASSES[i])
+  out[is.na(out)] <- ""
+  out
+}
+
+# Les choix d'une liste de matieres actives, chacun libelle de sa classe : la
+# valeur reste le nom seul.
+hstat_ma_libelles <- function(choix) {
+  choix <- as.character(choix)
+  cl <- hstat_ma_classe(choix)
+  stats::setNames(choix, ifelse(nzchar(cl), paste0(choix, " — ", cl), choix))
+}
 
 # Les ajouts de l'utilisateur, gardes d'une session a l'autre.
 hstat_ma_fichier <- function() {
@@ -1071,6 +1179,152 @@ hstat_dilution_nom_defaut <- function(matieres, pris = character(0)) {
   nom <- base; k <- 2L
   while (nom %in% pris) { nom <- paste0(base, " (", k, ")"); k <- k + 1L }
   nom
+}
+
+# SOLUTION MERE A PLUSIEURS MATIERES ACTIVES
+# Chaque matiere active a sa propre solution mere : sa cible (dose ou
+# concentration) et sa purete. Le protocole (masse de l'insecte, volumes,
+# formulation) est commun.
+HSTAT_MERE_CIBLES <- list(
+  topique = list(libelle = "Dose cible D", categorie = "concentration",
+                 base = "g/kg", unite = "µg/g", valeur = 1, purete = 95),
+  disque  = list(libelle = "Concentration de la solution mère C",
+                 categorie = "concentration", base = "g/l", unite = "mg/ml",
+                 valeur = 1, purete = 95),
+  tube    = list(libelle = "Concentration de matière active C",
+                 categorie = "concentration", base = "g/l", unite = "mg/l",
+                 valeur = 40, purete = 97.5))
+
+HSTAT_MERE_NB_MAX <- 10L
+
+# Une grandeur de masse, en mg, puis sa conversion et son volume converti :
+# la conversion ajoute une ligne, elle ne remplace pas.
+.hstat_mere_lignes_masse <- function(libelle, mg, formule, commun) {
+  mu <- commun$masse_unite
+  vp <- commun$Vprep_ml
+  out <- list(data.frame(Grandeur = libelle, Valeur = mg, Unite = "mg",
+                         Formule = formule, stringsAsFactors = FALSE))
+  if (!is.null(mu)) {
+    f <- hstat_unite_convertir(1, "mg", mu)[1]
+    out[[length(out) + 1L]] <- data.frame(
+      Grandeur = trf("%s (en %s)", libelle, mu), Valeur = mg * f, Unite = mu,
+      Formule = trf("1 mg = %s %s", hstat_fmt_complet(f), mu),
+      stringsAsFactors = FALSE)
+  }
+  if (is.finite(vp) && is.finite(commun$V_ml) && commun$V_ml > 0) {
+    mp <- mg * vp / commun$V_ml
+    vol <- trf("%s pour un volume de %s ml", libelle, hstat_fmt_complet(vp))
+    out[[length(out) + 1L]] <- data.frame(
+      Grandeur = vol, Valeur = mp, Unite = "mg",
+      Formule = HSTAT_MERE_FORMULES[["volume_conv"]], stringsAsFactors = FALSE)
+    if (!is.null(mu)) {
+      f <- hstat_unite_convertir(1, "mg", mu)[1]
+      out[[length(out) + 1L]] <- data.frame(
+        Grandeur = trf("%s (en %s)", vol, mu), Valeur = mp * f, Unite = mu,
+        Formule = trf("1 mg = %s %s", hstat_fmt_complet(f), mu),
+        stringsAsFactors = FALSE)
+    }
+  }
+  do.call(rbind, out)
+}
+
+.hstat_mere_ligne <- function(libelle, valeur, unite, formule)
+  data.frame(Grandeur = libelle, Valeur = valeur, Unite = unite,
+             Formule = formule, stringsAsFactors = FALSE)
+
+# Les grandeurs d'une matiere active, selon le type de test.
+.hstat_mere_resultats <- function(test, r, commun) {
+  FM <- HSTAT_MERE_FORMULES
+  L <- .hstat_mere_ligne
+  M <- function(lib, mg, f) .hstat_mere_lignes_masse(lib, mg, f, commun)
+  switch(test,
+    topique = rbind(
+      M(tr("Matière active technique à peser"), r$Q_mg, FM[["topique"]]),
+      L(tr("Concentration de la solution mère"), r$c_mere, "µg m.a./µl", FM[["topique_c"]]),
+      L(tr("Quantité déposée sur chaque insecte"), r$dose_individu, "µg", "D × x")),
+    disque = rbind(
+      if (!is.null(r$m_pese)) rbind(
+        M(if (identical(r$produit, "technique")) tr("Grade technique") else tr("Produit à peser"),
+          r$m_pese, if (identical(r$produit, "technique")) FM[["technique"]] else FM[["solide_pct"]]),
+        L(tr("Concentration réelle (contrôle)"), r$c_reelle, "mg/ml", FM[["controle"]])),
+      if (!is.null(r$v_formulation)) rbind(
+        L(tr("Volume de formulation à prélever"), r$v_formulation, "ml",
+          if (identical(r$produit, "liquide_gl")) FM[["liquide_gl"]] else FM[["liquide_pct"]]),
+        if (is.finite(commun$Vprep_ml)) L(
+          trf("%s pour un volume de %s ml", tr("Volume de formulation à prélever"),
+              hstat_fmt_complet(commun$Vprep_ml)),
+          r$v_formulation * commun$Vprep_ml / commun$V_ml, "ml", FM[["volume_conv"]])),
+      L(tr("Concentration de la solution mère"), r$c_mere, "mg/ml", FM[["tube_c"]]),
+      L(tr("Concentration de la solution mère"), r$niveau_haut, "mg/l", "1 mg/ml = 1 000 mg/l")),
+    tube = rbind(
+      M(tr("Matière active technique à peser"), r$Q_mg, FM[["tube"]]),
+      L(tr("Quantité de matière active par flacon"), r$flacon_ug, "µg", FM[["tube_flacon"]]),
+      L(tr("Nombre de flacons à traiter"), r$flacons, "", "V ÷ v"),
+      L(tr("Concentration de la solution mère"), r$c_mgl, "mg/l", FM[["tube_c"]]),
+      L(tr("Concentration de la solution mère"), r$c_mere, "mg/ml", "1 000 mg/l = 1 mg/ml")))
+}
+
+# Le calcul de la solution mere de chaque matiere active.
+# `mas` : Matiere_active, Classe, Cible (dans l'unite du protocole), Purete,
+# Teneur (g/l), Densite (g/ml). `commun` : x (g), V_ml, a (µl), produit,
+# v_ml, Vprep_ml, masse_unite. Rend une entree par matiere active : son
+# resultat (`r`) et ses lignes (Grandeur, Valeur, Unite, Formule).
+hstat_mere_multi <- function(test, mas, commun = list()) {
+  test <- if (length(test) && test[1] %in% names(HSTAT_MERE_TESTS)) test[1] else "topique"
+  if (!is.data.frame(mas) || !nrow(mas)) return(list())
+  num <- function(k) { v <- commun[[k]]; if (is.null(v)) NA_real_ else .hstat_mere_pos(v) }
+  mu <- as.character(commun$masse_unite %||% "")[1]
+  b <- if (!is.na(mu) && nzchar(mu)) hstat_unite_info(mu) else NULL
+  cm <- list(V_ml = num("V_ml"), Vprep_ml = num("Vprep_ml"),
+             masse_unite = if (!is.null(b) && identical(b$categorie, "masse") &&
+                               !identical(b$unite, "mg")) b$unite else NULL)
+  col <- function(k, i) if (k %in% names(mas)) mas[[k]][i] else NA
+  noms <- trimws(as.character(mas$Matiere_active))
+  noms[is.na(noms)] <- ""
+  vides <- !nzchar(noms)
+  noms[vides] <- trf("Matière active %d", seq_along(noms))[vides]
+  noms <- make.unique(noms, sep = " ")
+  lapply(seq_along(noms), function(i) {
+    r <- switch(test,
+      topique = hstat_mere_topique(col("Cible", i), num("x"), num("V_ml") * 1000,
+                                   num("a"), col("Purete", i)),
+      disque  = hstat_mere_concentration(col("Cible", i), num("V_ml"),
+                                         commun$produit %||% "technique",
+                                         col("Purete", i), col("Teneur", i),
+                                         col("Densite", i)),
+      tube    = hstat_mere_tube(col("Cible", i), num("v_ml"), num("V_ml"),
+                                col("Purete", i), num("Vprep_ml")))
+    cl <- trimws(as.character(col("Classe", i)))
+    if (is.na(cl)) cl <- ""
+    lignes <- if (isTRUE(r$ok)) .hstat_mere_resultats(test, r, cm) else NULL
+    if (!is.null(lignes)) rownames(lignes) <- NULL
+    list(nom = noms[i], classe = cl, r = r, lignes = lignes)
+  })
+}
+
+# Le tableau d'une matiere active tel qu'il part au fichier : son nom et sa
+# classe sur chaque ligne, pour qu'une feuille se lise seule.
+hstat_mere_tables <- function(res) {
+  res <- Filter(function(x) isTRUE(x$r$ok), res)
+  stats::setNames(lapply(res, function(x) {
+    d <- x$lignes
+    data.frame(Matiere_active = x$nom, Classe = x$classe, d,
+               stringsAsFactors = FALSE, check.names = FALSE)
+  }), vapply(res, `[[`, "", "nom"))
+}
+
+# Les noms de colonnes des exports de la solution mere.
+HSTAT_MERE_LIBELLES <- c(Matiere_active = "Matière active",
+                         Classe = "Classe (IRAC, HRAC, FRAC)",
+                         Grandeur = "Grandeur", Valeur = "Valeur",
+                         Unite = "Unité", Formule = "Formule")
+
+hstat_mere_affichage <- function(d) {
+  nm <- names(d)
+  vus <- nm %in% names(HSTAT_MERE_LIBELLES)
+  nm[vus] <- vapply(HSTAT_MERE_LIBELLES[nm[vus]], tr, "")
+  names(d) <- nm
+  d
 }
 
 mod_dosage_ui <- function(id) {
@@ -1211,13 +1465,12 @@ mod_dosage_ui <- function(id) {
           shinydashboard::box(
             title = shiny::tagList(shiny::icon("scale-balanced"), " Calcul de la solution mère"),
             status = "info", width = 8, solidHeader = TRUE,
+            # Le protocole est commun ; chaque matiere active a sa cible et sa
+            # purete.
             shiny::conditionalPanel(
               condition = sprintf("input['%s'] == 'topique'", ns("mereTest")),
               shiny::fluidRow(
-                shiny::column(4, .hstat_mere_champ(ns, "mereTopD", "Dose cible D", 1, "concentration", "g/kg", "µg/g")),
                 shiny::column(4, .hstat_mere_champ(ns, "mereTopX", "Masse moyenne de l'insecte x", 0.05, "masse", NULL, "g")),
-                shiny::column(4, shiny::numericInput(ns("mereTopP"), "Pureté P (%)", value = 95, min = 0, max = 100))),
-              shiny::fluidRow(
                 shiny::column(4, .hstat_mere_champ(ns, "mereTopV", "Volume final de la mère V", 50, "volume", NULL, "ml")),
                 shiny::column(4, .hstat_mere_champ(ns, "mereTopA", "Volume appliqué par insecte a", 1, "volume", NULL, "µl"))),
               shiny::helpText("La masse moyenne x s'obtient en pesant 10 chenilles. Chaque valeur se saisit dans l'unité choisie à côté d'elle ; les formules et les résultats restent dans les unités du protocole.")),
@@ -1226,31 +1479,40 @@ mod_dosage_ui <- function(id) {
               shiny::fluidRow(
                 shiny::column(6, shiny::selectInput(ns("mereProduit"), "Produit utilisé",
                                                     choices = HSTAT_MERE_PRODUITS, selected = "technique")),
-                shiny::column(3, .hstat_mere_champ(ns, "mereDisC", "Concentration de la solution mère C", 1, "concentration", "g/l", "mg/ml")),
-                shiny::column(3, .hstat_mere_champ(ns, "mereDisV", "Volume final V", 50, "volume", NULL, "ml"))),
-              shiny::fluidRow(
-                shiny::conditionalPanel(
-                  condition = sprintf("input['%s'] != 'liquide_gl'", ns("mereProduit")),
-                  shiny::column(4, shiny::numericInput(ns("mereDisP"), "Pureté ou teneur P (%)", value = 95, min = 0, max = 100))),
-                shiny::conditionalPanel(
-                  condition = sprintf("input['%s'] == 'liquide_gl'", ns("mereProduit")),
-                  shiny::column(4, .hstat_mere_champ(ns, "mereDisTeneur", "Teneur de la formulation", 100, "concentration", "g/l", "g/l"))),
-                shiny::conditionalPanel(
-                  condition = sprintf("input['%s'] == 'liquide_pct'", ns("mereProduit")),
-                  shiny::column(4, shiny::numericInput(ns("mereDisDensite"), "Densité de la formulation (g/ml)", value = 1, min = 0)))),
+                shiny::column(6, .hstat_mere_champ(ns, "mereDisV", "Volume final V", 50, "volume", NULL, "ml"))),
               shiny::helpText("Ne pas assimiler un % m/m à des g/l sans la densité. Le solvant est ajouté jusqu'au volume final, sans confondre volume de solvant ajouté et volume final.")),
             shiny::conditionalPanel(
               condition = sprintf("input['%s'] == 'tube'", ns("mereTest")),
               shiny::fluidRow(
-                shiny::column(6, .hstat_mere_champ(ns, "mereTubC", "Concentration de matière active C", 40, "concentration", "g/l", "mg/l")),
-                shiny::column(6, .hstat_mere_champ(ns, "mereTubVflacon", "Volume de solution par flacon v", 1, "volume", NULL, "ml"))),
-              shiny::fluidRow(
-                shiny::column(6, .hstat_mere_champ(ns, "mereTubV", "Volume total de solution à préparer V", 1, "volume", NULL, "l")),
-                shiny::column(6, shiny::numericInput(ns("mereTubP"), "Pureté P (%)", value = 97.5, min = 0, max = 100))),
-              # La pesee pour un autre volume que V, a la meme concentration.
-              shiny::fluidRow(
-                shiny::column(6, .hstat_mere_champ(ns, "mereTubVprep", "Convertir la masse à peser pour un volume de", 100, "volume", NULL, "ml")))),
+                shiny::column(6, .hstat_mere_champ(ns, "mereTubVflacon", "Volume de solution par flacon v", 1, "volume", NULL, "ml")),
+                shiny::column(6, .hstat_mere_champ(ns, "mereTubV", "Volume total de solution à préparer V", 1, "volume", NULL, "l")))),
+            shiny::hr(),
+            shiny::numericInput(ns("mereNbMa"), "Nombre de matières actives",
+                                value = 1, min = 1, max = 10, step = 1,
+                                width = "260px"),
+            shiny::helpText("Chaque matière active a sa propre solution mère : sa cible,",
+                            " sa pureté et sa classe. La liste propose la classe de mode",
+                            " d'action (IRAC pour les insecticides, HRAC pour les",
+                            " herbicides, FRAC pour les fongicides) ; elle se corrige à la main."),
+            shiny::uiOutput(ns("mereMaUi")),
+            shiny::hr(),
+            # LES CONVERSIONS AJOUTENT DES LIGNES, quel que soit le type de test.
+            shiny::fluidRow(
+              shiny::column(6, .hstat_mere_champ(ns, "mereVprep",
+                "Convertir la masse à peser pour un volume de", NULL, "volume", NULL, "ml")),
+              shiny::column(6, shiny::selectInput(ns("mereMasseUnite"),
+                "Convertir la masse à peser en",
+                choices = c(list("(mg, unité du protocole)" = ""), hstat_unites_choix("masse")),
+                selected = ""))),
+            shiny::helpText("Facultatifs. Le volume donne la masse à peser pour préparer un",
+                            " autre volume à la même concentration ; l'unité l'exprime",
+                            " aussi en µg, g ou kg."),
             shiny::uiOutput(ns("mereResultat")),
+            shiny::downloadButton(ns("mereDlCsv"), " Télécharger (CSV)", class = "btn-sm"),
+            shiny::downloadButton(ns("mereDlXlsx"), " Télécharger (Excel)", class = "btn-sm"),
+            shiny::helpText("Le classeur Excel porte une feuille par matière active ; le",
+                            " CSV les réunit dans un seul tableau."),
+            shiny::hr(),
             # La gamme se prepare dans l'onglet des dilutions, qui sait deja
             # tout faire.
             shiny::actionButton(ns("mereVersDilution"),
@@ -1357,6 +1619,10 @@ mod_dosage_ui <- function(id) {
             shiny::helpText("Le volume à prélever, l'eau à ajouter et la concentration",
                             " totale appartiennent au couple produit × fille : ils ne",
                             " figurent que sur sa première ligne."))),
+
+        # Les matieres actives reprises de la solution mere : chacune garde sa
+        # classe et recoit sa propre gamme.
+        shiny::uiOutput(ns("repUi")),
 
         shiny::fluidRow(
           shinydashboard::box(
@@ -1475,7 +1741,8 @@ mod_dosage_server <- function(id, values) {
     # -- Matieres actives saisies hors catalogue --------------------------- Un
     # nom tape dans un champ est propose dans tous les autres.
     ma_saisies <- hstat_ma_session(session)
-    .ma_ids <- function() c("doseMatiere", paste0("dilMaNom", seq_len(10L)))
+    .ma_ids <- function() c("doseMatiere", paste0("dilMaNom", seq_len(10L)),
+                            paste0("mereMaNom", seq_len(HSTAT_MERE_NB_MAX)))
     shiny::observe({
       v <- unlist(lapply(.ma_ids(), function(id) input[[id]]), use.names = FALSE)
       .ma_retenir(v)
@@ -1493,11 +1760,11 @@ mod_dosage_server <- function(id, values) {
     shiny::outputOptions(output, "maListeUi", suspendWhenHidden = FALSE)
     # Les choix des champs deja affiches suivent ; chacun garde sa valeur.
     shiny::observeEvent(list(ma_saisies(), is.null(input$doseMatiere)), {
-      choix <- hstat_ma_choix(ma_saisies())
+      choix <- c(stats::setNames("", ""), hstat_ma_libelles(hstat_ma_choix(ma_saisies())))
       for (id in .ma_ids()) {
         cur <- shiny::isolate(input[[id]])
         if (is.null(cur)) next
-        shiny::updateSelectizeInput(session, id, choices = c("", choix),
+        shiny::updateSelectizeInput(session, id, choices = choix,
                                     selected = cur)
       }
     })
@@ -1506,8 +1773,9 @@ mod_dosage_server <- function(id, values) {
     .ma_poser <- function(id, valeur) {
       valeur <- trimws(as.character(valeur %||% ""))[1]
       if (is.na(valeur)) valeur <- ""
-      choix <- hstat_ma_choix(c(ma_saisies(), valeur))
-      shiny::updateSelectizeInput(session, id, choices = c("", choix), selected = valeur)
+      choix <- hstat_ma_libelles(hstat_ma_choix(c(ma_saisies(), valeur)))
+      shiny::updateSelectizeInput(session, id, choices = c(stats::setNames("", ""), choix),
+                                  selected = valeur)
     }
 
     # dose
@@ -1723,6 +1991,9 @@ mod_dosage_server <- function(id, values) {
         Masse_molaire        = if (dil_molaire()) vapply(seq_len(n), function(i)
                                  .hstat_num1(input[[paste0("dilMaMol", i)]], NA_real_),
                                  numeric(1)) else rep(NA_real_, n),
+        Classe               = hstat_ma_classe(mas),
+        Conv_volume          = rep("", n),
+        Conv_conc            = rep("", n),
         stringsAsFactors     = FALSE)
       d <- saisie()
       # Ajouter deux fois le meme produit decrirait deux preparations sous un
@@ -1850,110 +2121,284 @@ mod_dosage_server <- function(id, values) {
     })
 
     # Une valeur du protocole, ramenee de l'unite choisie a celle de la
-    # formule.
-    .mere_val <- function(id, vers) {
-      v <- .hstat_num1(input[[id]], NA_real_)
+    # formule. Un champ pas encore rendu prend sa valeur par defaut.
+    .mere_val <- function(id, vers, defaut = NA_real_) {
+      x <- input[[id]]
+      v <- if (is.null(x)) defaut else .hstat_num1(x, NA_real_)
       u <- input[[paste0(id, "Unite")]] %||% vers
       hstat_unite_convertir(v, u, vers)[1]
     }
 
-    mere_calc <- shiny::reactive({
-      switch(mere_test(),
-        topique = hstat_mere_topique(
-          D = .mere_val("mereTopD", "µg/g"), x = .mere_val("mereTopX", "g"),
-          V = .mere_val("mereTopV", "µl"),
-          a = .mere_val("mereTopA", "µl"), P = input$mereTopP),
-        disque = hstat_mere_concentration(
-          C = .mere_val("mereDisC", "mg/ml"), V = .mere_val("mereDisV", "ml"),
-          produit = input$mereProduit %||% "technique",
-          P = input$mereDisP, teneur = .mere_val("mereDisTeneur", "g/l"),
-          densite = input$mereDisDensite),
-        tube = hstat_mere_tube(C = .mere_val("mereTubC", "mg/l"),
-                               v = .mere_val("mereTubVflacon", "ml"),
-                               V = .mere_val("mereTubV", "ml"),
-                               P = input$mereTubP,
-                               Vprep = .mere_val("mereTubVprep", "ml")))
+    mere_nb <- shiny::reactive(as.integer(hstat_borne_client(input$mereNbMa, 1, 1, 10)))
+    .mere_cible_id <- function(t, i) paste0("mereCible", t, i)
+
+    # -- Une carte par matiere active : nom, classe, cible et purete.
+    output$mereMaUi <- shiny::renderUI({
+      n <- mere_nb()
+      t <- mere_test()
+      def <- HSTAT_MERE_CIBLES[[t]]
+      prod <- input$mereProduit %||% "technique"
+      lapply(seq_len(n), function(i) {
+        val <- function(id, d) { v <- shiny::isolate(input[[id]]); if (is.null(v)) d else v }
+        nom <- val(paste0("mereMaNom", i), "")
+        cid <- .mere_cible_id(t, i)
+        shiny::div(
+          style = "border:1px solid #d6dee6;border-radius:6px;padding:8px 12px 2px;margin-bottom:10px;background:#fbfcfd;",
+          shiny::fluidRow(
+            shiny::column(5, hstat_ma_input(ns(paste0("mereMaNom", i)),
+              trf("Matière active %d", i), selected = nom,
+              saisies = shiny::isolate(ma_saisies()),
+              placeholder = "ex : Deltamethrin")),
+            shiny::column(3, shiny::textInput(ns(paste0("mereMaClasse", i)),
+              "Classe (IRAC, HRAC, FRAC)",
+              value = val(paste0("mereMaClasse", i), hstat_ma_classe(nom)))),
+            if (identical(t, "disque") && identical(prod, "liquide_gl"))
+              shiny::column(4, .hstat_mere_champ(ns, paste0("mereMaTeneur", i),
+                "Teneur de la formulation", val(paste0("mereMaTeneur", i), 100),
+                "concentration", "g/l",
+                val(paste0("mereMaTeneur", i, "Unite"), "g/l")))
+            else shiny::column(4, shiny::numericInput(ns(paste0("mereMaP", i)),
+              if (identical(t, "disque")) "Pureté ou teneur P (%)" else "Pureté P (%)",
+              value = val(paste0("mereMaP", i), def$purete), min = 0, max = 100))),
+          shiny::fluidRow(
+            shiny::column(8, .hstat_mere_champ(ns, cid, tr(def$libelle),
+              val(cid, def$valeur), def$categorie, def$base,
+              val(paste0(cid, "Unite"), def$unite))),
+            if (identical(t, "disque") && identical(prod, "liquide_pct"))
+              shiny::column(4, shiny::numericInput(ns(paste0("mereMaDensite", i)),
+                "Densité de la formulation (g/ml)",
+                value = val(paste0("mereMaDensite", i), 1), min = 0))))
+      })
+    })
+    shiny::outputOptions(output, "mereMaUi", suspendWhenHidden = FALSE)
+
+    # La classe suit la matiere active choisie ; une classe corrigee a la main
+    # reste tant que le nom ne change pas.
+    mere_noms_vus <- new.env(parent = emptyenv())
+    shiny::observe({
+      for (i in seq_len(HSTAT_MERE_NB_MAX)) {
+        nom <- input[[paste0("mereMaNom", i)]]
+        if (is.null(nom)) next
+        cle <- as.character(i)
+        avant <- mere_noms_vus[[cle]]
+        assign(cle, nom, envir = mere_noms_vus)
+        if (is.null(avant) || identical(avant, nom)) next
+        shiny::updateTextInput(session, paste0("mereMaClasse", i),
+                               value = hstat_ma_classe(nom))
+      }
     })
 
-    .mere_ligne <- function(libelle, valeur, formule) shiny::tags$tr(
-      shiny::tags$td(libelle), shiny::tags$td(shiny::strong(valeur)),
-      shiny::tags$td(shiny::tags$code(tr(formule))))
+    # Les matieres actives saisies, cibles ramenees a l'unite du protocole.
+    mere_mas <- shiny::reactive({
+      t <- mere_test()
+      def <- HSTAT_MERE_CIBLES[[t]]
+      n <- mere_nb()
+      num <- function(id, d) { x <- input[[id]]; if (is.null(x)) d else .hstat_num1(x, NA_real_) }
+      data.frame(
+        Matiere_active = vapply(seq_len(n), function(i)
+          hstat_texte_client(input[[paste0("mereMaNom", i)]]), ""),
+        Classe = vapply(seq_len(n), function(i) {
+          v <- input[[paste0("mereMaClasse", i)]]
+          if (is.null(v)) hstat_ma_classe(hstat_texte_client(input[[paste0("mereMaNom", i)]]))
+          else hstat_texte_client(v)
+        }, ""),
+        Cible = vapply(seq_len(n), function(i)
+          .mere_val(.mere_cible_id(t, i), def$unite, def$valeur), numeric(1)),
+        Cible_saisie = vapply(seq_len(n), function(i)
+          num(.mere_cible_id(t, i), def$valeur), numeric(1)),
+        Unite_saisie = vapply(seq_len(n), function(i)
+          as.character(input[[paste0(.mere_cible_id(t, i), "Unite")]] %||% def$unite)[1], ""),
+        Purete = vapply(seq_len(n), function(i)
+          num(paste0("mereMaP", i), def$purete), numeric(1)),
+        Teneur = vapply(seq_len(n), function(i)
+          .mere_val(paste0("mereMaTeneur", i), "g/l", 100), numeric(1)),
+        Densite = vapply(seq_len(n), function(i)
+          num(paste0("mereMaDensite", i), 1), numeric(1)),
+        stringsAsFactors = FALSE)
+    })
+
+    mere_calc <- shiny::reactive({
+      t <- mere_test()
+      commun <- switch(t,
+        topique = list(x = .mere_val("mereTopX", "g", 0.05),
+                       V_ml = .mere_val("mereTopV", "ml", 50),
+                       a = .mere_val("mereTopA", "µl", 1)),
+        disque  = list(V_ml = .mere_val("mereDisV", "ml", 50),
+                       produit = input$mereProduit %||% "technique"),
+        tube    = list(v_ml = .mere_val("mereTubVflacon", "ml", 1),
+                       V_ml = .mere_val("mereTubV", "ml", 1000)))
+      commun$Vprep_ml <- .mere_val("mereVprep", "ml")
+      commun$masse_unite <- input$mereMasseUnite %||% ""
+      hstat_mere_multi(t, mere_mas(), commun)
+    })
 
     output$mereResultat <- shiny::renderUI({
-      r <- mere_calc()
-      if (!isTRUE(r$ok))
-        return(shiny::div(class = "alert alert-warning", r$motif))
-      FM <- HSTAT_MERE_FORMULES
-      lignes <- switch(mere_test(),
-        topique = list(
-          .mere_ligne(tr("Matière active technique à peser"),
-                      trf("%s µg (%s mg)", .fmt(r$Q_ug), .fmt(r$Q_mg)), FM[["topique"]]),
-          .mere_ligne(tr("Concentration de la solution mère"),
-                      trf("%s µg m.a./µl", .fmt(r$c_mere)), FM[["topique_c"]]),
-          .mere_ligne(tr("Quantité déposée sur chaque insecte"),
-                      paste(.fmt(r$dose_individu), "µg"), "D × x")),
-        disque = c(
-          # La matiere active pure (C × V) n'est pas une ligne : on ne la pese
-          # pas, et elle se lisait comme la quantite a peser.
-          if (!is.null(r$m_pese)) list(
-            .mere_ligne(if (identical(r$produit, "technique")) tr("Grade technique")
-                        else tr("Produit à peser"), paste(.fmt(r$m_pese), "mg"),
-                        if (identical(r$produit, "technique")) FM[["technique"]] else FM[["solide_pct"]]),
-            .mere_ligne(tr("Concentration réelle (contrôle)"),
-                        paste(.fmt(r$c_reelle), "mg/ml"), FM[["controle"]])),
-          if (!is.null(r$v_formulation)) list(
-            .mere_ligne(tr("Volume de formulation à prélever"),
-                        paste(.fmt(r$v_formulation), "ml"),
-                        if (identical(r$produit, "liquide_gl")) FM[["liquide_gl"]] else FM[["liquide_pct"]])),
-          list(.mere_ligne(tr("Concentration de la solution mère"),
-                           trf("%s mg/ml, soit %s mg/l", .fmt(r$c_mere),
-                               .fmt(r$niveau_haut)), "1 mg/ml = 1 000 mg/l"))),
-        tube = list(
-          .mere_ligne(tr("Matière active technique à peser"),
-                      trf("%s mg pour %s %s", .fmt(r$Q_mg),
-                          .fmt(.hstat_num1(input$mereTubV, NA_real_)),
-                          input$mereTubVUnite %||% "l"), FM[["tube"]]),
-          if (is.finite(r$Q_prep)) .mere_ligne(
-            tr("Matière active technique à peser (volume converti)"),
-            trf("%s mg pour %s %s", .fmt(r$Q_prep),
-                .fmt(.hstat_num1(input$mereTubVprep, NA_real_)),
-                input$mereTubVprepUnite %||% "ml"), FM[["tube_prep"]]),
-          .mere_ligne(tr("Quantité de matière active par flacon"),
-                      paste(.fmt(r$flacon_ug), "µg"), FM[["tube_flacon"]]),
-          .mere_ligne(tr("Nombre de flacons à traiter"),
-                      .fmt(r$flacons), "V ÷ v"),
-          .mere_ligne(tr("Concentration de la solution mère"),
-                      trf("%s mg/l, soit %s mg/ml", .fmt(r$c_mgl), .fmt(r$c_mere)),
-                      FM[["tube_c"]])))
-      shiny::tags$table(class = "table table-condensed",
-        shiny::tags$thead(shiny::tags$tr(shiny::tags$th(tr("Grandeur")),
-          shiny::tags$th(tr("Valeur")), shiny::tags$th(tr("Formule")))),
-        do.call(shiny::tags$tbody, lignes))
+      res <- mere_calc()
+      if (!length(res)) return(NULL)
+      shiny::tagList(lapply(res, function(x) {
+        titre <- shiny::h4(style = "margin-top:14px;",
+          shiny::icon("flask"), " ", x$nom,
+          if (nzchar(x$classe)) shiny::span(class = "label label-info",
+                                            style = "margin-left:8px;", x$classe))
+        if (!isTRUE(x$r$ok))
+          return(shiny::tagList(titre, shiny::div(class = "alert alert-warning", x$r$motif)))
+        d <- x$lignes
+        shiny::tagList(titre,
+          shiny::tags$table(class = "table table-condensed",
+            shiny::tags$thead(shiny::tags$tr(shiny::tags$th(tr("Grandeur")),
+              shiny::tags$th(tr("Valeur")), shiny::tags$th(tr("Formule")))),
+            do.call(shiny::tags$tbody, lapply(seq_len(nrow(d)), function(k)
+              shiny::tags$tr(shiny::tags$td(d$Grandeur[k]),
+                shiny::tags$td(shiny::strong(trimws(paste(.fmt(d$Valeur[k]), d$Unite[k])))),
+                shiny::tags$td(shiny::tags$code(tr(d$Formule[k]))))))))
+      }))
     })
 
-    # LA CONCENTRATION DE LA MERE PART VERS LES DILUTIONS.
+    # Une feuille par matiere active ; le CSV les reunit dans un seul tableau.
+    mere_tables <- function() {
+      tb <- hstat_mere_tables(mere_calc())
+      if (!length(tb)) return(NULL)
+      lapply(tb, function(d) hstat_mere_affichage(.num_export(d)))
+    }
+    output$mereDlXlsx <- hstat_classeur_handler(mere_tables, "solution_mere")
+    output$mereDlCsv  <- hstat_csv_handler(function() {
+      tb <- mere_tables()
+      if (is.null(tb)) NULL else list(solution_mere = do.call(rbind, unname(tb)))
+    }, "solution_mere")
+
+    # LES CONCENTRATIONS DES MERES PARTENT VERS LES DILUTIONS, une gamme par
+    # matiere active.
+    reprise <- shiny::reactiveVal(NULL)
     shiny::observeEvent(input$mereVersDilution, {
-      r <- mere_calc()
-      if (!isTRUE(r$ok) || !isTRUE(is.finite(r$c_mere)) || r$c_mere <= 0) {
+      res <- mere_calc()
+      mas <- mere_mas()
+      ok <- vapply(res, function(x) isTRUE(x$r$ok) && isTRUE(is.finite(x$r$c_mere)) &&
+                     x$r$c_mere > 0, logical(1))
+      if (!length(res) || !any(ok)) {
         shiny::showNotification(
           tr("La solution mère n'est pas calculée : complétez ses valeurs avant de la reprendre."),
           type = "warning", duration = 8)
         return()
       }
-      # La concentration part dans l'unite ou elle a ete obtenue.
-      cu <- hstat_mere_conc_unite(mere_test(), r,
-        saisie = switch(mere_test(),
-          disque = list(v = .hstat_num1(input$mereDisC, NA_real_), u = input$mereDisCUnite),
-          tube   = list(v = .hstat_num1(input$mereTubC, NA_real_), u = input$mereTubCUnite),
-          NULL))
-      shiny::updateSelectInput(session, "dilUnite", selected = cu$unite)
-      shiny::updateNumericInput(session, "dilNbMa", value = 1)
-      shiny::updateNumericInput(session, "dilMaConc1", value = cu$valeur)
+      t <- mere_test()
+      lignes <- lapply(which(ok), function(i) {
+        # La concentration part dans l'unite ou elle a ete obtenue.
+        cu <- hstat_mere_conc_unite(t, res[[i]]$r,
+          saisie = if (t %in% c("disque", "tube"))
+            list(v = mas$Cible_saisie[i], u = mas$Unite_saisie[i]) else NULL)
+        data.frame(Matiere_active = res[[i]]$nom, Classe = res[[i]]$classe,
+                   Concentration = cu$valeur, Unite = cu$unite,
+                   stringsAsFactors = FALSE)
+      })
+      reprise(do.call(rbind, lignes))
       shiny::updateTabsetPanel(session, "dosageTabs", selected = "dilution")
       shiny::showNotification(
-        trf("Solution mère reprise dans « Solutions filles (dilutions) » : %s %s.",
-            .fmt(cu$valeur), cu$unite),
-        type = "message", duration = 8)
+        trf("%d matière(s) active(s) reprise(s) dans « Solutions filles (dilutions) » : réglez la gamme de chacune, puis ajoutez-les au tableau.",
+            sum(ok)), type = "message", duration = 8)
+      if (any(!ok))
+        shiny::showNotification(
+          trf("Non reprise(s), solution mère non calculée : %s",
+              paste(vapply(res[!ok], `[[`, "", "nom"), collapse = ", ")),
+          type = "warning", duration = 8)
+    })
+
+    # -- Une gamme par matiere active reprise.
+    output$repUi <- shiny::renderUI({
+      rp <- reprise()
+      if (is.null(rp) || !nrow(rp)) return(NULL)
+      # La concentration et son unite viennent de la mere a chaque reprise ; la
+      # gamme deja reglee pour une matiere active est gardee.
+      val <- function(id, d) { v <- shiny::isolate(input[[id]]); if (is.null(v)) d else v }
+      def_conv_v <- shiny::isolate(input$dilConvVol) %||% ""
+      def_conv_c <- shiny::isolate(input$dilConvConc) %||% ""
+      shiny::fluidRow(shinydashboard::box(
+        title = shiny::tagList(shiny::icon("flask"),
+                               " Matières actives reprises de la solution mère"),
+        status = "success", width = 12, solidHeader = TRUE,
+        shiny::helpText("Chaque matière active reçoit sa propre gamme : première fille,",
+                        " coefficient, nombre de filles, volume final et conversions.",
+                        " Elle rejoint le tableau comme un produit à part, avec sa classe."),
+        lapply(seq_len(nrow(rp)), function(i) {
+          id <- function(k) paste0("rep", k, i)
+          shiny::div(
+            style = "border:1px solid #d6dee6;border-radius:6px;padding:8px 12px 2px;margin-bottom:10px;background:#fbfcfd;",
+            shiny::h4(style = "margin-top:2px;", rp$Matiere_active[i],
+              if (nzchar(rp$Classe[i])) shiny::span(class = "label label-info",
+                                                     style = "margin-left:8px;", rp$Classe[i])),
+            shiny::fluidRow(
+              shiny::column(3, shiny::numericInput(ns(id("Conc")), "Concentration mère",
+                value = rp$Concentration[i], min = 0)),
+              shiny::column(3, shiny::selectInput(ns(id("Unite")), "Unité",
+                choices = hstat_unites_choix("concentration"),
+                selected = rp$Unite[i])),
+              shiny::column(3, shiny::numericInput(ns(id("Dep")), "1re fille (option.)",
+                value = val(id("Dep"), NA_real_), min = 0)),
+              shiny::column(3, shiny::numericInput(ns(id("Coef")), "Coefficient de dilution",
+                value = val(id("Coef"), shiny::isolate(input$dilCoef) %||% 10), min = 1))),
+            shiny::fluidRow(
+              shiny::column(2, shiny::numericInput(ns(id("Nb")), "Nombre de solutions filles",
+                value = val(id("Nb"), shiny::isolate(input$dilNb) %||% 3),
+                min = 1, max = HSTAT_DILUTION_NB_MAX, step = 1)),
+              shiny::column(2, shiny::numericInput(ns(id("Vf")), "Volume final de chaque fille (Vf)",
+                value = val(id("Vf"), shiny::isolate(input$dilVf) %||% 100), min = 0)),
+              shiny::column(2, shiny::selectInput(ns(id("VfUnite")), "Unité",
+                choices = hstat_unites_choix("volume"),
+                selected = val(id("VfUnite"), shiny::isolate(input$dilVfUnite) %||% "ml"))),
+              shiny::column(3, shiny::selectInput(ns(id("ConvVol")), "Convertir les volumes en",
+                choices = c(list("(unité de saisie)" = ""), hstat_unites_choix("volume")),
+                selected = val(id("ConvVol"), def_conv_v))),
+              shiny::column(3, shiny::selectInput(ns(id("ConvConc")), "Convertir les concentrations en",
+                choices = c(list("(unité de saisie)" = ""), hstat_unites_choix("concentration")),
+                selected = val(id("ConvConc"), def_conv_c)))))
+        }),
+        shiny::actionButton(ns("repAjouter"),
+          shiny::tagList(shiny::icon("plus"), " Ajouter ces matières actives au tableau"),
+          class = "btn-primary")))
+    })
+    shiny::outputOptions(output, "repUi", suspendWhenHidden = FALSE)
+
+    shiny::observeEvent(input$repAjouter, {
+      rp <- reprise()
+      if (is.null(rp) || !nrow(rp)) return()
+      n <- nrow(rp)
+      g <- function(k, i, d) { v <- input[[paste0("rep", k, i)]]; if (is.null(v)) d else v }
+      num <- function(k, d) vapply(seq_len(n), function(i)
+        .hstat_num1(g(k, i, d), NA_real_), numeric(1))
+      txt <- function(k, d) vapply(seq_len(n), function(i)
+        as.character(g(k, i, d) %||% "")[1], "")
+      ajout <- data.frame(
+        Produit              = rp$Matiere_active,
+        Matiere_active       = rp$Matiere_active,
+        Concentration_mere   = num("Conc", NA_real_),
+        Concentration_depart = num("Dep", NA_real_),
+        Unite                = vapply(seq_len(n), function(i)
+                                 as.character(g("Unite", i, rp$Unite[i]))[1], ""),
+        Coefficient          = num("Coef", 10),
+        Nb_filles            = num("Nb", 3),
+        Volume_final         = num("Vf", 100),
+        Unite_volume         = txt("VfUnite", "ml"),
+        Densite              = rep(NA_real_, n),
+        Masse_molaire        = rep(NA_real_, n),
+        Classe               = rp$Classe,
+        Conv_volume          = txt("ConvVol", ""),
+        Conv_conc            = txt("ConvConc", ""),
+        stringsAsFactors     = FALSE)
+      ajout$Concentration_mere[is.na(ajout$Concentration_mere)] <- rp$Concentration[is.na(ajout$Concentration_mere)]
+      d <- saisie()
+      # Une matiere active deja au tableau y est remplacee, pas empilee.
+      d <- d[!trimws(as.character(d$Produit)) %in% ajout$Produit, , drop = FALSE]
+      if (nrow(d) + n > HSTAT_SAISIE_MAX) {
+        shiny::showNotification(
+          trf("Le tableau de saisie compte déjà %d lignes, le maximum.", HSTAT_SAISIE_MAX),
+          type = "warning", duration = 6)
+        return()
+      }
+      d <- rbind(d, ajout)
+      rownames(d) <- NULL
+      saisie(d)
+      shiny::showNotification(
+        trf("%d matière(s) active(s) ajoutée(s) au tableau : cliquez sur « Calculer les solutions filles ».", n),
+        type = "message", duration = 6)
     })
 
   })

@@ -10474,16 +10474,17 @@ test_that("convertisseur : une ligne par unite, motif quand le pont manque", {
 test_that("solution mere : les valeurs saisies dans une autre unite donnent la meme pesee", {
   vals <- shiny::reactiveValues()
   shiny::testServer(mod_dosage_server, args = list(values = vals), {
-    session$setInputs(mereTest = "topique", mereTopD = 1, mereTopDUnite = "µg/g",
+    session$setInputs(mereTest = "topique", mereCibletopique1 = 1,
+                      mereCibletopique1Unite = "µg/g",
                       mereTopX = 0.05, mereTopXUnite = "g", mereTopV = 50,
                       mereTopVUnite = "mL", mereTopA = 1, mereTopAUnite = "µL",
-                      mereTopP = 95)
-    q1 <- mere_calc()$Q_ug
+                      mereMaP1 = 95)
+    q1 <- mere_calc()[[1]]$r$Q_ug
     # Les memes grandeurs ecrites en mg/kg, mg, L et nL.
-    session$setInputs(mereTopDUnite = "mg/kg", mereTopX = 50, mereTopXUnite = "mg",
+    session$setInputs(mereCibletopique1Unite = "mg/kg", mereTopX = 50, mereTopXUnite = "mg",
                       mereTopV = 0.05, mereTopVUnite = "L", mereTopA = 1000,
                       mereTopAUnite = "nL")
-    expect_equal(mere_calc()$Q_ug, q1)
+    expect_equal(mere_calc()[[1]]$r$Q_ug, q1)
     expect_equal(q1, 1 * 0.05 * 50000 * 100 / (1 * 95))
     # Le convertisseur suit la grandeur choisie.
     session$setInputs(convCategorie = "concentration", convUnite = "%", convValeur = 2)
@@ -24629,26 +24630,23 @@ test_that("Doses & dilutions : la mère avant les filles, et sa concentration y 
   vals <- shiny::reactiveValues(data = NULL, cleanData = NULL, filteredData = NULL,
                                 resetSignal = 0L)
   shiny::testServer(mod_dosage_server, args = list(values = vals), {
-    envoyes <- list()
-    racine <- session$rootScope()
-    racine$sendInputMessage <- function(id, msg) envoyes[[length(envoyes) + 1L]] <<- list(id = id, msg = msg)
-    # Topique : 1 µg/g, 0,05 g, 1 µl -> 0,05 µg/µl, soit 0,05 mg/ml.
-    session$setInputs(mereTest = "topique", mereTopD = 1, mereTopX = 0.05,
-                      mereTopV = 50, mereTopA = 1, mereTopP = 95)
+    # Topique : 1 µg/g, 0,05 g, 1 µl -> 0,05 µg/µl.
+    session$setInputs(mereTest = "topique", mereCibletopique1 = 1, mereTopX = 0.05,
+                      mereTopV = 50, mereTopA = 1, mereMaP1 = 95,
+                      mereMaNom1 = "Deltamethrin")
     session$setInputs(mereVersDilution = 1)
-    ids <- vapply(envoyes, `[[`, "", "id")
-    expect_true("dilMaConc1" %in% ids)
-    expect_equal(as.numeric(envoyes[[match("dilMaConc1", ids)]]$msg$value), 0.05)
+    rp <- reprise()
+    expect_equal(rp$Concentration, 0.05)
     # L'unite suit la concentration obtenue : µg/µl pour l'application topique.
-    expect_identical(envoyes[[match("dilUnite", ids)]]$msg$value, "\u00b5g/\u00b5l")
+    expect_identical(rp$Unite, "\u00b5g/\u00b5l")
+    expect_identical(rp$Matiere_active, "Deltamethrin")
     # Vial test : la concentration saisie, dans son unite (mg/l).
-    envoyes <- list()
-    session$setInputs(mereTest = "tube", mereTubC = 40, mereTubCUnite = "mg/l",
-                      mereTubVflacon = 1, mereTubV = 1000, mereTubP = 97.5)
+    session$setInputs(mereTest = "tube", mereCibletube1 = 40,
+                      mereCibletube1Unite = "mg/l", mereTubVflacon = 1,
+                      mereTubV = 1000, mereTubVUnite = "ml", mereMaP1 = 97.5)
     session$setInputs(mereVersDilution = 2)
-    ids <- vapply(envoyes, `[[`, "", "id")
-    expect_equal(as.numeric(envoyes[[match("dilMaConc1", ids)]]$msg$value), 40)
-    expect_identical(envoyes[[match("dilUnite", ids)]]$msg$value, "mg/l")
+    expect_equal(reprise()$Concentration, 40)
+    expect_identical(reprise()$Unite, "mg/l")
   })
 })
 
@@ -24730,9 +24728,9 @@ test_that("Solution mère : calculée dans Doses & dilutions, sans toucher à l'
   vals <- shiny::reactiveValues(data = NULL, cleanData = NULL, filteredData = NULL,
                                 resetSignal = 0L)
   shiny::testServer(mod_dosage_server, args = list(values = vals), {
-    session$setInputs(mereTest = "disque", mereDisC = 1, mereDisV = 50,
-                      mereProduit = "technique", mereDisP = 95)
-    expect_equal(round(mere_calc()$m_pese, 2), 52.63)
+    session$setInputs(mereTest = "disque", mereCibledisque1 = 1, mereDisV = 50,
+                      mereProduit = "technique", mereMaP1 = 95)
+    expect_equal(round(mere_calc()[[1]]$r$m_pese, 2), 52.63)
     expect_identical(HSTAT_MERE_TESTS[[mere_test()]]$grandeur, "concentration")
     expect_identical(HSTAT_MERE_TESTS$topique$grandeur, "dose")
   })
@@ -25201,8 +25199,8 @@ test_that("Solution mere : le grade technique se nomme, la m.a. pure ne s'affich
   vals <- shiny::reactiveValues(data = NULL, cleanData = NULL, filteredData = NULL,
                                 resetSignal = 0L)
   shiny::testServer(mod_dosage_server, args = list(values = vals), {
-    session$setInputs(mereTest = "disque", mereDisC = 1, mereDisV = 50,
-                      mereProduit = "technique", mereDisP = 95)
+    session$setInputs(mereTest = "disque", mereCibledisque1 = 1, mereDisV = 50,
+                      mereProduit = "technique", mereMaP1 = 95)
     h <- as.character(output$mereResultat$html)
     expect_match(h, "Grade technique", fixed = TRUE)
     expect_false(grepl("Produit à peser", h, fixed = TRUE))
@@ -25348,20 +25346,22 @@ test_that("Vial test : libelles de la solution mere et pesee convertie au volume
   vals <- shiny::reactiveValues(data = NULL, cleanData = NULL, filteredData = NULL,
                                 resetSignal = 0L)
   shiny::testServer(mod_dosage_server, args = list(values = vals), {
-    session$setInputs(mereTest = "tube", mereTubC = 40, mereTubCUnite = "µg/ml",
+    session$setInputs(mereTest = "tube", mereCibletube1 = 40, mereCibletube1Unite = "µg/ml",
                       mereTubVflacon = 1, mereTubVflaconUnite = "ml",
-                      mereTubV = 1, mereTubVUnite = "l", mereTubP = 97.5,
-                      mereTubVprep = 100, mereTubVprepUnite = "ml")
+                      mereTubV = 1, mereTubVUnite = "l", mereMaP1 = 97.5,
+                      mereVprep = 100, mereVprepUnite = "ml")
     h <- as.character(output$mereResultat$html)
     expect_match(h, "Concentration de la solution mère", fixed = TRUE)
     expect_false(grepl("Concentration de la mère", h, fixed = TRUE))
     expect_match(h, "Nombre de flacons à traiter", fixed = TRUE)
     # Chiffres complets : la pesee se recopie telle que le calcul la donne.
-    expect_match(h, "41.025641025641 mg pour 1 l", fixed = TRUE)
-    expect_match(h, "4.1025641025641 mg pour 100 ml", fixed = TRUE)
+    expect_match(h, "41.025641025641 mg", fixed = TRUE)
+    expect_match(h, "pour un volume de 100 ml", fixed = TRUE)
+    expect_match(h, "4.1025641025641 mg", fixed = TRUE)
     expect_false(grepl("41.0256 mg", h, fixed = TRUE))
     expect_match(h, "40 µg", fixed = TRUE)
-    expect_match(h, "40 mg/l, soit 0.04 mg/ml", fixed = TRUE)
+    expect_match(h, "40 mg/l", fixed = TRUE)
+    expect_match(h, "0.04 mg/ml", fixed = TRUE)
   })
 })
 
@@ -25376,9 +25376,9 @@ test_that("Solution mere : masse a peser et concentration en chiffres complets",
   shiny::testServer(mod_dosage_server, args = list(values = vals), {
     # IRAC 035 : 1 mg/ml dans 50 ml a 95 % -> 52,631578947368 mg, pas 52,6316.
     session$setInputs(mereTest = "disque", mereProduit = "technique",
-                      mereDisC = 1, mereDisCUnite = "mg/ml",
-                      mereDisV = 50, mereDisVUnite = "ml", mereDisP = 95)
-    m <- mere_calc()
+                      mereCibledisque1 = 1, mereCibledisque1Unite = "mg/ml",
+                      mereDisV = 50, mereDisVUnite = "ml", mereMaP1 = 95)
+    m <- mere_calc()[[1]]$r
     expect_true(isTRUE(m$ok))
     expect_identical(hstat_fmt_complet(m$m_pese), "52.6315789473684")
     h <- as.character(output$mereResultat$html)
@@ -25395,16 +25395,16 @@ test_that("Doses et dilutions : aucun arrondi par defaut, l'arrondi est un choix
   vals <- shiny::reactiveValues(data = NULL, cleanData = NULL, filteredData = NULL,
                                 resetSignal = 0L)
   shiny::testServer(mod_dosage_server, args = list(values = vals), {
-    session$setInputs(mereTest = "tube", mereTubC = 40, mereTubCUnite = "mg/l",
+    session$setInputs(mereTest = "tube", mereCibletube1 = 40, mereCibletube1Unite = "mg/l",
                       mereTubVflacon = 1, mereTubVflaconUnite = "ml",
-                      mereTubV = 1, mereTubVUnite = "l", mereTubP = 97.5,
-                      mereTubVprep = 100, mereTubVprepUnite = "ml")
+                      mereTubV = 1, mereTubVUnite = "l", mereMaP1 = 97.5,
+                      mereVprep = 100, mereVprepUnite = "ml")
     h <- as.character(output$mereResultat$html)
-    expect_match(h, "41.025641025641 mg pour 1 l", fixed = TRUE)
+    expect_match(h, "41.025641025641 mg", fixed = TRUE)
     # Coche, a deux decimales : la meme pesee, arrondie.
     session$setInputs(dosArrondir = TRUE, dosDecimales = 2)
     h <- as.character(output$mereResultat$html)
-    expect_match(h, "41.03 mg pour 1 l", fixed = TRUE)
+    expect_match(h, "41.03 mg", fixed = TRUE)
     expect_false(grepl("41.025641025641", h, fixed = TRUE))
     # Le convertisseur suit le meme reglage.
     session$setInputs(dosArrondir = FALSE, convCategorie = "quantite",
@@ -26749,4 +26749,151 @@ test_that("Selection genetique : la palette colore les groupes et les roles, le 
     session$setInputs(genContour = 0)
     expect_true(all(is.na(barres()$colour)))
   })
+})
+
+test_that("Solution mere : la classe de chaque matiere active, et la liste qui la porte", {
+  expect_identical(hstat_ma_classe(c("Deltamethrin", "glyphosate", "Tebuconazole",
+                                     "Orange oil", "Inconnue")),
+                   c("IRAC 3A", "HRAC 9", "FRAC 3", "", ""))
+  # Toute classe nommee porte sur une matiere active de la liste fournie.
+  expect_true(all(names(HSTAT_MA_CLASSES) %in% HSTAT_MATIERES_ACTIVES))
+  expect_true(all(grepl("^(IRAC|HRAC|FRAC) [0-9A-Z]+$", HSTAT_MA_CLASSES)))
+  # La liste deroulante montre la classe ; la valeur reste le nom.
+  l <- hstat_ma_libelles(c("Deltamethrin", "Orange oil"))
+  expect_identical(unname(l), c("Deltamethrin", "Orange oil"))
+  expect_identical(names(l), c("Deltamethrin — IRAC 3A", "Orange oil"))
+  ui <- as.character(hstat_ma_input("m", "Matière active"))
+  expect_match(ui, "Lambda-cyhalothrin — IRAC 3A", fixed = TRUE)
+  expect_match(ui, 'value="Lambda-cyhalothrin"', fixed = TRUE)
+})
+
+test_that("Solution mere : plusieurs matieres actives, chacune sa solution, pour les trois tests", {
+  mas <- data.frame(Matiere_active = c("Deltamethrin", "Spinosad"),
+                    Classe = c("IRAC 3A", "IRAC 5"), Cible = c(1, 2),
+                    Purete = c(95, 80), stringsAsFactors = FALSE)
+  # Chaque matiere active donne exactement le calcul qu'elle donnerait seule.
+  d <- hstat_mere_multi("disque", mas, list(V_ml = 50, produit = "technique"))
+  expect_length(d, 2L)
+  expect_equal(d[[2]]$r$m_pese, hstat_mere_concentration(2, 50, "technique", P = 80)$m_pese)
+  expect_identical(c(d[[1]]$classe, d[[2]]$classe), c("IRAC 3A", "IRAC 5"))
+  t <- hstat_mere_multi("topique", mas, list(x = 0.05, V_ml = 50, a = 1))
+  expect_equal(t[[2]]$r$Q_ug, hstat_mere_topique(2, 0.05, 50000, 1, 80)$Q_ug)
+  v <- hstat_mere_multi("tube", transform(mas, Cible = c(40, 20)), list(v_ml = 1, V_ml = 1000))
+  expect_equal(v[[2]]$r$Q_mg, hstat_mere_tube(20, 1, 1000, 80)$Q_mg)
+  # LA CONVERSION VAUT POUR LES TROIS TESTS : unite de masse et volume prepare.
+  for (test in c("topique", "disque", "tube")) {
+    cm <- list(x = 0.05, V_ml = 50, a = 1, produit = "technique", v_ml = 1,
+               Vprep_ml = 100, masse_unite = "g")
+    r <- hstat_mere_multi(test, mas, cm)[[1]]
+    l <- r$lignes
+    masse <- l$Valeur[l$Unite == "mg"][1]
+    expect_equal(l$Valeur[l$Unite == "g"][1], masse / 1000, info = test)
+    vol <- grepl("pour un volume de 100 ml", l$Grandeur) & l$Unite == "mg"
+    expect_equal(l$Valeur[vol][1], masse * 100 / 50, info = test)
+  }
+  # Sans conversion demandee, aucune ligne de conversion.
+  l0 <- hstat_mere_multi("tube", mas, list(v_ml = 1, V_ml = 1000))[[1]]$lignes
+  expect_false(any(l0$Unite == "g") || any(grepl("pour un volume", l0$Grandeur)))
+  # Une matiere active qui ne se calcule pas n'emporte pas les autres.
+  m2 <- hstat_mere_multi("disque", transform(mas, Purete = c(95, 150)),
+                         list(V_ml = 50, produit = "technique"))
+  expect_true(m2[[1]]$r$ok)
+  expect_false(m2[[2]]$r$ok)
+  expect_identical(names(hstat_mere_tables(m2)), "Deltamethrin")
+  # Deux lignes du meme nom restent deux feuilles.
+  m3 <- hstat_mere_multi("disque", transform(mas, Matiere_active = "A"),
+                         list(V_ml = 50, produit = "technique"))
+  expect_identical(names(hstat_mere_tables(m3)), c("A", "A 1"))
+})
+
+test_that("Solution mere : l'interface par matiere active, la classe suivie, une feuille Excel chacune", {
+  skip_if_not_installed("openxlsx")
+  vals <- shiny::reactiveValues(data = NULL, cleanData = NULL, filteredData = NULL,
+                                resetSignal = 0L)
+  shiny::testServer(mod_dosage_server, args = list(values = vals), {
+    envoyes <- list()
+    racine <- session$rootScope()
+    racine$sendInputMessage <- function(id, msg) envoyes[[length(envoyes) + 1L]] <<- list(id = id, msg = msg)
+    session$setInputs(mereTest = "disque", mereProduit = "technique", mereDisV = 50,
+                      mereNbMa = 2, mereMaNom1 = "Deltamethrin", mereMaNom2 = "Spinosad",
+                      mereCibledisque1 = 1, mereCibledisque2 = 2,
+                      mereMaP1 = 95, mereMaP2 = 80, mereMasseUnite = "g")
+    # La classe suit le nom choisi.
+    session$setInputs(mereMaNom1 = "Glyphosate")
+    ids <- vapply(envoyes, `[[`, "", "id")
+    expect_true("mereMaClasse1" %in% ids)
+    expect_identical(envoyes[[max(which(ids == "mereMaClasse1"))]]$msg$value, "HRAC 9")
+    session$setInputs(mereMaNom1 = "Deltamethrin", mereMaClasse1 = "IRAC 3A",
+                      mereMaClasse2 = "IRAC 5")
+    res <- mere_calc()
+    expect_length(res, 2L)
+    h <- as.character(output$mereResultat$html)
+    expect_match(h, "Spinosad", fixed = TRUE)
+    expect_match(h, "IRAC 5", fixed = TRUE)
+    expect_match(h, "Grade technique (en g)", fixed = TRUE)
+    ui <- as.character(output$mereMaUi$html)
+    expect_match(ui, 'id="proxy1-mereMaNom2"', fixed = TRUE)
+    expect_match(ui, 'id="proxy1-mereCibledisque2"', fixed = TRUE)
+    # Une feuille par matiere active dans le classeur.
+    f <- tempfile(fileext = ".xlsx")
+    hstat_ecrire_classeur(f, mere_tables())
+    expect_identical(openxlsx::getSheetNames(f), c("Deltamethrin", "Spinosad"))
+    x <- openxlsx::read.xlsx(f, sheet = "Spinosad")
+    expect_true(all(x[[1]] == "Spinosad"))
+    expect_true(tr("Classe (IRAC, HRAC, FRAC)") %in% names(x) ||
+                "Classe.(IRAC,.HRAC,.FRAC)" %in% names(x))
+  })
+})
+
+test_that("Solutions filles : chaque matiere active reprise a sa gamme, sa classe et ses conversions", {
+  vals <- shiny::reactiveValues(data = NULL, cleanData = NULL, filteredData = NULL,
+                                resetSignal = 0L)
+  shiny::testServer(mod_dosage_server, args = list(values = vals), {
+    session$setInputs(mereTest = "tube", mereTubVflacon = 1, mereTubV = 1000,
+                      mereTubVUnite = "ml", mereNbMa = 2,
+                      mereMaNom1 = "Deltamethrin", mereMaNom2 = "Spinosad",
+                      mereMaClasse1 = "IRAC 3A", mereMaClasse2 = "IRAC 5",
+                      mereCibletube1 = 40, mereCibletube1Unite = "mg/l",
+                      mereCibletube2 = 2, mereCibletube2Unite = "mg/ml",
+                      mereMaP1 = 97.5, mereMaP2 = 90)
+    session$setInputs(mereVersDilution = 1)
+    rp <- reprise()
+    expect_identical(rp$Matiere_active, c("Deltamethrin", "Spinosad"))
+    expect_identical(rp$Unite, c("mg/l", "mg/ml"))
+    expect_match(as.character(output$repUi$html), "IRAC 5", fixed = TRUE)
+    # Une gamme differente par matiere active.
+    session$setInputs(repConc1 = 40, repUnite1 = "mg/l", repCoef1 = 2, repNb1 = 3,
+                      repVf1 = 10, repVfUnite1 = "ml", repConvVol1 = "µl", repConvConc1 = "",
+                      repConc2 = 2, repUnite2 = "mg/ml", repCoef2 = 10, repNb2 = 2,
+                      repVf2 = 100, repVfUnite2 = "ml", repConvVol2 = "", repConvConc2 = "g/l")
+    session$setInputs(repAjouter = 1)
+    s <- saisie()
+    expect_identical(s$Produit, c("Deltamethrin", "Spinosad"))
+    expect_identical(s$Classe, c("IRAC 3A", "IRAC 5"))
+    expect_equal(s$Coefficient, c(2, 10))
+    expect_equal(s$Nb_filles, c(3, 2))
+    session$setInputs(dilCalculer = 1)
+    d <- dil_brut()
+    expect_equal(sum(d$Produit == "Deltamethrin"), 3L)
+    expect_equal(sum(d$Produit == "Spinosad"), 2L)
+    expect_true(all(d$Classe[d$Produit == "Spinosad"] == "IRAC 5"))
+    # Les volumes du premier sont convertis en µl, pas ceux du second.
+    dd <- d[d$Produit == "Deltamethrin", ]
+    expect_equal(dd$Volume_a_prelever_conv[1], dd$Volume_a_prelever[1] * 1000)
+    expect_true(all(is.na(d$Volume_a_prelever_conv[d$Produit == "Spinosad"])))
+    # Les concentrations du second en g/l (2 mg/ml / 10 = 0,2 mg/ml = 0,2 g/l).
+    ds <- d[d$Produit == "Spinosad", ]
+    expect_equal(ds$Concentration_fille_conv[1], 0.2)
+    expect_true(all(is.na(d$Concentration_fille_conv[d$Produit == "Deltamethrin"])))
+    # Une feuille par matiere active a l'export.
+    expect_true(all(c("Deltamethrin", "Spinosad") %in% names(dil_tables())))
+  })
+  # La conversion pour tout le tableau reste celle d'avant.
+  x <- hstat_dilution_calcul(data.frame(Produit = "P", Matiere_active = "M",
+    Concentration_mere = 1, Unite = "g/l", Coefficient = 10, Volume_final = 1,
+    Unite_volume = "l", stringsAsFactors = FALSE))
+  y <- hstat_dilution_convertir(x, "ml", "mg/l")
+  expect_equal(y$Volume_a_prelever_conv, 100)
+  expect_equal(y$Concentration_fille_conv, 100)
+  expect_identical(y$Unite_volume_conv, "ml")
 })

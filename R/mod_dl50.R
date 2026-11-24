@@ -3447,8 +3447,10 @@ mod_dl50_server <- function(id, values) {
           if (identical(HSTAT_DL50_CHAMPS_LISTE[[nm]], "matiere")) hstat_ma_choix(ma),
           L[[HSTAT_DL50_CHAMPS_LISTE[[nm]]]], cur))
         ch <- ch[nzchar(ch)]
-        shiny::updateSelectizeInput(session, id, choices = ch, selected = cur,
-                                    server = FALSE)
+        shiny::updateSelectizeInput(session, id,
+                                    choices = if (identical(HSTAT_DL50_CHAMPS_LISTE[[nm]], "matiere"))
+                                      hstat_ma_libelles(ch) else ch,
+                                    selected = cur, server = FALSE)
       }
     })
 
