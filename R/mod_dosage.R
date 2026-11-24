@@ -1488,7 +1488,7 @@ mod_dosage_ui <- function(id) {
                 shiny::column(6, .hstat_mere_champ(ns, "mereTubV", "Volume total de solution à préparer V", 1, "volume", NULL, "l")))),
             shiny::hr(),
             shiny::numericInput(ns("mereNbMa"), "Nombre de matières actives",
-                                value = 1, min = 1, max = HSTAT_MERE_NB_MAX, step = 1,
+                                value = 1, min = 1, max = 10, step = 1,
                                 width = "260px"),
             shiny::helpText("Chaque matière active a sa propre solution mère : sa cible,",
                             " sa pureté et sa classe. La liste propose la classe de mode",
@@ -1499,7 +1499,7 @@ mod_dosage_ui <- function(id) {
             # LES CONVERSIONS AJOUTENT DES LIGNES, quel que soit le type de test.
             shiny::fluidRow(
               shiny::column(6, .hstat_mere_champ(ns, "mereVprep",
-                "Convertir la masse à peser pour un volume de", NA, "volume", NULL, "ml")),
+                "Convertir la masse à peser pour un volume de", NULL, "volume", NULL, "ml")),
               shiny::column(6, shiny::selectInput(ns("mereMasseUnite"),
                 "Convertir la masse à peser en",
                 choices = c(list("(mg, unité du protocole)" = ""), hstat_unites_choix("masse")),
@@ -2129,7 +2129,7 @@ mod_dosage_server <- function(id, values) {
       hstat_unite_convertir(v, u, vers)[1]
     }
 
-    mere_nb <- shiny::reactive(as.integer(hstat_borne_client(input$mereNbMa, 1, 1, HSTAT_MERE_NB_MAX)))
+    mere_nb <- shiny::reactive(as.integer(hstat_borne_client(input$mereNbMa, 1, 1, 10)))
     .mere_cible_id <- function(t, i) paste0("mereCible", t, i)
 
     # -- Une carte par matiere active : nom, classe, cible et purete.
