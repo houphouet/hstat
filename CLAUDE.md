@@ -12332,3 +12332,46 @@ réelles, sans arrondi. Cochée, elle ouvre « Nombre de décimales »
 `NA` tant que la case est décochée, et `.hstat_gen_dt()` ne pose alors aucun
 `formatRound`. Le test exige l'absence d'arrondi décochée, puis le nombre choisi
 cochée, sur les tableaux comme sur la synthèse.
+
+### Solution mère à plusieurs matières actives, classe IRAC, et une gamme par matière active (1.66.0)
+
+Demandé à l'écran, sur l'onglet « Solution mère » de « Doses & dilutions ».
+
+**Chaque matière active a sa propre solution mère**, pour les trois types de
+test. Le protocole reste commun (masse de l'insecte et volumes ; formulation et
+volume ; volume par flacon et volume total) ; « Nombre de matières actives »
+(`mereNbMa`, 1 à `HSTAT_MERE_NB_MAX` = 10) ouvre une carte par matière active :
+nom, classe, cible (`mereCible<test><i>`, son identifiant suit le test parce que
+son unité et sa valeur par défaut en dépendent, `HSTAT_MERE_CIBLES`) et pureté
+(ou teneur et densité d'une formulation). `hstat_mere_multi()` calcule chacune
+par la fonction de son test, inchangée : une matière active donne exactement le
+chiffre qu'elle donnait seule, et une qui ne se calcule pas n'emporte pas les
+autres.
+
+**La classe de mode d'action** (`HSTAT_MA_CLASSES`, `hstat_ma_classe()`) :
+IRAC pour les insecticides et acaricides, HRAC pour les herbicides, FRAC pour
+les fongicides — une matière active désherbante n'a pas de classe IRAC. Une
+huile végétale, un régulateur de croissance ou un nom ambigu (« Pyridines »)
+n'en ont pas : on n'en invente pas. La liste déroulante l'affiche
+(`hstat_ma_libelles()`, « Deltamethrin — IRAC 3A ») partout où l'on choisit une
+matière active, la valeur restant le nom. Le champ de classe se remplit au choix
+du nom et se corrige à la main ; une classe corrigée reste tant que le nom ne
+change pas.
+
+**Les conversions valent pour les trois tests** : « Convertir la masse à peser
+pour un volume de » (`mereVprep`, ex-champ du seul vial test) et « Convertir la
+masse à peser en » (`mereMasseUnite`). Elles **ajoutent** des lignes, la masse
+reste aussi en mg.
+
+**Export** : une feuille Excel par matière active (`hstat_mere_tables()`), le
+CSV en un seul tableau ; chaque ligne porte la matière active et sa classe.
+
+**La reprise vers les dilutions** porte toutes les matières actives calculées
+(`reprise()`), chacune dans sa propre carte : concentration mère et unité, 1re
+fille, coefficient, nombre de filles, volume final et unité, conversions des
+volumes et des concentrations. « Ajouter ces matières actives au tableau » les
+pose comme autant de produits, avec leur classe. Les conversions demandées pour
+une matière active voyagent avec ses lignes (`attr(res, "conv_volume")`,
+`"conv_conc"`) et l'emportent sur celles du tableau entier, qui restent
+inchangées. Quatre mutations (conversion par ligne ignorée, conversion de masse
+retirée, classe perdue à l'ajout, classe non suivie) sont attrapées.

@@ -13797,7 +13797,9 @@ hstat_ma_input <- function(id, label, selected = "", saisies = character(0),
   selected <- trimws(as.character(selected %||% ""))[1]
   if (is.na(selected)) selected <- ""
   choix <- hstat_ma_choix(c(saisies, selected))
-  shiny::selectizeInput(id, label, choices = c("", choix), selected = selected,
+  # Chaque choix porte sa classe (IRAC, HRAC, FRAC) ; la valeur reste le nom.
+  shiny::selectizeInput(id, label, choices = c(stats::setNames("", ""), hstat_ma_libelles(choix)),
+                        selected = selected,
     # `delimiter` : par defaut la virgule, qui couperait « 2,4-D (amine salt) »
     # en deux entrees a la creation.
     options = list(create = TRUE, createOnBlur = TRUE, persist = FALSE,
