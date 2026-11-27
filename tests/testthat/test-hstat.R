@@ -27116,6 +27116,12 @@ test_that("ART-ANOVA et ART-C dans le module : lignes, N, ordre, interactions, n
   trace("hstat_art_anova", where = ou, print = FALSE,
         tracer = bquote(.(compter)()))
   on.exit(untrace("hstat_art_anova", where = ou), add = TRUE)
+  # Les contrastes de cellules d'une paire ne se calculent qu'une fois.
+  cpt_con <- new.env(); cpt_con$n <- 0L
+  compter_con <- function() cpt_con$n <- cpt_con$n + 1L
+  trace("art.con", where = asNamespace("ARTool"), print = FALSE,
+        tracer = bquote(.(compter_con)()))
+  on.exit(untrace("art.con", where = asNamespace("ARTool")), add = TRUE)
   set.seed(4)
   d <- expand.grid(Dose = c(2, 5, 10), Bloc = c("b1", "b2"), r = 1:5)
   d$a <- stats::rexp(nrow(d)) + d$Dose / 3
@@ -27138,6 +27144,10 @@ test_that("ART-ANOVA et ART-C dans le module : lignes, N, ordre, interactions, n
     ph <<- values$multiResultsMain
   })
   expect_equal(nrow(res), 6L)
+  # Après l'ART-ANOVA, le post-hoc est présélectionné sur ART-C.
+  html1 <- paste(vapply(notes, function(n) paste(as.character(htmltools::renderTags(n)$html), collapse = ""),
+                        character(1)), collapse = "\n")
+  expect_match(html1, "présélectionné sur ART-C", fixed = TRUE)
   expect_equal(sum(res$Variable == "a"), 3L)
   # Les tables d'effets principaux s'empilent par rang : (a, b_c) et (a_b, c)
   # ne s'écrasent plus sous une même clé « a_b_c_main ».
@@ -27178,6 +27188,7 @@ test_that("ART-ANOVA et ART-C dans le module : lignes, N, ordre, interactions, n
   d3$Bloc[c(1, 4, 7, 10)] <- NA
   v3 <- shiny::reactiveValues(data = d3, cleanData = d3, filteredData = d3)
   cpt$n <- 0L
+  cpt_con$n <- 0L
   notes <- list()
   shiny::testServer(mod_tests_server, args = list(values = v3), {
     vider <- function() try(session$flushReact(), silent = TRUE)
@@ -27200,6 +27211,9 @@ test_that("ART-ANOVA et ART-C dans le module : lignes, N, ordre, interactions, n
   # testé dans chaque sens (2 + 3) : sept, et non douze.
   expect_gt(sum(ph$Type == "simple_effect"), 0L)
   expect_equal(cpt$n, 7L)
+  # Deux effets principaux, puis une seule table de contrastes pour les cinq
+  # effets simples (2 niveaux de Bloc, 3 de Dose) : trois, et non sept.
+  expect_equal(cpt_con$n, 3L)
   # Les effets simples gardent aussi l'ordre des doses.
   se_b1 <- ph[ph$Type == "simple_effect" & ph$Facteur == "Dose | Bloc=b1", ]
   expect_identical(as.character(se_b1$Dose), c("2", "5", "10"))
@@ -27209,6 +27223,8 @@ test_that("ART-ANOVA et ART-C dans le module : lignes, N, ordre, interactions, n
   expect_match(html, "Interaction significative détectée : Dose x Bloc (p = ", fixed = TRUE)
   expect_false(grepl("(p = 0)", html, fixed = TRUE))
   expect_match(html, "Dose x Bloc \\(p = [0-9.]+e-[0-9]+\\)")
+  # L'annonce et la décomposition sur deux lignes, jamais par « \\n ».
+  expect_match(html, "Dose x Bloc \\(p = [^)]*\\)\\s*<br/>\\s*-&gt; Décomposition bidirectionnelle")
   # Un modèle de paire impossible le dit, au lieu de laisser les effets simples vides.
   notes <- list()
   d4 <- d3; d4 <- d4[!(d4$Dose == 10 & d4$Bloc %in% "b2"), ]
@@ -27230,4 +27246,63 @@ test_that("ART-ANOVA et ART-C dans le module : lignes, N, ordre, interactions, n
   expect_equal(sum(startsWith(textes, "a : Aucune observation")), 1L)
   # Le motif ne revient que dans l'avis d'interaction : pas une fois par facteur.
   expect_equal(sum(grepl("Aucune observation pour la combinaison", textes, fixed = TRUE)), 2L)
+})
+
+test_that("ART-ANOVA : réponse en facteur lue par ses valeurs, p-values écrites, variable gardée à part", {
+  skip_if_not_installed("ARTool")
+  set.seed(5)
+  d <- expand.grid(A = c("a1", "a2", "a3"), B = c("b1", "b2"), r = 1:4, stringsAsFactors = FALSE)
+  d$y <- round(stats::rnorm(nrow(d)) + as.integer(factor(d$A)), 2)
+  ref <- hstat_art_anova(d, "y", c("A", "B"))
+  # Un facteur de valeurs numériques se lit par ses valeurs, pas par ses codes.
+  df <- d; df$y <- factor(format(d$y))
+  f <- hstat_art_anova(df, "y", c("A", "B"))
+  expect_true(f$ok)
+  expect_equal(f$table$Statistique, ref$table$Statistique, tolerance = 1e-10)
+  dt <- d; dt$y <- sample(c("haut", "bas"), nrow(d), replace = TRUE)
+  r <- hstat_art_anova(dt, "y", c("A", "B"))
+  expect_false(r$ok)
+  expect_match(r$motif, "n'est pas numérique", fixed = TRUE)
+  # Une p-value minuscule ne s'écrit pas « p = 0 ».
+  txt <- interpret_test_results("art", 3e-12)
+  expect_false(grepl("(p = 0)", txt, fixed = TRUE))
+  expect_match(txt, "e-12", fixed = TRUE)
+  # Le cache : deux effets simples de la même paire, une seule table de contrastes.
+  cpt <- new.env(); cpt$n <- 0L
+  compter <- function() cpt$n <- cpt$n + 1L
+  trace("art.con", where = asNamespace("ARTool"), print = FALSE, tracer = bquote(.(compter)()))
+  on.exit(untrace("art.con", where = asNamespace("ARTool")), add = TRUE)
+  s1 <- hstat_art_effet_simple(ref, "A", "B", "b1")
+  s2 <- hstat_art_effet_simple(ref, "B", "A", "a2")
+  expect_true(s1$ok && s2$ok)
+  expect_equal(cpt$n, 1L)
+})
+
+test_that("ART-ANOVA : une variable qui lève dans le module n'emporte pas les autres", {
+  skip_if_not_installed("ARTool")
+  skip_if_not_installed("shinydashboard")
+  skip_if_not_installed("DT")
+  suppressMessages(hstat_installer_replis_ui())
+  ou <- environment(mod_tests_server)
+  while (!exists("hstat_art_anova", envir = ou, inherits = FALSE)) ou <- parent.env(ou)
+  vrai <- get("hstat_art_anova", envir = ou)
+  assign("hstat_art_anova", function(df, var, facteurs) {
+    if (identical(var, "z")) stop("panne simulee")
+    vrai(df, var, facteurs)
+  }, envir = ou)
+  on.exit(assign("hstat_art_anova", vrai, envir = ou), add = TRUE)
+  set.seed(6)
+  d <- expand.grid(A = c("a1", "a2", "a3"), B = c("b1", "b2"), r = 1:3, stringsAsFactors = FALSE)
+  d$y <- stats::rnorm(nrow(d)); d$z <- stats::rnorm(nrow(d))
+  res <- NULL
+  v <- shiny::reactiveValues(data = d, cleanData = d, filteredData = d)
+  shiny::testServer(mod_tests_server, args = list(values = v), {
+    vider <- function() try(session$flushReact(), silent = TRUE)
+    session$setInputs(responseVar = c("z", "y"), factorVar = c("A", "B")); vider()
+    session$setInputs(testART = 1); vider()
+    res <<- values$testResultsDF
+  })
+  expect_false(is.null(res))
+  expect_equal(sum(res$Variable == "y"), 3L)
+  expect_match(res$Interpretation[res$Variable == "z"], "panne simulee", fixed = TRUE)
 })

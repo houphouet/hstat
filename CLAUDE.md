@@ -12501,6 +12501,36 @@ Le test des notifications remplace `shiny::showNotification` par
 `testthat::local_mocked_bindings(.package = "shiny")` : c'est la seule façon de
 lire sous `testServer()` le texte rendu, plutôt que l'appel dans le source.
 
+#### Troisième revue (1.67.6)
+
+Revue de code et de sécurité de toute l'application ; la seconde n'a rien
+trouvé. Six défauts corrigés, chacun gardé par un test, et quatre mutations
+attrapées :
+
+1. **ART-C recalculait la table des contrastes de cellules à chaque niveau et
+   dans chaque sens** : cinq appels à `art.con` pour une paire Dose × Bloc. Le
+   modèle porte un cache (`fit$cache`, un environnement partagé par toutes les
+   copies de la liste), et le terme `f1:f2` ne se calcule qu'une fois. Le test
+   compte les appels à `art.con` : trois, et non sept.
+2. **L'interprétation d'un test pouvait écrire « (p = 0) »** : dix-sept
+   `round(p_value, 8)` dans `interpret_test_results`, `interpret_normality` et
+   `interpret_homogeneity` passent par `hstat_p_txt()`.
+3. **Le post-hoc restait sur Dunn après une ART-ANOVA**, et ses lettres se
+   seraient protégées par Kruskal-Wallis. Il est présélectionné sur ART-C, et
+   on le dit : c'est une présélection, pas un verrou.
+4. **La boucle du bouton ART-ANOVA n'avait pas de garde par variable** : une
+   erreur imprévue emportait les résultats de toutes les autres. Chaque
+   variable passe par son `tryCatch`, et l'échec devient une ligne nommée.
+5. **L'annonce d'une interaction joignait ses deux lignes par « \n »**, qu'une
+   notification ne rend pas ; et les notes du chi² composaient par `paste0`.
+   `hstat_lignes_notification()` et `trf("%s : %s", …)`. La clé multiligne du
+   dictionnaire est remplacée par deux clés.
+6. **Une réponse en facteur se lisait par ses codes de niveau** : « 0.2 »,
+   « -0.5 » devenaient 1, 2, 3. Elle passe par `hstat_as_numeric_fr()`, qui lit
+   les valeurs, et une réponse de texte est refusée et nommée.
+
+Piège du test : l'`html` rendu échappe « -> » en « -&gt; ».
+
 ## Vérification avec toutes les dépendances (1.67.4)
 
 Les 25 paquets suggérés absents du conteneur ont été installés : sept par apt,
