@@ -12470,6 +12470,27 @@ chaque correction a été retirée une à une pour vérifier qu'une assertion é
    « \n », qu'une notification ne rend pas : `trf("%s : %s", …)` et
    `hstat_lignes_notification()`, qui pose un `<br>` entre les messages.
 
+#### Seconde revue (1.67.2)
+
+- **Les effets simples sortaient encore en ordre de texte** : le second `merge()`,
+  celui de `perform_simple_effect_posthoc()`, retriait lui aussi. Les deux
+  fusions sont recalées sur l'ordre des modalités ; le test lit les lignes
+  « Dose | Bloc=b1 ».
+- **Les tables post-hoc s'écrasaient sous une même clé** (`paste(var, fvar,
+  "main", sep = "_")`, et celles des effets simples) : elles s'empilent par rang,
+  comme les lignes du bouton ART-ANOVA.
+- **Deux autres notifications joignaient par « \n »** (Scheirer-Ray-Hare, refus
+  du chi² d'adéquation) : `hstat_lignes_notification()`.
+- **Un modèle ART impossible se notifiait une fois par facteur** ; une fois par
+  variable désormais.
+- **`hstat_art_ligne()` rendait `NULL` sur un ajustement manqué** : une table
+  vide, aux colonnes de la table.
+- **Le refus des cellules dit le geste** : retirer un facteur de la sélection. Le
+  modèle des effets principaux porte sur tous les facteurs choisis : c'est voulu
+  (ART aligne chaque effet sur le plan complet), et 120 cellules le refusent.
+- **Les p-values d'interaction passent par `hstat_p_txt()`** : `round(p, 4)`
+  annonçait « p = 0 ».
+
 Le test des notifications remplace `shiny::showNotification` par
 `testthat::local_mocked_bindings(.package = "shiny")` : c'est la seule façon de
 lire sous `testServer()` le texte rendu, plutôt que l'appel dans le source.

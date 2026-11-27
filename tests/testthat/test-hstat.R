@@ -27047,6 +27047,7 @@ test_that("ART-ANOVA : modalités, cellules et cellules vides refusés avant tou
   r <- hstat_art_anova(fin, "y", c("A", "B"))
   expect_false(r$ok)
   expect_match(r$motif, "120 cellules", fixed = TRUE)
+  expect_match(r$motif, "Retirez un facteur", fixed = TRUE)
   # Une cellule vide est nommée, jamais l'erreur brute « aliased coefficients ».
   set.seed(2)
   d <- expand.grid(A = c("a1", "a2", "a3"), B = c("b1", "b2"), C = c("c1", "c2"),
@@ -27057,6 +27058,10 @@ test_that("ART-ANOVA : modalités, cellules et cellules vides refusés avant tou
   expect_match(r$motif, "A = a3, B = b2, C = c1", fixed = TRUE)
   expect_equal(cpt$n, 0L)
   # Aux bornes, l'ajustement a lieu : la garde ne refuse pas tout.
+  # Un ajustement manqué rend une table vide, jamais NULL.
+  vide <- hstat_art_ligne(list(ok = FALSE, motif = "x"), "A")
+  expect_true(is.data.frame(vide))
+  expect_equal(nrow(vide), 0L)
   bord <- expand.grid(A = factor(1:20), B = factor(1:5), r = 1:2)
   bord$y <- stats::rnorm(nrow(bord))
   expect_true(hstat_art_anova(bord, "y", c("A", "B"))$ok)
@@ -27121,9 +27126,21 @@ test_that("ART-ANOVA et ART-C dans le module : lignes, N, ordre, interactions, n
     session$setInputs(responseVar = c("a", "a_b"), factorVar = c("b_c", "c")); vider()
     session$setInputs(testART = 1); vider()
     res <<- values$testResultsDF
+    session$setInputs(multiResponse = c("a", "a_b"), multiFactor = c("b_c", "c"),
+                      testType = "nonparam", multiTestNonParam = "artc",
+                      multiNonParamAdjust = "holm", multiProtege = FALSE,
+                      posthocInteraction = FALSE, multiRoundResults = TRUE,
+                      multiDecimals = 2); vider()
+    session$setInputs(runMultiple = 1); vider()
+    ph <<- values$multiResultsMain
   })
   expect_equal(nrow(res), 6L)
   expect_equal(sum(res$Variable == "a"), 3L)
+  # Les tables d'effets principaux s'empilent par rang : (a, b_c) et (a_b, c)
+  # ne s'écrasent plus sous une même clé « a_b_c_main ».
+  princ <- ph[ph$Type == "main", ]
+  expect_setequal(unique(paste(princ$Variable, princ$Facteur)),
+                  c("a b_c", "a c", "a_b b_c", "a_b c"))
   # Les motifs passent par trf() et sont séparés par des retours à la ligne.
   notes <- list()
   d2 <- d; d2$a[1:3] <- NA; d2$a_b <- 1
@@ -27137,6 +27154,19 @@ test_that("ART-ANOVA et ART-C dans le module : lignes, N, ordre, interactions, n
                        character(1)), collapse = "\n")
   expect_match(html, "a_b : Toutes les valeurs", fixed = TRUE)
   expect_match(html, "a : 3 ligne(s)", fixed = TRUE)
+  # Scheirer-Ray-Hare : un motif par ligne, sous son intitulé.
+  notes <- list()
+  d5 <- d; d5$u <- NA_real_; d5$w <- NA_real_
+  v5 <- shiny::reactiveValues(data = d5, cleanData = d5, filteredData = d5)
+  shiny::testServer(mod_tests_server, args = list(values = v5), {
+    vider <- function() try(session$flushReact(), silent = TRUE)
+    session$setInputs(responseVar = c("u", "w"), factorVar = c("b_c", "c")); vider()
+    session$setInputs(testScheirerRayHare = 1); vider()
+  })
+  html <- paste(vapply(notes, function(n) paste(as.character(htmltools::renderTags(n)$html), collapse = ""),
+                       character(1)), collapse = "\n")
+  expect_match(html, "Problèmes détectés :\\s*<br/>\\s*u : Pas assez")
+  expect_match(html, "<br/>\\s*w : Pas assez")
   expect_match(html, "<br/>", fixed = TRUE)
   # ART-C : N et moyennes sur les lignes que le modèle a vues ; doses dans
   # l'ordre des nombres ; le modèle de la paire n'est ajusté qu'une fois.
@@ -27145,6 +27175,7 @@ test_that("ART-ANOVA et ART-C dans le module : lignes, N, ordre, interactions, n
   d3$Bloc[c(1, 4, 7, 10)] <- NA
   v3 <- shiny::reactiveValues(data = d3, cleanData = d3, filteredData = d3)
   cpt$n <- 0L
+  notes <- list()
   shiny::testServer(mod_tests_server, args = list(values = v3), {
     vider <- function() try(session$flushReact(), silent = TRUE)
     session$setInputs(multiResponse = "a", multiFactor = c("Dose", "Bloc"),
@@ -27166,6 +27197,15 @@ test_that("ART-ANOVA et ART-C dans le module : lignes, N, ordre, interactions, n
   # testé dans chaque sens (2 + 3) : sept, et non douze.
   expect_gt(sum(ph$Type == "simple_effect"), 0L)
   expect_equal(cpt$n, 7L)
+  # Les effets simples gardent aussi l'ordre des doses.
+  se_b1 <- ph[ph$Type == "simple_effect" & ph$Facteur == "Dose | Bloc=b1", ]
+  expect_identical(as.character(se_b1$Dose), c("2", "5", "10"))
+  # Une p-value d'interaction minuscule ne s'écrit pas « p = 0 ».
+  html <- paste(vapply(notes, function(n) paste(as.character(htmltools::renderTags(n)$html), collapse = ""),
+                       character(1)), collapse = "\n")
+  expect_match(html, "Interaction significative détectée : Dose x Bloc (p = ", fixed = TRUE)
+  expect_false(grepl("(p = 0)", html, fixed = TRUE))
+  expect_match(html, "Dose x Bloc \\(p = [0-9.]+e-[0-9]+\\)")
   # Un modèle de paire impossible le dit, au lieu de laisser les effets simples vides.
   notes <- list()
   d4 <- d3; d4 <- d4[!(d4$Dose == 10 & d4$Bloc %in% "b2"), ]
@@ -27182,4 +27222,9 @@ test_that("ART-ANOVA et ART-C dans le module : lignes, N, ordre, interactions, n
   html <- paste(vapply(notes, function(n) paste(as.character(htmltools::renderTags(n)$html), collapse = ""),
                        character(1)), collapse = "\n")
   expect_match(html, "Interaction Dose x Bloc non testée : Aucune observation pour la combinaison Dose = 10, Bloc = b2", fixed = TRUE)
+  # Le modèle principal impossible se dit une fois pour la variable, pas une fois par facteur.
+  textes <- vapply(notes, function(n) paste(as.character(htmltools::renderTags(n)$html), collapse = ""), character(1))
+  expect_equal(sum(startsWith(textes, "a : Aucune observation")), 1L)
+  # Le motif ne revient que dans l'avis d'interaction : pas une fois par facteur.
+  expect_equal(sum(grepl("Aucune observation pour la combinaison", textes, fixed = TRUE)), 2L)
 })

@@ -3737,7 +3737,7 @@ HSTAT_ART_CELLULES_MAX <- 100L
   }
   ncell <- prod(lengths(niveaux))
   if (ncell > HSTAT_ART_CELLULES_MAX)
-    return(refus(trf("Le croisement des facteurs donne %d cellules : l'ART-ANOVA en accepte %d au plus.",
+    return(refus(trf("Le croisement des facteurs donne %d cellules : l'ART-ANOVA en accepte %d au plus. Retirez un facteur de la sélection pour analyser les autres.",
                      ncell, HSTAT_ART_CELLULES_MAX)))
   # Le modele factoriel complet exige une observation dans chaque cellule.
   vues <- table(d[codes])
@@ -3787,9 +3787,12 @@ hstat_art_anova <- function(df, var, facteurs) {
 # La ligne d'un effet, lue sur son terme code : un nom de colonne portant « : »
 # se confondrait sinon avec une interaction.
 hstat_art_ligne <- function(fit, facteurs) {
-  if (!isTRUE(fit$ok)) return(fit$table[0, , drop = FALSE])
+  vide <- data.frame(Facteur = character(0), Terme = character(0), Statistique = numeric(0),
+                     ddl_num = numeric(0), ddl_den = numeric(0), p_value = numeric(0),
+                     stringsAsFactors = FALSE)
+  if (!isTRUE(fit$ok) || !is.data.frame(fit$table)) return(vide)
   codes <- fit$prep$codes[match(facteurs, fit$prep$facteurs)]
-  if (anyNA(codes)) return(fit$table[0, , drop = FALSE])
+  if (anyNA(codes)) return(vide)
   terme <- paste(codes[order(match(codes, fit$prep$codes))], collapse = ":")
   fit$table[fit$table$Terme == terme, , drop = FALSE]
 }

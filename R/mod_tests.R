@@ -3272,7 +3272,7 @@ mod_tests_server <- function(id, values) {
     
     if (length(error_messages) > 0) {
       shiny::showNotification(
-        trf("Problèmes détectés :\n%s", paste(error_messages, collapse = "\n")),
+        hstat_lignes_notification(c(tr("Problèmes détectés :"), error_messages)),
         type = "warning",
         duration = 10
       )
@@ -3326,8 +3326,9 @@ mod_tests_server <- function(id, values) {
     if (length(motifs))
       shiny::showNotification(hstat_lignes_notification(motifs), type = "warning", duration = 10)
     if (length(results_list)) {
-      values$testResultsDF <- do.call(rbind, results_list)
-      rownames(values$testResultsDF) <- NULL
+      tab_art <- do.call(rbind, results_list)
+      rownames(tab_art) <- NULL
+      values$testResultsDF <- tab_art
       values$normalityResults <- NULL
       values$homogeneityResults <- NULL
       values$currentTestType <- "non-parametric"
@@ -5788,14 +5789,14 @@ mod_tests_server <- function(id, values) {
         cle <- paste0(v, " × ", f)
         r <- hstat_chi2_adequation(df[[f]], if (compter) NULL else df[[v]], methode)
         shiny::incProgress(1 / (length(fvars) * length(vars)))
-        if (!isTRUE(r$ok)) { refus <- c(refus, paste0(cle, " : ", r$motif)); next }
+        if (!isTRUE(r$ok)) { refus <- c(refus, trf("%s : %s", cle, r$motif)); next }
         r$facteur <- f; r$variable <- v; r$type_donnee <- note_type
         if (length(r$notes)) notes <- c(notes, paste0(cle, " : ", r$notes))
         liste[[cle]] <- .chi2_comparer(r)
       }
     })
     if (length(refus))
-      shiny::showNotification(paste(refus, collapse = "\n"), type = "warning", duration = 10)
+      shiny::showNotification(hstat_lignes_notification(refus), type = "warning", duration = 10)
     if (!length(liste)) return()
 
     values$chiSqListe <- liste
@@ -6303,6 +6304,8 @@ mod_tests_server <- function(id, values) {
         )
       
       res <- merge(desc, groups, by = factor1, all.x = TRUE)
+      # merge() trie sur le texte : « 10 » passerait avant « 2 ».
+      res <- res[order(match(as.character(res[[factor1]]), as.character(desc[[factor1]]))), , drop = FALSE]
       res[[factor2]] <- level
       res$groups[is.na(res$groups)] <- "a"
       res$Test_global <- omni_se$test %||% NA_character_
@@ -6619,8 +6622,14 @@ mod_tests_server <- function(id, values) {
               })
             } else if (input$multiTestNonParam == "artc") {
               # UN SEUL MODELE ART par variable, sur tous les facteurs choisis.
-              if (is.null(art_fits[[var]]))
+              if (is.null(art_fits[[var]])) {
                 art_fits[[var]] <- hstat_art_anova(df, var, input$multiFactor)
+                # Un modele impossible se dit une fois par variable, pas par facteur.
+                if (!isTRUE(art_fits[[var]]$ok))
+                  shiny::showNotification(trf("%s : %s", var, art_fits[[var]]$motif),
+                                          type = "warning", duration = 10)
+              }
+              if (!isTRUE(art_fits[[var]]$ok)) next
               ph <- hstat_art_posthoc(art_fits[[var]], fvar,
                                       input$multiNonParamAdjust %||% "holm")
               if (!isTRUE(ph$ok)) {
@@ -6704,7 +6713,7 @@ mod_tests_server <- function(id, values) {
                 ddl_global = omni$ddl %||% NA_character_
               )
             
-            multi_results_list[[paste(var, fvar, "main", sep = "_")]] <- res
+            multi_results_list[[length(multi_results_list) + 1L]] <- res
           }
         }, error = function(e) {
           shiny::showNotification(hstat_err_fr(e, sprintf("Effet principal %s x %s", var, fvar)),
@@ -6771,7 +6780,7 @@ mod_tests_server <- function(id, values) {
               interaction_pvalue <- kw_interaction$p.value
               
               shiny::showNotification(
-                trf("Test non-paramétrique (Kruskal-Wallis) pour %s x %s: p = %s", fvar1, fvar2, round(interaction_pvalue, 4)),
+                trf("Test non-paramétrique (Kruskal-Wallis) pour %s x %s: p = %s", fvar1, fvar2, hstat_p_txt(interaction_pvalue)),
                 type = "message", duration = 3
               )
             }
@@ -6781,7 +6790,7 @@ mod_tests_server <- function(id, values) {
               shiny::showNotification(
                 trf(paste0("[OK] Interaction significative détectée : %s x %s (p = %s)\n",
                            "-> Décomposition bidirectionnelle en cours..."),
-                    fvar1, fvar2, round(interaction_pvalue, 4)),
+                    fvar1, fvar2, hstat_p_txt(interaction_pvalue)),
                 type = "warning", duration = 5
               )
               
@@ -6822,7 +6831,7 @@ mod_tests_server <- function(id, values) {
                                       Direction = trf("%s vers %s", fvar1, fvar2)
                                     ), error = function(e) NULL)
                   if (!is.null(res))
-                    simple_effects_list[[paste(var, fvar1, fvar2, level2, sep = "_")]] <- res
+                    simple_effects_list[[length(simple_effects_list) + 1L]] <- res
                 }
               }
               
@@ -6858,7 +6867,7 @@ mod_tests_server <- function(id, values) {
                                       Direction = trf("%s vers %s", fvar2, fvar1)
                                     ), error = function(e) NULL)
                   if (!is.null(res))
-                    simple_effects_list[[paste(var, fvar2, fvar1, level1, sep = "_")]] <- res
+                    simple_effects_list[[length(simple_effects_list) + 1L]] <- res
                 }
               }
               
@@ -6868,8 +6877,8 @@ mod_tests_server <- function(id, values) {
               )
             } else if (!is.na(interaction_pvalue)) {
               shiny::showNotification(
-                paste0("[--] Interaction non significative : ", fvar1, " x ", fvar2, 
-                       " (p = ", round(interaction_pvalue, 4), ")"),
+                trf("[--] Interaction non significative : %s x %s (p = %s)",
+                    fvar1, fvar2, hstat_p_txt(interaction_pvalue)),
                 type = "default", duration = 3
               )
             }
