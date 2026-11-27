@@ -6517,7 +6517,7 @@ cette forme.
 |---|---|
 | **WARNING** caractères non-ASCII | L'interface est en français : ~9 700 chaînes accentuées. Les échapper en `\uxxxx` rendrait la source illisible. Compromis assumé, pas un défaut. |
 | **NOTE** `Suggests` indisponibles | Le conteneur est hors ligne ; 28 des 72 ne s'installent pas. Disparaît sur une machine reliée à CRAN. |
-| **NOTE** « no visible global function definition » | Exactement les **neuf aiguillages** (`%>%`, `withSpinner`, `colourInput`, `pickerInput`, `ggplotly`, `renderPlotly`, `plotlyOutput`, `config`, `updatePickerInput`). Ils vivent dans l'environnement global par contrat : le compilateur ne peut pas les y voir. |
+| **NOTE** « no visible global function definition » | Les **aiguillages** que relève le compilateur : `%>%`, `withSpinner`, `colourInput`, `updateColourInput`, `element_markdown`, `ggplotly`, `plotlyOutput` (relevé en 1.67.4, toutes dépendances installées). Ils vivent dans l'environnement global par contrat : le compilateur ne peut pas les y voir. |
 
 Le troisième point se supprimerait en définissant les neuf au premier niveau du
 paquet, comme `layout` l'a été. `layout` a dû l'être parce que son nom existe
@@ -12500,3 +12500,24 @@ leurre posée dans l'environnement global.
 Le test des notifications remplace `shiny::showNotification` par
 `testthat::local_mocked_bindings(.package = "shiny")` : c'est la seule façon de
 lire sous `testServer()` le texte rendu, plutôt que l'appel dans le source.
+
+## Vérification avec toutes les dépendances (1.67.4)
+
+Les 25 paquets suggérés absents du conteneur ont été installés : sept par apt,
+les autres depuis le miroir CRAN de GitHub (`git clone https://github.com/cran/<p>`
+puis `R CMD INSTALL`), CRAN étant injoignable. Trois demandaient une version
+compatible avec R 4.3.3 : **rcompanion 2.4.36** (2.5.0 exige R ≥ 4.4), **Deriv
+4.1.6** pour neuralnet (la version courante exige R ≥ 4.5), et **ggfittext
+0.10.2** pour treemapify (la 0.10.4 installée exigeait ggplot2 ≥ 3.5). Seule la
+bibliothèque libtorch manque : `torch::install_torch()` télécharge depuis
+download.pytorch.org, que le mandataire refuse.
+
+Résultat : **912 tests, 0 échec, 0 sauté** — les trois tests du plan
+expérimental, qui échouaient faute d'agricolae, passent, et les quatre de
+duckdb s'exécutent.
+
+`R CMD check` avec ces paquets : la note « no visible binding » portait
+vingt-trois noms de colonnes employés dans `aes()` (sélection génétique,
+`.hstat_poids` de la visualisation). Ils rejoignent `utils::globalVariables()`
+dans `R/zzz.R` ; la note ne porte plus que les sept aiguillages, vérifié par un
+second `R CMD check`.
