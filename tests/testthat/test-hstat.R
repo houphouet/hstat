@@ -27026,3 +27026,208 @@ test_that("le bouton ART-ANOVA et le post-hoc ART-C passent par le module", {
   ref <- hstat_art_posthoc(hstat_art_anova(d, "y", c("Trt", "Bloc", "Sol")), "Trt", "holm")
   expect_identical(trt$groups[order(trt$Trt)], ref$groups$groups[order(ref$groups$Trt)])
 })
+
+test_that("ART-ANOVA : modalités, cellules et cellules vides refusés avant tout ajustement", {
+  skip_if_not_installed("ARTool")
+  # Une colonne d'identifiants, un croisement trop fin : refusés et nommés, sans
+  # qu'aucun modèle aligné soit ajusté sur le processus partagé.
+  # Le compteur vit dans un environnement : `<<-` dans le traceur chercherait la
+  # variable depuis le cadre de la fonction tracée, pas depuis le test.
+  cpt <- new.env(); cpt$n <- 0L
+  compter <- function() cpt$n <- cpt$n + 1L
+  trace("art", where = asNamespace("ARTool"), print = FALSE,
+        tracer = bquote(.(compter)()))
+  on.exit(untrace("art", where = asNamespace("ARTool")), add = TRUE)
+  ids <- data.frame(y = stats::rnorm(200), P = factor(1:40), B = gl(5, 40))
+  r <- hstat_art_anova(ids, "y", c("P", "B"))
+  expect_false(r$ok)
+  expect_match(r$motif, "« P » compte 40 modalités", fixed = TRUE)
+  fin <- expand.grid(A = factor(1:20), B = factor(1:6), r = 1:2)
+  fin$y <- stats::rnorm(nrow(fin))
+  r <- hstat_art_anova(fin, "y", c("A", "B"))
+  expect_false(r$ok)
+  expect_match(r$motif, "120 cellules", fixed = TRUE)
+  expect_match(r$motif, "Retirez un facteur", fixed = TRUE)
+  # Une cellule vide est nommée, jamais l'erreur brute « aliased coefficients ».
+  set.seed(2)
+  d <- expand.grid(A = c("a1", "a2", "a3"), B = c("b1", "b2"), C = c("c1", "c2"),
+                   r = 1:3, stringsAsFactors = FALSE)
+  d$y <- stats::rnorm(nrow(d))
+  r <- hstat_art_anova(d[!(d$A == "a3" & d$B == "b2" & d$C == "c1"), ], "y", c("A", "B", "C"))
+  expect_false(r$ok)
+  expect_match(r$motif, "A = a3, B = b2, C = c1", fixed = TRUE)
+  expect_equal(cpt$n, 0L)
+  # Aux bornes, l'ajustement a lieu : la garde ne refuse pas tout.
+  # Un ajustement manqué rend une table vide, jamais NULL.
+  vide <- hstat_art_ligne(list(ok = FALSE, motif = "x"), "A")
+  expect_true(is.data.frame(vide))
+  expect_equal(nrow(vide), 0L)
+  bord <- expand.grid(A = factor(1:20), B = factor(1:5), r = 1:2)
+  bord$y <- stats::rnorm(nrow(bord))
+  expect_true(hstat_art_anova(bord, "y", c("A", "B"))$ok)
+  expect_gt(cpt$n, 0L)
+})
+
+test_that("ART-ANOVA : l'effet se lit sur son terme codé, et les heures restent distinctes", {
+  skip_if_not_installed("ARTool")
+  set.seed(3)
+  d <- expand.grid(X = c("a", "b", "c"), Y = c("u", "v"), r = 1:4, stringsAsFactors = FALSE)
+  d$y <- stats::rnorm(nrow(d)) + as.integer(factor(d$X))
+  # Une colonne nommée « X:Y » ressemble à l'interaction de X et Y.
+  d[["X:Y"]] <- d$X
+  f <- hstat_art_anova(d, "y", c("X:Y", "Y"))
+  expect_true(f$ok)
+  expect_identical(f$table$Facteur, c("X:Y", "Y", "X:Y:Y"))
+  expect_equal(hstat_art_omnibus(f, "X:Y")$statistique, f$table$Statistique[1])
+  expect_identical(hstat_art_ligne(f, c("X:Y", "Y"))$Terme, "f1:f2")
+  expect_identical(hstat_art_ligne(f, c("Y", "X:Y"))$Terme, "f1:f2")
+  # Avec X, Y et « X:Y » : l'interaction de X et Y porte le même nom que la
+  # colonne, et une recherche par nom tomberait sur l'effet principal.
+  e <- expand.grid(X2 = c("a", "b"), Y2 = c("u", "v"), Z = c("p", "q"), r = 1:3,
+                   stringsAsFactors = FALSE)
+  e$y <- stats::rnorm(nrow(e)); names(e)[names(e) == "Z"] <- "X2:Y2"
+  g <- hstat_art_anova(e, "y", c("X2", "Y2", "X2:Y2"))
+  expect_true(g$ok)
+  expect_identical(g$table$Terme[g$table$Facteur == "X2:Y2"][1], "f3")
+  expect_identical(hstat_art_ligne(g, c("X2", "Y2"))$Terme, "f1:f2")
+  # Deux heures du même jour sont deux modalités.
+  h <- data.frame(y = stats::rnorm(8),
+                  t = as.POSIXct(c("2024-01-01 08:00", "2024-01-01 16:00"), tz = "UTC")[rep(1:2, 4)])
+  expect_length(hstat_art_anova(h, "y", "t")$prep$niveaux$f1, 2L)
+})
+
+test_that("ART-ANOVA et ART-C dans le module : lignes, N, ordre, interactions, notifications", {
+  skip_if_not_installed("ARTool")
+  skip_if_not_installed("multcompView")
+  skip_if_not_installed("shinydashboard")
+  skip_if_not_installed("DT")
+  suppressMessages(hstat_installer_replis_ui())
+  notes <- list()
+  testthat::local_mocked_bindings(
+    showNotification = function(ui, ...) { notes[[length(notes) + 1L]] <<- ui; invisible("id") },
+    .package = "shiny")
+  # art.con réajuste lui-même un modèle : on compte les ajustements de HStat.
+  cpt <- new.env(); cpt$n <- 0L
+  compter <- function() cpt$n <- cpt$n + 1L
+  # La copie que le module appelle : celle de son environnement, pas forcément
+  # celle que voit le test (en CI, l'environnement global en porte une autre).
+  ou <- environment(mod_tests_server)
+  while (!exists("hstat_art_anova", envir = ou, inherits = FALSE)) ou <- parent.env(ou)
+  trace("hstat_art_anova", where = ou, print = FALSE,
+        tracer = bquote(.(compter)()))
+  on.exit(untrace("hstat_art_anova", where = ou), add = TRUE)
+  set.seed(4)
+  d <- expand.grid(Dose = c(2, 5, 10), Bloc = c("b1", "b2"), r = 1:5)
+  d$a <- stats::rexp(nrow(d)) + d$Dose / 3
+  d$a_b <- stats::rexp(nrow(d))
+  d$b_c <- d$Bloc; d$c <- rep(c("x", "y"), length.out = nrow(d))
+  # Deux noms qui se composeraient en une même clé « a_b_c ».
+  res <- NULL; ph <- NULL
+  v <- shiny::reactiveValues(data = d, cleanData = d, filteredData = d)
+  shiny::testServer(mod_tests_server, args = list(values = v), {
+    vider <- function() try(session$flushReact(), silent = TRUE)
+    session$setInputs(responseVar = c("a", "a_b"), factorVar = c("b_c", "c")); vider()
+    session$setInputs(testART = 1); vider()
+    res <<- values$testResultsDF
+    session$setInputs(multiResponse = c("a", "a_b"), multiFactor = c("b_c", "c"),
+                      testType = "nonparam", multiTestNonParam = "artc",
+                      multiNonParamAdjust = "holm", multiProtege = FALSE,
+                      posthocInteraction = FALSE, multiRoundResults = TRUE,
+                      multiDecimals = 2); vider()
+    session$setInputs(runMultiple = 1); vider()
+    ph <<- values$multiResultsMain
+  })
+  expect_equal(nrow(res), 6L)
+  expect_equal(sum(res$Variable == "a"), 3L)
+  # Les tables d'effets principaux s'empilent par rang : (a, b_c) et (a_b, c)
+  # ne s'écrasent plus sous une même clé « a_b_c_main ».
+  princ <- ph[ph$Type == "main", ]
+  expect_setequal(unique(paste(princ$Variable, princ$Facteur)),
+                  c("a b_c", "a c", "a_b b_c", "a_b c"))
+  # Les motifs passent par trf() et sont séparés par des retours à la ligne.
+  notes <- list()
+  d2 <- d; d2$a[1:3] <- NA; d2$a_b <- 1
+  v2 <- shiny::reactiveValues(data = d2, cleanData = d2, filteredData = d2)
+  shiny::testServer(mod_tests_server, args = list(values = v2), {
+    vider <- function() try(session$flushReact(), silent = TRUE)
+    session$setInputs(responseVar = c("a", "a_b"), factorVar = "Dose"); vider()
+    session$setInputs(testART = 1); vider()
+  })
+  html <- paste(vapply(notes, function(n) as.character(htmltools::renderTags(n)$html),
+                       character(1)), collapse = "\n")
+  expect_match(html, "a_b : Toutes les valeurs", fixed = TRUE)
+  expect_match(html, "a : 3 ligne(s)", fixed = TRUE)
+  # Scheirer-Ray-Hare : un motif par ligne, sous son intitulé.
+  notes <- list()
+  d5 <- d; d5$u <- NA_real_; d5$w <- NA_real_
+  v5 <- shiny::reactiveValues(data = d5, cleanData = d5, filteredData = d5)
+  shiny::testServer(mod_tests_server, args = list(values = v5), {
+    vider <- function() try(session$flushReact(), silent = TRUE)
+    session$setInputs(responseVar = c("u", "w"), factorVar = c("b_c", "c")); vider()
+    session$setInputs(testScheirerRayHare = 1); vider()
+  })
+  html <- paste(vapply(notes, function(n) paste(as.character(htmltools::renderTags(n)$html), collapse = ""),
+                       character(1)), collapse = "\n")
+  expect_match(html, "Problèmes détectés :\\s*<br/>\\s*u : Pas assez")
+  expect_match(html, "<br/>\\s*w : Pas assez")
+  expect_match(html, "<br/>", fixed = TRUE)
+  # ART-C : N et moyennes sur les lignes que le modèle a vues ; doses dans
+  # l'ordre des nombres ; le modèle de la paire n'est ajusté qu'une fois.
+  # Un effet de la dose dans le seul bloc b1 : l'interaction est nette.
+  d3 <- d; d3$a <- stats::rnorm(nrow(d3), sd = 0.3) + ifelse(d3$Bloc == "b1", d3$Dose, 0)
+  d3$Bloc[c(1, 4, 7, 10)] <- NA
+  v3 <- shiny::reactiveValues(data = d3, cleanData = d3, filteredData = d3)
+  cpt$n <- 0L
+  notes <- list()
+  shiny::testServer(mod_tests_server, args = list(values = v3), {
+    vider <- function() try(session$flushReact(), silent = TRUE)
+    session$setInputs(multiResponse = "a", multiFactor = c("Dose", "Bloc"),
+                      testType = "nonparam", multiTestNonParam = "artc",
+                      multiNonParamAdjust = "holm", multiProtege = FALSE,
+                      posthocInteraction = TRUE, multiRoundResults = TRUE,
+                      multiDecimals = 2); vider()
+    session$setInputs(runMultiple = 1); vider()
+    ph <<- values$multiResultsMain
+  })
+  dose <- ph[ph$Facteur == "Dose" & ph$Type == "main", ]
+  expect_identical(as.character(dose$Dose), c("2", "5", "10"))
+  expect_equal(sum(dose$N), sum(stats::complete.cases(d3[, c("a", "Dose", "Bloc")])))
+  vus <- !is.na(d3$Bloc)
+  expect_lt(sum(dose$N), nrow(d3))
+  attendu <- tapply(d3$a[vus], d3$Dose[vus], mean)
+  expect_equal(as.numeric(dose$Moyenne), as.numeric(attendu[c("2", "5", "10")]))
+  # Modèle principal + modèle de la paire + un modèle à un facteur par niveau
+  # testé dans chaque sens (2 + 3) : sept, et non douze.
+  expect_gt(sum(ph$Type == "simple_effect"), 0L)
+  expect_equal(cpt$n, 7L)
+  # Les effets simples gardent aussi l'ordre des doses.
+  se_b1 <- ph[ph$Type == "simple_effect" & ph$Facteur == "Dose | Bloc=b1", ]
+  expect_identical(as.character(se_b1$Dose), c("2", "5", "10"))
+  # Une p-value d'interaction minuscule ne s'écrit pas « p = 0 ».
+  html <- paste(vapply(notes, function(n) paste(as.character(htmltools::renderTags(n)$html), collapse = ""),
+                       character(1)), collapse = "\n")
+  expect_match(html, "Interaction significative détectée : Dose x Bloc (p = ", fixed = TRUE)
+  expect_false(grepl("(p = 0)", html, fixed = TRUE))
+  expect_match(html, "Dose x Bloc \\(p = [0-9.]+e-[0-9]+\\)")
+  # Un modèle de paire impossible le dit, au lieu de laisser les effets simples vides.
+  notes <- list()
+  d4 <- d3; d4 <- d4[!(d4$Dose == 10 & d4$Bloc %in% "b2"), ]
+  v4 <- shiny::reactiveValues(data = d4, cleanData = d4, filteredData = d4)
+  shiny::testServer(mod_tests_server, args = list(values = v4), {
+    vider <- function() try(session$flushReact(), silent = TRUE)
+    session$setInputs(multiResponse = "a", multiFactor = c("Dose", "Bloc"),
+                      testType = "nonparam", multiTestNonParam = "artc",
+                      multiNonParamAdjust = "holm", multiProtege = FALSE,
+                      posthocInteraction = TRUE, multiRoundResults = TRUE,
+                      multiDecimals = 2); vider()
+    session$setInputs(runMultiple = 1); vider()
+  })
+  html <- paste(vapply(notes, function(n) paste(as.character(htmltools::renderTags(n)$html), collapse = ""),
+                       character(1)), collapse = "\n")
+  expect_match(html, "Interaction Dose x Bloc non testée : Aucune observation pour la combinaison Dose = 10, Bloc = b2", fixed = TRUE)
+  # Le modèle principal impossible se dit une fois pour la variable, pas une fois par facteur.
+  textes <- vapply(notes, function(n) paste(as.character(htmltools::renderTags(n)$html), collapse = ""), character(1))
+  expect_equal(sum(startsWith(textes, "a : Aucune observation")), 1L)
+  # Le motif ne revient que dans l'avis d'interaction : pas une fois par facteur.
+  expect_equal(sum(grepl("Aucune observation pour la combinaison", textes, fixed = TRUE)), 2L)
+})

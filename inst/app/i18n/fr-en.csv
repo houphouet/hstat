@@ -5705,9 +5705,6 @@ July 28-03"
 "AFD : variables colinéaires exclues automatiquement -- %s.","LDA: collinear variables automatically excluded -- %s."
 " Formule incorrecte : le résultat a %s valeur(s) au lieu de %s. "," Incorrect formula: the result has %s value(s) instead of %s. "
 "<b>Transformation appliquée</b><br>%s variable(s) créée(s) : %s","<b>Transformation applied</b><br>%s variable(s) created: %s"
-"Problèmes détectés :
-%s","Problems detected:
-%s"
 " PostHoc mis à jour avec les résultats des tests (%s résultats)"," PostHoc updated with the test results (%s results)"
 "[OK] Interaction significative détectée : %s x %s (p = %s)
 -> Décomposition bidirectionnelle en cours...","[OK] Significant interaction detected: %s x %s (p = %s)
@@ -7990,3 +7987,11 @@ July 28-03"
 "Le facteur « %s » n'a qu'une modalité après retrait des valeurs manquantes.","The factor “%s” has only one level once missing values are removed."
 "Facteur absent du modèle ART.","Factor missing from the ART model."
 "Niveau absent du modèle ART.","Level missing from the ART model."
+"Le facteur « %s » compte %d modalités : l'ART-ANOVA en accepte %d au plus.","The factor “%s” has %d levels: ART-ANOVA accepts %d at most."
+"Le croisement des facteurs donne %d cellules : l'ART-ANOVA en accepte %d au plus. Retirez un facteur de la sélection pour analyser les autres.","Crossing the factors gives %d cells: ART-ANOVA accepts %d at most. Remove a factor from the selection to analyse the others."
+"Aucune observation pour la combinaison %s : l'ART-ANOVA ajuste toutes les interactions et exige chaque combinaison des facteurs. Retirez un facteur ou complétez le plan.","No observation for the combination %s: ART-ANOVA fits every interaction and needs every combination of the factors. Remove a factor or complete the design."
+"%d observations pour %d cellules : il faut des répétitions pour estimer l'erreur.","%d observations for %d cells: replicates are needed to estimate the error."
+"%s x %s : %s","%s x %s: %s"
+"Interaction %s x %s non testée : %s","Interaction %s x %s not tested: %s"
+"Problèmes détectés :","Problems detected:"
+"[--] Interaction non significative : %s x %s (p = %s)","[--] Interaction not significant: %s x %s (p = %s)"

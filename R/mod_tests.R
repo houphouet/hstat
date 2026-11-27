@@ -3272,7 +3272,7 @@ mod_tests_server <- function(id, values) {
     
     if (length(error_messages) > 0) {
       shiny::showNotification(
-        trf("Problèmes détectés :\n%s", paste(error_messages, collapse = "\n")),
+        hstat_lignes_notification(c(tr("Problèmes détectés :"), error_messages)),
         type = "warning",
         duration = 10
       )
@@ -3302,8 +3302,8 @@ mod_tests_server <- function(id, values) {
     for (var in input$responseVar) {
       fit <- hstat_art_anova(values$filteredData, var, input$factorVar)
       if (!isTRUE(fit$ok)) {
-        motifs <- c(motifs, paste0(var, " : ", fit$motif))
-        results_list[[var]] <- data.frame(
+        motifs <- c(motifs, trf("%s : %s", var, fit$motif))
+        results_list[[length(results_list) + 1L]] <- data.frame(
           Test = "ART-ANOVA", Variable = var,
           Facteur = paste(input$factorVar, collapse = " * "),
           Statistique = NA, ddl = NA, p_value = NA,
@@ -3314,7 +3314,7 @@ mod_tests_server <- function(id, values) {
       if (isTRUE(fit$prep$ecartees > 0))
         motifs <- c(motifs, trf("%s : %d ligne(s) incomplète(s) écartée(s).", var, fit$prep$ecartees))
       for (i in seq_len(nrow(tab))) {
-        results_list[[paste(var, tab$Facteur[i], sep = "_")]] <- data.frame(
+        results_list[[length(results_list) + 1L]] <- data.frame(
           Test = "ART-ANOVA", Variable = var, Facteur = tab$Facteur[i],
           Statistique = round(tab$Statistique[i], 4),
           ddl = paste(tab$ddl_num[i], ",", tab$ddl_den[i]),
@@ -3324,9 +3324,11 @@ mod_tests_server <- function(id, values) {
       }
     }
     if (length(motifs))
-      shiny::showNotification(paste(motifs, collapse = "\n"), type = "warning", duration = 10)
+      shiny::showNotification(hstat_lignes_notification(motifs), type = "warning", duration = 10)
     if (length(results_list)) {
-      values$testResultsDF <- do.call(rbind, results_list)
+      tab_art <- do.call(rbind, results_list)
+      rownames(tab_art) <- NULL
+      values$testResultsDF <- tab_art
       values$normalityResults <- NULL
       values$homogeneityResults <- NULL
       values$currentTestType <- "non-parametric"
@@ -5787,14 +5789,14 @@ mod_tests_server <- function(id, values) {
         cle <- paste0(v, " × ", f)
         r <- hstat_chi2_adequation(df[[f]], if (compter) NULL else df[[v]], methode)
         shiny::incProgress(1 / (length(fvars) * length(vars)))
-        if (!isTRUE(r$ok)) { refus <- c(refus, paste0(cle, " : ", r$motif)); next }
+        if (!isTRUE(r$ok)) { refus <- c(refus, trf("%s : %s", cle, r$motif)); next }
         r$facteur <- f; r$variable <- v; r$type_donnee <- note_type
         if (length(r$notes)) notes <- c(notes, paste0(cle, " : ", r$notes))
         liste[[cle]] <- .chi2_comparer(r)
       }
     })
     if (length(refus))
-      shiny::showNotification(paste(refus, collapse = "\n"), type = "warning", duration = 10)
+      shiny::showNotification(hstat_lignes_notification(refus), type = "warning", duration = 10)
     if (!length(liste)) return()
 
     values$chiSqListe <- liste
@@ -6163,7 +6165,8 @@ mod_tests_server <- function(id, values) {
   
   # Comparaisons multiples PostHoc
   
-  perform_simple_effect_posthoc <- function(df, var, factor1, factor2, level, test_type, test_method) {
+  perform_simple_effect_posthoc <- function(df, var, factor1, factor2, level, test_type, test_method,
+                                            art_fit = NULL) {
     
     # Filtrer les données pour ce niveau spécifique (en excluant les NA)
     df_subset <- df[!is.na(df[[factor2]]) & as.character(df[[factor2]]) == as.character(level), ]
@@ -6176,10 +6179,11 @@ mod_tests_server <- function(id, values) {
     df_subset <- df_subset[!is.na(df_subset[[var]]), ]
     if (nrow(df_subset) < 3) return(NULL)
     
-    df_subset[[factor1]] <- tryCatch(
-      factor(as.character(df_subset[[factor1]])),
-      error = function(e) factor(df_subset[[factor1]])
-    )
+    if (!is.factor(df_subset[[factor1]]))
+      df_subset[[factor1]] <- tryCatch(
+        factor(as.character(df_subset[[factor1]])),
+        error = function(e) factor(df_subset[[factor1]])
+      )
     df_subset[[factor1]] <- droplevels(df_subset[[factor1]])
     
     # Guard : au moins 2 niveaux pour effectuer des comparaisons
@@ -6236,7 +6240,8 @@ mod_tests_server <- function(id, values) {
         }
       } else {  # NON-PARAMÉTRIQUE 
         if (test_method == "artc") {
-          fit_se <- hstat_art_anova(df, var, c(factor1, factor2))
+          # Le modele de la paire est ajuste une fois, par le bloc d'interaction.
+          fit_se <- if (isTRUE(art_fit$ok)) art_fit else hstat_art_anova(df, var, c(factor1, factor2))
           se <- hstat_art_effet_simple(fit_se, factor1, factor2, level,
                                        input$multiNonParamAdjust %||% "holm")
           if (!isTRUE(se$ok)) return(NULL)
@@ -6299,6 +6304,8 @@ mod_tests_server <- function(id, values) {
         )
       
       res <- merge(desc, groups, by = factor1, all.x = TRUE)
+      # merge() trie sur le texte : « 10 » passerait avant « 2 ».
+      res <- res[order(match(as.character(res[[factor1]]), as.character(desc[[factor1]]))), , drop = FALSE]
       res[[factor2]] <- level
       res$groups[is.na(res$groups)] <- "a"
       res$Test_global <- omni_se$test %||% NA_character_
@@ -6473,9 +6480,11 @@ mod_tests_server <- function(id, values) {
     for (fv in input$multiFactor) {
       if (!is.null(df[[fv]])) {
         # Conversion universelle: factor, character, date, numeric -> factor
+        # Un facteur numerique ou date garde l'ordre de ses valeurs.
         if (!is.factor(df[[fv]])) {
           df[[fv]] <- tryCatch(
-            factor(as.character(df[[fv]])),
+            if (is.numeric(df[[fv]]) || inherits(df[[fv]], c("Date", "POSIXct")))
+              factor(df[[fv]]) else factor(as.character(df[[fv]])),
             error = function(e) factor(df[[fv]])
           )
         }
@@ -6613,17 +6622,28 @@ mod_tests_server <- function(id, values) {
               })
             } else if (input$multiTestNonParam == "artc") {
               # UN SEUL MODELE ART par variable, sur tous les facteurs choisis.
-              if (is.null(art_fits[[var]]))
+              if (is.null(art_fits[[var]])) {
                 art_fits[[var]] <- hstat_art_anova(df, var, input$multiFactor)
+                # Un modele impossible se dit une fois par variable, pas par facteur.
+                if (!isTRUE(art_fits[[var]]$ok))
+                  shiny::showNotification(trf("%s : %s", var, art_fits[[var]]$motif),
+                                          type = "warning", duration = 10)
+              }
+              if (!isTRUE(art_fits[[var]]$ok)) next
               ph <- hstat_art_posthoc(art_fits[[var]], fvar,
                                       input$multiNonParamAdjust %||% "holm")
               if (!isTRUE(ph$ok)) {
-                shiny::showNotification(paste0(var, " x ", fvar, " : ", ph$motif),
+                shiny::showNotification(trf("%s x %s : %s", var, fvar, ph$motif),
                                         type = "warning", duration = 10)
                 next
               }
               groups <- ph$groups
               art_omni <- ph$omnibus
+              # Les moyennes portent sur les lignes que le modele a vues.
+              cc <- stats::complete.cases(df[, unique(c(var, input$multiFactor)), drop = FALSE]) &
+                is.finite(suppressWarnings(as.numeric(df[[var]])))
+              df_var <- df[cc, , drop = FALSE]
+              df_var[[fvar]] <- droplevels(df_var[[fvar]])
             } else if (input$multiTestNonParam == "nemenyi") {
               groups <- tryCatch({
                 mc <- PMCMRplus::kwAllPairsNemenyiTest(df_var[[var]], df_var[[fvar]])
@@ -6653,7 +6673,7 @@ mod_tests_server <- function(id, values) {
             if (isTRUE(attr(lt, "protege"))) {
               groups$groups <- as.character(lt)
               shiny::showNotification(
-                paste0(var, " x ", fvar, " : ", attr(lt, "message")),
+                trf("%s x %s : %s", var, fvar, attr(lt, "message")),
                 type = "warning", duration = 14)
             }
           }
@@ -6673,6 +6693,8 @@ mod_tests_server <- function(id, values) {
           
           if (fvar %in% colnames(groups) && fvar %in% colnames(desc)) {
             res <- merge(desc, groups, by = fvar, all.x = TRUE)
+            # merge() trie sur le texte : « 10 » passerait avant « 2 ».
+            res <- res[order(match(as.character(res[[fvar]]), as.character(desc[[fvar]]))), , drop = FALSE]
             res <- res %>%
               dplyr::mutate(
                 # LES COLONNES NUMERIQUES GARDENT LEUR PRECISION.
@@ -6691,7 +6713,7 @@ mod_tests_server <- function(id, values) {
                 ddl_global = omni$ddl %||% NA_character_
               )
             
-            multi_results_list[[paste(var, fvar, "main", sep = "_")]] <- res
+            multi_results_list[[length(multi_results_list) + 1L]] <- res
           }
         }, error = function(e) {
           shiny::showNotification(hstat_err_fr(e, sprintf("Effet principal %s x %s", var, fvar)),
@@ -6722,6 +6744,7 @@ mod_tests_server <- function(id, values) {
               return(NULL)
             }
             interaction_pvalue <- NA
+            fit_i <- NULL
             
             if (input$testType == "param") {
               formula_inter <- paste0("`", var, "` ~ `", fvar1, "` * `", fvar2, "`")
@@ -6741,8 +6764,12 @@ mod_tests_server <- function(id, values) {
             } else if (identical(input$multiTestNonParam, "artc")) {
               fit_i <- hstat_art_anova(df_temp, var, c(fvar1, fvar2))
               if (isTRUE(fit_i$ok)) {
-                li <- fit_i$table[fit_i$table$Facteur == interaction_term, , drop = FALSE]
+                li <- hstat_art_ligne(fit_i, c(fvar1, fvar2))
                 if (nrow(li)) interaction_pvalue <- li$p_value[1]
+              } else {
+                shiny::showNotification(
+                  trf("Interaction %s x %s non testée : %s", fvar1, fvar2, fit_i$motif),
+                  type = "warning", duration = 10)
               }
             } else { 
               
@@ -6753,7 +6780,7 @@ mod_tests_server <- function(id, values) {
               interaction_pvalue <- kw_interaction$p.value
               
               shiny::showNotification(
-                trf("Test non-paramétrique (Kruskal-Wallis) pour %s x %s: p = %s", fvar1, fvar2, round(interaction_pvalue, 4)),
+                trf("Test non-paramétrique (Kruskal-Wallis) pour %s x %s: p = %s", fvar1, fvar2, hstat_p_txt(interaction_pvalue)),
                 type = "message", duration = 3
               )
             }
@@ -6763,7 +6790,7 @@ mod_tests_server <- function(id, values) {
               shiny::showNotification(
                 trf(paste0("[OK] Interaction significative détectée : %s x %s (p = %s)\n",
                            "-> Décomposition bidirectionnelle en cours..."),
-                    fvar1, fvar2, round(interaction_pvalue, 4)),
+                    fvar1, fvar2, hstat_p_txt(interaction_pvalue)),
                 type = "warning", duration = 5
               )
               
@@ -6780,7 +6807,7 @@ mod_tests_server <- function(id, values) {
               for (level2 in levels_fvar2) {
                 res <- tryCatch(
                   perform_simple_effect_posthoc(df_temp, var, fvar1, fvar2, level2,
-                                                input$testType, test_m),
+                                                input$testType, test_m, art_fit = fit_i),
                   error = function(e) NULL
                 )
                 if (!is.null(res) && nrow(res) > 0) {
@@ -6804,7 +6831,7 @@ mod_tests_server <- function(id, values) {
                                       Direction = trf("%s vers %s", fvar1, fvar2)
                                     ), error = function(e) NULL)
                   if (!is.null(res))
-                    simple_effects_list[[paste(var, fvar1, fvar2, level2, sep = "_")]] <- res
+                    simple_effects_list[[length(simple_effects_list) + 1L]] <- res
                 }
               }
               
@@ -6816,7 +6843,7 @@ mod_tests_server <- function(id, values) {
               for (level1 in levels_fvar1) {
                 res <- tryCatch(
                   perform_simple_effect_posthoc(df_temp, var, fvar2, fvar1, level1,
-                                                input$testType, test_m),
+                                                input$testType, test_m, art_fit = fit_i),
                   error = function(e) NULL
                 )
                 if (!is.null(res) && nrow(res) > 0) {
@@ -6840,7 +6867,7 @@ mod_tests_server <- function(id, values) {
                                       Direction = trf("%s vers %s", fvar2, fvar1)
                                     ), error = function(e) NULL)
                   if (!is.null(res))
-                    simple_effects_list[[paste(var, fvar2, fvar1, level1, sep = "_")]] <- res
+                    simple_effects_list[[length(simple_effects_list) + 1L]] <- res
                 }
               }
               
@@ -6850,8 +6877,8 @@ mod_tests_server <- function(id, values) {
               )
             } else if (!is.na(interaction_pvalue)) {
               shiny::showNotification(
-                paste0("[--] Interaction non significative : ", fvar1, " x ", fvar2, 
-                       " (p = ", round(interaction_pvalue, 4), ")"),
+                trf("[--] Interaction non significative : %s x %s (p = %s)",
+                    fvar1, fvar2, hstat_p_txt(interaction_pvalue)),
                 type = "default", duration = 3
               )
             }

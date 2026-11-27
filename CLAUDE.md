@@ -12424,3 +12424,79 @@ chiffre près ; quatre mutations (ajustement ignoré sur l'effet principal, sur
 l'effet simple, ajustement sur toutes les cellules, protection par
 Kruskal-Wallis) sont attrapées. ARTool est installé ici depuis le miroir CRAN
 de GitHub (0.11.2).
+
+### Revue 1.67.1 : neuf défauts de l'ART-ANOVA et d'ART-C
+
+Revue de code menée sur le lot 1.67.0. Chaque défaut est gardé par un test, et
+chaque correction a été retirée une à une pour vérifier qu'une assertion échoue.
+
+1. **Le nombre de modalités et de cellules n'était pas borné**, seulement celui
+   des facteurs. Mesuré : `art.con` sur les cellules d'une paire prend 1,2 s à
+   100 cellules et 20 s à 200 ; l'ANOVA à cinq facteurs 6,5 s à 216 cellules. Une
+   colonne d'identifiants figeait le processus partagé. `.hstat_art_donnees()`
+   refuse, **avant tout ajustement**, au-delà de `HSTAT_ART_NIVEAUX_MAX` (30)
+   modalités par facteur ou de `HSTAT_ART_CELLULES_MAX` (100) cellules, et sans
+   répétition (autant d'observations que de cellules).
+2. **Une cellule vide** faisait lever « aliased coefficients », non traduit, et
+   emportait les lettres de tous les facteurs (un seul modèle les porte). Le plan
+   complet exige chaque combinaison : la première cellule vide est nommée
+   (« A = a3, B = b2, C = c1 »), la règle de l'AMMI et du GGE.
+3. **Les moyennes et N d'ART-C portaient sur d'autres lignes que le modèle** :
+   celui-ci ne garde que les lignes complètes sur tous les facteurs choisis,
+   le résumé ne retirait que les manquants de la réponse. Il porte désormais sur
+   les mêmes lignes (`cas_complets`).
+4. **Les effets simples réajustaient le modèle de la paire à chaque niveau**, dans
+   les deux sens. Le bloc d'interaction l'ajuste une fois et le passe
+   (`perform_simple_effect_posthoc(art_fit =)`). Le test compte les ajustements :
+   sept, au lieu de douze. Compter les appels à `ARTool::art()` ne garderait rien
+   — `art.con()` en réajuste un lui-même.
+5. **Un modèle de paire impossible laissait les effets simples vides sans un
+   mot** : son motif est notifié (« Interaction A x B non testée : … »).
+6. **L'effet se cherchait par son nom d'affichage**, où les noms de colonnes sont
+   joints par « : » : une colonne « A:B » se confondait avec une interaction.
+   `hstat_art_ligne()` lit le terme codé (`f1:f2`). Remettre la recherche par nom dans
+   `hstat_art_omnibus()` est un mutant équivalent — un effet principal précède
+   toujours les interactions dans la table — ; c'est la lecture d'une
+   interaction parmi trois facteurs qui se tromperait, et le test la pose.
+7. **Deux heures d'un même jour devenaient une modalité** (POSIXct formaté au
+   jour) ; elles gardent l'heure. Et les doses sortaient dans l'ordre 10, 2, 5 :
+   le post-hoc convertissait tout facteur par `factor(as.character(.))`, et
+   `merge()` retriait sur le texte. Un facteur numérique ou date garde l'ordre de
+   ses valeurs, et les lignes fusionnées suivent l'ordre des modalités — pour
+   toutes les méthodes post-hoc, pas seulement ART-C.
+8. **La clé `paste(var, effet, sep = "_")`** confondait (« a », « b_c ») et
+   (« a_b », « c ») : une ligne écrasait l'autre. Les lignes s'empilent par rang.
+9. **Les motifs étaient composés par `paste0(var, " : ", …)`** et joints par
+   « \n », qu'une notification ne rend pas : `trf("%s : %s", …)` et
+   `hstat_lignes_notification()`, qui pose un `<br>` entre les messages.
+
+#### Seconde revue (1.67.2)
+
+- **Les effets simples sortaient encore en ordre de texte** : le second `merge()`,
+  celui de `perform_simple_effect_posthoc()`, retriait lui aussi. Les deux
+  fusions sont recalées sur l'ordre des modalités ; le test lit les lignes
+  « Dose | Bloc=b1 ».
+- **Les tables post-hoc s'écrasaient sous une même clé** (`paste(var, fvar,
+  "main", sep = "_")`, et celles des effets simples) : elles s'empilent par rang,
+  comme les lignes du bouton ART-ANOVA.
+- **Deux autres notifications joignaient par « \n »** (Scheirer-Ray-Hare, refus
+  du chi² d'adéquation) : `hstat_lignes_notification()`.
+- **Un modèle ART impossible se notifiait une fois par facteur** ; une fois par
+  variable désormais.
+- **`hstat_art_ligne()` rendait `NULL` sur un ajustement manqué** : une table
+  vide, aux colonnes de la table.
+- **Le refus des cellules dit le geste** : retirer un facteur de la sélection. Le
+  modèle des effets principaux porte sur tous les facteurs choisis : c'est voulu
+  (ART aligne chaque effet sur le plan complet), et 120 cellules le refusent.
+- **Les p-values d'interaction passent par `hstat_p_txt()`** : `round(p, 4)`
+  annonçait « p = 0 ».
+
+Le compteur d'ajustements se pose sur la copie de `hstat_art_anova` que le
+**module** appelle, trouvée en remontant depuis `environment(mod_tests_server)` :
+en CI, l'environnement global en porte une autre, et un traceur posé sur la
+copie que voit le test comptait zéro (1.67.3). Le test le vérifie avec une copie
+leurre posée dans l'environnement global.
+
+Le test des notifications remplace `shiny::showNotification` par
+`testthat::local_mocked_bindings(.package = "shiny")` : c'est la seule façon de
+lire sous `testServer()` le texte rendu, plutôt que l'appel dans le source.

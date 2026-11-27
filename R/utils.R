@@ -3680,9 +3680,21 @@ hstat_pmat_comparaisons <- function(etiquettes, p, niveaux, sep = "-") {
   pmat
 }
 
+# Plusieurs messages dans une notification, un par ligne : « \n » n'y passe pas
+# a la ligne.
+hstat_lignes_notification <- function(messages) {
+  messages <- as.character(messages)
+  shiny::tagList(lapply(seq_along(messages), function(i)
+    shiny::tagList(if (i > 1) shiny::tags$br(), messages[i])))
+}
+
 # ART-ANOVA (Wobbrock et al. 2011) et contrastes ART-C (Elkin et al. 2021), par
 # ARTool. Le modele est TOUJOURS factoriel complet : ARTool l'exige.
 HSTAT_ART_FACTEURS_MAX <- 5L
+# Chaque modalite et chaque cellule coute un modele aligne de plus, et les
+# contrastes d'un effet simple portent sur toutes les paires de cellules.
+HSTAT_ART_NIVEAUX_MAX <- 30L
+HSTAT_ART_CELLULES_MAX <- 100L
 
 # Les noms de colonnes et les modalites sont recodes (f1, n1...) : une etiquette
 # de contraste se lit alors sans ambiguite, quel que soit le nom d'origine.
@@ -3699,7 +3711,8 @@ HSTAT_ART_FACTEURS_MAX <- 5L
   d <- data.frame(y = suppressWarnings(as.numeric(df[[var]])))
   for (k in seq_along(facteurs)) {
     x <- df[[facteurs[k]]]
-    if (inherits(x, c("Date", "POSIXct", "POSIXlt"))) x <- format(x, "%Y-%m-%d")
+    if (inherits(x, c("POSIXct", "POSIXlt"))) x <- format(x, "%Y-%m-%d %H:%M:%S")
+    else if (inherits(x, "Date")) x <- format(x, "%Y-%m-%d")
     # Un facteur numerique garde l'ordre des nombres.
     d[[codes[k]]] <- if (is.factor(x)) x else factor(x)
   }
@@ -3715,10 +3728,30 @@ HSTAT_ART_FACTEURS_MAX <- 5L
     if (nlevels(f) < 2)
       return(refus(trf("Le facteur « %s » n'a qu'une modalité après retrait des valeurs manquantes.",
                        facteurs[k])))
+    if (nlevels(f) > HSTAT_ART_NIVEAUX_MAX)
+      return(refus(trf("Le facteur « %s » compte %d modalités : l'ART-ANOVA en accepte %d au plus.",
+                       facteurs[k], nlevels(f), HSTAT_ART_NIVEAUX_MAX)))
     niveaux[[codes[k]]] <- levels(f)
     d[[codes[k]]] <- factor(paste0("n", as.integer(f)),
                             levels = paste0("n", seq_len(nlevels(f))))
   }
+  ncell <- prod(lengths(niveaux))
+  if (ncell > HSTAT_ART_CELLULES_MAX)
+    return(refus(trf("Le croisement des facteurs donne %d cellules : l'ART-ANOVA en accepte %d au plus. Retirez un facteur de la sélection pour analyser les autres.",
+                     ncell, HSTAT_ART_CELLULES_MAX)))
+  # Le modele factoriel complet exige une observation dans chaque cellule.
+  vues <- table(d[codes])
+  vide <- which(vues == 0, arr.ind = TRUE)
+  if (length(vide)) {
+    v <- if (is.matrix(vide)) vide[1, ] else vide[1]
+    nom <- paste(vapply(seq_along(codes), function(k)
+      sprintf("%s = %s", facteurs[k], niveaux[[codes[k]]][v[k]]), character(1)), collapse = ", ")
+    return(refus(trf("Aucune observation pour la combinaison %s : l'ART-ANOVA ajuste toutes les interactions et exige chaque combinaison des facteurs. Retirez un facteur ou complétez le plan.",
+                     nom)))
+  }
+  if (nrow(d) <= ncell)
+    return(refus(trf("%d observations pour %d cellules : il faut des répétitions pour estimer l'erreur.",
+                     nrow(d), ncell)))
   list(ok = TRUE, data = d, codes = codes, facteurs = facteurs,
        niveaux = niveaux, ecartees = sum(!garde))
 }
@@ -3751,12 +3784,25 @@ hstat_art_anova <- function(df, var, facteurs) {
   list(ok = TRUE, table = tab, modele = m, prep = prep)
 }
 
+# La ligne d'un effet, lue sur son terme code : un nom de colonne portant « : »
+# se confondrait sinon avec une interaction.
+hstat_art_ligne <- function(fit, facteurs) {
+  vide <- data.frame(Facteur = character(0), Terme = character(0), Statistique = numeric(0),
+                     ddl_num = numeric(0), ddl_den = numeric(0), p_value = numeric(0),
+                     stringsAsFactors = FALSE)
+  if (!isTRUE(fit$ok) || !is.data.frame(fit$table)) return(vide)
+  codes <- fit$prep$codes[match(facteurs, fit$prep$facteurs)]
+  if (anyNA(codes)) return(vide)
+  terme <- paste(codes[order(match(codes, fit$prep$codes))], collapse = ":")
+  fit$table[fit$table$Terme == terme, , drop = FALSE]
+}
+
 # Le test global d'un effet, sous la forme de hstat_omnibus().
 hstat_art_omnibus <- function(fit, facteur) {
   vide <- list(p = NA_real_, test = "ART-ANOVA", statistique = NA_real_,
                ddl = NA_character_, message = NULL)
   if (!isTRUE(fit$ok)) { vide$message <- fit$motif; return(vide) }
-  ligne <- fit$table[fit$table$Facteur == facteur, , drop = FALSE]
+  ligne <- hstat_art_ligne(fit, facteur)
   if (!nrow(ligne)) return(vide)
   list(p = ligne$p_value[1], test = "ART-ANOVA", statistique = ligne$Statistique[1],
        ddl = paste(ligne$ddl_num[1], ",", ligne$ddl_den[1]), message = NULL)
