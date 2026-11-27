@@ -12491,6 +12491,12 @@ chaque correction a été retirée une à une pour vérifier qu'une assertion é
 - **Les p-values d'interaction passent par `hstat_p_txt()`** : `round(p, 4)`
   annonçait « p = 0 ».
 
+Le compteur d'ajustements se pose sur la copie de `hstat_art_anova` que le
+**module** appelle, trouvée en remontant depuis `environment(mod_tests_server)` :
+en CI, l'environnement global en porte une autre, et un traceur posé sur la
+copie que voit le test comptait zéro (1.67.3). Le test le vérifie avec une copie
+leurre posée dans l'environnement global.
+
 Le test des notifications remplace `shiny::showNotification` par
 `testthat::local_mocked_bindings(.package = "shiny")` : c'est la seule façon de
 lire sous `testServer()` le texte rendu, plutôt que l'appel dans le source.

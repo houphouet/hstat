@@ -27109,7 +27109,10 @@ test_that("ART-ANOVA et ART-C dans le module : lignes, N, ordre, interactions, n
   # art.con réajuste lui-même un modèle : on compte les ajustements de HStat.
   cpt <- new.env(); cpt$n <- 0L
   compter <- function() cpt$n <- cpt$n + 1L
-  ou <- environment(hstat_art_anova)
+  # La copie que le module appelle : celle de son environnement, pas forcément
+  # celle que voit le test (en CI, l'environnement global en porte une autre).
+  ou <- environment(mod_tests_server)
+  while (!exists("hstat_art_anova", envir = ou, inherits = FALSE)) ou <- parent.env(ou)
   trace("hstat_art_anova", where = ou, print = FALSE,
         tracer = bquote(.(compter)()))
   on.exit(untrace("hstat_art_anova", where = ou), add = TRUE)
