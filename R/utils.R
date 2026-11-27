@@ -1273,19 +1273,19 @@ interpret_test_results <- function(test_type, p_value, test_object = NULL) {
   significance <- tr(if (p_value < 0.05) "significative" else "non significative",
                      hstat_langue_session())
   switch(test_type,
-         "t.test"           = trf("Le test t montre une différence %s entre les groupes (p = %s)", significance, round(p_value, 8)),
-         "wilcox.test"      = trf("Le test de Wilcoxon montre une différence %s entre les groupes (p = %s)", significance, round(p_value, 8)),
-         "anova"            = trf("L'ANOVA montre une différence %s entre les groupes (p = %s)", significance, round(p_value, 8)),
-         "friedman"         = trf("Le test de Friedman montre une différence %s entre les périodes (p = %s)", significance, round(p_value, 8)),
-         "durbin"           = trf("Le test de Durbin montre une différence %s entre les périodes (p = %s)", significance, round(p_value, 8)),
-         "kruskal.test"     = trf("Le test de Kruskal-Wallis montre une différence %s entre les groupes (p = %s)", significance, round(p_value, 8)),
-         "scheirerRayHare"  = trf("Le test de Scheirer-Ray-Hare montre une différence %s entre les groupes (p = %s)", significance, round(p_value, 8)),
-         "art"              = trf("L'ART-ANOVA montre une différence %s pour cet effet (p = %s)", significance, round(p_value, 8)),
-         "manova"           = trf("La MANOVA montre une différence multivariée %s entre les groupes (p = %s)", significance, round(p_value, 8)),
-         "permanova"        = trf("La PERMANOVA montre une différence multivariée %s entre les groupes (p = %s)", significance, round(p_value, 8)),
-         "chisq.test"       = trf("Le test du chi² montre une association %s entre les variables (p = %s)", significance, round(p_value, 8)),
-         "cor.test"         = trf("La corrélation est %s (p = %s)", significance, round(p_value, 8)),
-         trf("Le test %s montre un résultat %s (p = %s)", test_type, significance, round(p_value, 8))
+         "t.test"           = trf("Le test t montre une différence %s entre les groupes (p = %s)", significance, hstat_p_txt(p_value)),
+         "wilcox.test"      = trf("Le test de Wilcoxon montre une différence %s entre les groupes (p = %s)", significance, hstat_p_txt(p_value)),
+         "anova"            = trf("L'ANOVA montre une différence %s entre les groupes (p = %s)", significance, hstat_p_txt(p_value)),
+         "friedman"         = trf("Le test de Friedman montre une différence %s entre les périodes (p = %s)", significance, hstat_p_txt(p_value)),
+         "durbin"           = trf("Le test de Durbin montre une différence %s entre les périodes (p = %s)", significance, hstat_p_txt(p_value)),
+         "kruskal.test"     = trf("Le test de Kruskal-Wallis montre une différence %s entre les groupes (p = %s)", significance, hstat_p_txt(p_value)),
+         "scheirerRayHare"  = trf("Le test de Scheirer-Ray-Hare montre une différence %s entre les groupes (p = %s)", significance, hstat_p_txt(p_value)),
+         "art"              = trf("L'ART-ANOVA montre une différence %s pour cet effet (p = %s)", significance, hstat_p_txt(p_value)),
+         "manova"           = trf("La MANOVA montre une différence multivariée %s entre les groupes (p = %s)", significance, hstat_p_txt(p_value)),
+         "permanova"        = trf("La PERMANOVA montre une différence multivariée %s entre les groupes (p = %s)", significance, hstat_p_txt(p_value)),
+         "chisq.test"       = trf("Le test du chi² montre une association %s entre les variables (p = %s)", significance, hstat_p_txt(p_value)),
+         "cor.test"         = trf("La corrélation est %s (p = %s)", significance, hstat_p_txt(p_value)),
+         trf("Le test %s montre un résultat %s (p = %s)", test_type, significance, hstat_p_txt(p_value))
   )
 }
 
@@ -1429,18 +1429,18 @@ hstat_glm_fit <- function(formula, data, family = stats::binomial(),
 interpret_normality <- function(p_value) {
   if (is.na(p_value)) return(tr("Résultat non disponible"))
   if (p_value >= 0.05) {
-    trf("Normalité non rejetée (p = %s >= 0.05) : les données sont compatibles avec une loi normale.", round(p_value, 8))
+    trf("Normalité non rejetée (p = %s >= 0.05) : les données sont compatibles avec une loi normale.", hstat_p_txt(p_value))
   } else {
-    trf("La distribution n'est pas normale (p = %s < 0.05)", round(p_value, 8))
+    trf("La distribution n'est pas normale (p = %s < 0.05)", hstat_p_txt(p_value))
   }
 }
 
 interpret_homogeneity <- function(p_value) {
   if (is.na(p_value)) return(tr("Résultat non disponible"))
   if (p_value >= 0.05) {
-    trf("Homogénéité des variances non rejetée (p = %s >= 0.05) : les variances sont compatibles entre groupes.", round(p_value, 8))
+    trf("Homogénéité des variances non rejetée (p = %s >= 0.05) : les variances sont compatibles entre groupes.", hstat_p_txt(p_value))
   } else {
-    trf("Les variances ne sont pas homogènes (p = %s < 0.05)", round(p_value, 8))
+    trf("Les variances ne sont pas homogènes (p = %s < 0.05)", hstat_p_txt(p_value))
   }
 }
 
@@ -3708,7 +3708,12 @@ HSTAT_ART_CELLULES_MAX <- 100L
   if (!is.data.frame(df) || !all(c(var, facteurs) %in% names(df)))
     return(refus(tr("Colonnes introuvables dans les données.")))
   codes <- paste0("f", seq_along(facteurs))
-  d <- data.frame(y = suppressWarnings(as.numeric(df[[var]])))
+  # Une reponse en facteur ou en texte se lit par ses valeurs, jamais par ses
+  # codes de niveau.
+  y <- hstat_as_numeric_fr(df[[var]])
+  if (is.null(y))
+    return(refus(trf("La variable réponse « %s » n'est pas numérique : l'ART-ANOVA analyse une mesure.", var)))
+  d <- data.frame(y = y)
   for (k in seq_along(facteurs)) {
     x <- df[[facteurs[k]]]
     if (inherits(x, c("POSIXct", "POSIXlt"))) x <- format(x, "%Y-%m-%d %H:%M:%S")
@@ -3781,7 +3786,8 @@ hstat_art_anova <- function(df, var, facteurs) {
     ddl_num = a$Df, ddl_den = a$Df.res,
     p_value = a[["Pr(>F)"]],
     stringsAsFactors = FALSE)
-  list(ok = TRUE, table = tab, modele = m, prep = prep)
+  # Les contrastes de cellules d'une paire servent a tous ses effets simples.
+  list(ok = TRUE, table = tab, modele = m, prep = prep, cache = new.env(parent = emptyenv()))
 }
 
 # La ligne d'un effet, lue sur son terme code : un nom de colonne portant « : »
@@ -3851,10 +3857,15 @@ hstat_art_effet_simple <- function(fit, facteur1, facteur2, niveau2, adjust = "h
   n2 <- levels(prep$data[[c2]])[match(as.character(niveau2), prep$niveaux[[c2]])]
   if (is.na(n2)) return(list(ok = FALSE, motif = tr("Niveau absent du modèle ART.")))
   ordre <- c(c1, c2)[order(match(c(c1, c2), prep$codes))]
-  ct <- tryCatch(suppressMessages(as.data.frame(
-    ARTool::art.con(fit$modele, paste(ordre, collapse = ":"), adjust = "none"))),
-    error = function(e) e)
-  if (inherits(ct, "error")) return(list(ok = FALSE, motif = hstat_err_fr(ct)))
+  terme <- paste(ordre, collapse = ":")
+  ct <- if (is.environment(fit$cache)) fit$cache[[terme]] else NULL
+  if (is.null(ct)) {
+    ct <- tryCatch(suppressMessages(as.data.frame(
+      ARTool::art.con(fit$modele, terme, adjust = "none"))),
+      error = function(e) e)
+    if (inherits(ct, "error")) return(list(ok = FALSE, motif = hstat_err_fr(ct)))
+    if (is.environment(fit$cache)) fit$cache[[terme]] <- ct
+  }
   n1 <- levels(prep$data[[c1]])
   cellule <- function(a) if (identical(ordre[1], c1)) paste(a, n2, sep = ",") else paste(n2, a, sep = ",")
   toutes <- as.vector(outer(levels(prep$data[[ordre[1]]]), levels(prep$data[[ordre[2]]]),

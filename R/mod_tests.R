@@ -3299,29 +3299,35 @@ mod_tests_server <- function(id, values) {
     shiny::req(input$responseVar, input$factorVar)
     results_list <- list()
     motifs <- character(0)
-    for (var in input$responseVar) {
+    echec <- function(var, motif) data.frame(
+      Test = "ART-ANOVA", Variable = var,
+      Facteur = paste(input$factorVar, collapse = " * "),
+      Statistique = NA, ddl = NA, p_value = NA,
+      Interpretation = motif, stringsAsFactors = FALSE)
+    # Chaque variable est gardee a part : une erreur n'emporte pas les autres.
+    une_variable <- function(var) {
       fit <- hstat_art_anova(values$filteredData, var, input$factorVar)
-      if (!isTRUE(fit$ok)) {
-        motifs <- c(motifs, trf("%s : %s", var, fit$motif))
-        results_list[[length(results_list) + 1L]] <- data.frame(
-          Test = "ART-ANOVA", Variable = var,
-          Facteur = paste(input$factorVar, collapse = " * "),
-          Statistique = NA, ddl = NA, p_value = NA,
-          Interpretation = fit$motif, stringsAsFactors = FALSE)
-        next
-      }
+      if (!isTRUE(fit$ok))
+        return(list(lignes = echec(var, fit$motif), motifs = trf("%s : %s", var, fit$motif)))
       tab <- fit$table
-      if (isTRUE(fit$prep$ecartees > 0))
-        motifs <- c(motifs, trf("%s : %d ligne(s) incomplète(s) écartée(s).", var, fit$prep$ecartees))
-      for (i in seq_len(nrow(tab))) {
-        results_list[[length(results_list) + 1L]] <- data.frame(
-          Test = "ART-ANOVA", Variable = var, Facteur = tab$Facteur[i],
-          Statistique = round(tab$Statistique[i], 4),
-          ddl = paste(tab$ddl_num[i], ",", tab$ddl_den[i]),
-          p_value = tab$p_value[i],
-          Interpretation = interpret_test_results("art", tab$p_value[i]),
-          stringsAsFactors = FALSE)
-      }
+      m <- if (isTRUE(fit$prep$ecartees > 0))
+        trf("%s : %d ligne(s) incomplète(s) écartée(s).", var, fit$prep$ecartees) else character(0)
+      lignes <- data.frame(
+        Test = "ART-ANOVA", Variable = var, Facteur = tab$Facteur,
+        Statistique = round(tab$Statistique, 4),
+        ddl = paste(tab$ddl_num, ",", tab$ddl_den),
+        p_value = tab$p_value,
+        Interpretation = vapply(tab$p_value, function(p) interpret_test_results("art", p), character(1)),
+        stringsAsFactors = FALSE)
+      list(lignes = lignes, motifs = m)
+    }
+    for (var in input$responseVar) {
+      r <- tryCatch(une_variable(var), error = function(e) {
+        motif <- hstat_err_fr(e, var)
+        list(lignes = echec(var, motif), motifs = motif)
+      })
+      results_list[[length(results_list) + 1L]] <- r$lignes
+      motifs <- c(motifs, r$motifs)
     }
     if (length(motifs))
       shiny::showNotification(hstat_lignes_notification(motifs), type = "warning", duration = 10)
@@ -5791,7 +5797,7 @@ mod_tests_server <- function(id, values) {
         shiny::incProgress(1 / (length(fvars) * length(vars)))
         if (!isTRUE(r$ok)) { refus <- c(refus, trf("%s : %s", cle, r$motif)); next }
         r$facteur <- f; r$variable <- v; r$type_donnee <- note_type
-        if (length(r$notes)) notes <- c(notes, paste0(cle, " : ", r$notes))
+        if (length(r$notes)) notes <- c(notes, trf("%s : %s", cle, r$notes))
         liste[[cle]] <- .chi2_comparer(r)
       }
     })
@@ -6330,6 +6336,14 @@ mod_tests_server <- function(id, values) {
       new_type <- if (values$currentTestType == "parametric") "param" else "nonparam"
       shiny::updateRadioButtons(session, "testType", selected = new_type)
       # LE POST-HOC SUIT L'HYPOTHESE DE VARIANCE DU TEST GLOBAL.
+      # Apres l'ART-ANOVA, le post-hoc est ART-C, protege par la meme ART-ANOVA.
+      tests_courants <- unique(values$testResultsDF$Test)
+      if (identical(tests_courants, "ART-ANOVA")) {
+        shiny::updateSelectInput(session, "multiTestNonParam", selected = "artc")
+        shiny::showNotification(
+          tr("ART-ANOVA : le post-hoc a été présélectionné sur ART-C, dont les lettres sont protégées par la même ART-ANOVA. Vous pouvez en choisir un autre."),
+          type = "message", duration = 8)
+      }
       if (identical(values$currentTestType, "parametric") &&
           identical(values$currentTestVariances %||% "", "inegales")) {
         shiny::updateSelectInput(session, "multiTest", selected = "games")
@@ -6788,9 +6802,10 @@ mod_tests_server <- function(id, values) {
             # SI INTERACTION SIGNIFICATIVE : DÉCOMPOSITION BIDIRECTIONNELLE 
             if (!is.na(interaction_pvalue) && interaction_pvalue < 0.05) {
               shiny::showNotification(
-                trf(paste0("[OK] Interaction significative détectée : %s x %s (p = %s)\n",
-                           "-> Décomposition bidirectionnelle en cours..."),
-                    fvar1, fvar2, hstat_p_txt(interaction_pvalue)),
+                hstat_lignes_notification(c(
+                  trf("[OK] Interaction significative détectée : %s x %s (p = %s)",
+                      fvar1, fvar2, hstat_p_txt(interaction_pvalue)),
+                  tr("-> Décomposition bidirectionnelle en cours..."))),
                 type = "warning", duration = 5
               )
               
