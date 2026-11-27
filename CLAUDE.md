@@ -6517,7 +6517,7 @@ cette forme.
 |---|---|
 | **WARNING** caractères non-ASCII | L'interface est en français : ~9 700 chaînes accentuées. Les échapper en `\uxxxx` rendrait la source illisible. Compromis assumé, pas un défaut. |
 | **NOTE** `Suggests` indisponibles | Le conteneur est hors ligne ; 28 des 72 ne s'installent pas. Disparaît sur une machine reliée à CRAN. |
-| **NOTE** « no visible global function definition » | Exactement les **neuf aiguillages** (`%>%`, `withSpinner`, `colourInput`, `pickerInput`, `ggplotly`, `renderPlotly`, `plotlyOutput`, `config`, `updatePickerInput`). Ils vivent dans l'environnement global par contrat : le compilateur ne peut pas les y voir. |
+| **NOTE** « no visible global function definition » | Les **aiguillages** que relève le compilateur : `%>%`, `withSpinner`, `colourInput`, `updateColourInput`, `element_markdown`, `ggplotly`, `plotlyOutput` (relevé en 1.67.4, toutes dépendances installées). Ils vivent dans l'environnement global par contrat : le compilateur ne peut pas les y voir. |
 
 Le troisième point se supprimerait en définissant les neuf au premier niveau du
 paquet, comme `layout` l'a été. `layout` a dû l'être parce que son nom existe
@@ -12519,4 +12519,5 @@ duckdb s'exécutent.
 `R CMD check` avec ces paquets : la note « no visible binding » portait
 vingt-trois noms de colonnes employés dans `aes()` (sélection génétique,
 `.hstat_poids` de la visualisation). Ils rejoignent `utils::globalVariables()`
-dans `R/zzz.R` ; la note ne porte plus que les aiguillages.
+dans `R/zzz.R` ; la note ne porte plus que les sept aiguillages, vérifié par un
+second `R CMD check`.
