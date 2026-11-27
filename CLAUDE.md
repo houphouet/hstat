@@ -12500,3 +12500,23 @@ leurre posée dans l'environnement global.
 Le test des notifications remplace `shiny::showNotification` par
 `testthat::local_mocked_bindings(.package = "shiny")` : c'est la seule façon de
 lire sous `testServer()` le texte rendu, plutôt que l'appel dans le source.
+
+## Vérification avec toutes les dépendances (1.67.4)
+
+Les 25 paquets suggérés absents du conteneur ont été installés : sept par apt,
+les autres depuis le miroir CRAN de GitHub (`git clone https://github.com/cran/<p>`
+puis `R CMD INSTALL`), CRAN étant injoignable. Trois demandaient une version
+compatible avec R 4.3.3 : **rcompanion 2.4.36** (2.5.0 exige R ≥ 4.4), **Deriv
+4.1.6** pour neuralnet (la version courante exige R ≥ 4.5), et **ggfittext
+0.10.2** pour treemapify (la 0.10.4 installée exigeait ggplot2 ≥ 3.5). Seule la
+bibliothèque libtorch manque : `torch::install_torch()` télécharge depuis
+download.pytorch.org, que le mandataire refuse.
+
+Résultat : **912 tests, 0 échec, 0 sauté** — les trois tests du plan
+expérimental, qui échouaient faute d'agricolae, passent, et les quatre de
+duckdb s'exécutent.
+
+`R CMD check` avec ces paquets : la note « no visible binding » portait
+vingt-trois noms de colonnes employés dans `aes()` (sélection génétique,
+`.hstat_poids` de la visualisation). Ils rejoignent `utils::globalVariables()`
+dans `R/zzz.R` ; la note ne porte plus que les aiguillages.
