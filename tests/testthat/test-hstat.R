@@ -27031,9 +27031,12 @@ test_that("ART-ANOVA : modalités, cellules et cellules vides refusés avant tou
   skip_if_not_installed("ARTool")
   # Une colonne d'identifiants, un croisement trop fin : refusés et nommés, sans
   # qu'aucun modèle aligné soit ajusté sur le processus partagé.
-  appels <- 0L
+  # Le compteur vit dans un environnement : `<<-` dans le traceur chercherait la
+  # variable depuis le cadre de la fonction tracée, pas depuis le test.
+  cpt <- new.env(); cpt$n <- 0L
+  compter <- function() cpt$n <- cpt$n + 1L
   trace("art", where = asNamespace("ARTool"), print = FALSE,
-        tracer = quote(appels <<- appels + 1L))
+        tracer = bquote(.(compter)()))
   on.exit(untrace("art", where = asNamespace("ARTool")), add = TRUE)
   ids <- data.frame(y = stats::rnorm(200), P = factor(1:40), B = gl(5, 40))
   r <- hstat_art_anova(ids, "y", c("P", "B"))
@@ -27052,12 +27055,12 @@ test_that("ART-ANOVA : modalités, cellules et cellules vides refusés avant tou
   r <- hstat_art_anova(d[!(d$A == "a3" & d$B == "b2" & d$C == "c1"), ], "y", c("A", "B", "C"))
   expect_false(r$ok)
   expect_match(r$motif, "A = a3, B = b2, C = c1", fixed = TRUE)
-  expect_equal(appels, 0L)
+  expect_equal(cpt$n, 0L)
   # Aux bornes, l'ajustement a lieu : la garde ne refuse pas tout.
   bord <- expand.grid(A = factor(1:20), B = factor(1:5), r = 1:2)
   bord$y <- stats::rnorm(nrow(bord))
   expect_true(hstat_art_anova(bord, "y", c("A", "B"))$ok)
-  expect_gt(appels, 0L)
+  expect_gt(cpt$n, 0L)
 })
 
 test_that("ART-ANOVA : l'effet se lit sur son terme codé, et les heures restent distinctes", {
@@ -27099,10 +27102,11 @@ test_that("ART-ANOVA et ART-C dans le module : lignes, N, ordre, interactions, n
     showNotification = function(ui, ...) { notes[[length(notes) + 1L]] <<- ui; invisible("id") },
     .package = "shiny")
   # art.con réajuste lui-même un modèle : on compte les ajustements de HStat.
-  ajustements <- 0L
+  cpt <- new.env(); cpt$n <- 0L
+  compter <- function() cpt$n <- cpt$n + 1L
   ou <- environment(hstat_art_anova)
   trace("hstat_art_anova", where = ou, print = FALSE,
-        tracer = quote(ajustements <<- ajustements + 1L))
+        tracer = bquote(.(compter)()))
   on.exit(untrace("hstat_art_anova", where = ou), add = TRUE)
   set.seed(4)
   d <- expand.grid(Dose = c(2, 5, 10), Bloc = c("b1", "b2"), r = 1:5)
@@ -27140,7 +27144,7 @@ test_that("ART-ANOVA et ART-C dans le module : lignes, N, ordre, interactions, n
   d3 <- d; d3$a <- stats::rnorm(nrow(d3), sd = 0.3) + ifelse(d3$Bloc == "b1", d3$Dose, 0)
   d3$Bloc[c(1, 4, 7, 10)] <- NA
   v3 <- shiny::reactiveValues(data = d3, cleanData = d3, filteredData = d3)
-  ajustements <- 0L
+  cpt$n <- 0L
   shiny::testServer(mod_tests_server, args = list(values = v3), {
     vider <- function() try(session$flushReact(), silent = TRUE)
     session$setInputs(multiResponse = "a", multiFactor = c("Dose", "Bloc"),
@@ -27161,7 +27165,7 @@ test_that("ART-ANOVA et ART-C dans le module : lignes, N, ordre, interactions, n
   # Modèle principal + modèle de la paire + un modèle à un facteur par niveau
   # testé dans chaque sens (2 + 3) : sept, et non douze.
   expect_gt(sum(ph$Type == "simple_effect"), 0L)
-  expect_equal(ajustements, 7L)
+  expect_equal(cpt$n, 7L)
   # Un modèle de paire impossible le dit, au lieu de laisser les effets simples vides.
   notes <- list()
   d4 <- d3; d4 <- d4[!(d4$Dose == 10 & d4$Bloc %in% "b2"), ]
