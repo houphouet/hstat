@@ -3302,8 +3302,8 @@ mod_tests_server <- function(id, values) {
     for (var in input$responseVar) {
       fit <- hstat_art_anova(values$filteredData, var, input$factorVar)
       if (!isTRUE(fit$ok)) {
-        motifs <- c(motifs, paste0(var, " : ", fit$motif))
-        results_list[[var]] <- data.frame(
+        motifs <- c(motifs, trf("%s : %s", var, fit$motif))
+        results_list[[length(results_list) + 1L]] <- data.frame(
           Test = "ART-ANOVA", Variable = var,
           Facteur = paste(input$factorVar, collapse = " * "),
           Statistique = NA, ddl = NA, p_value = NA,
@@ -3314,7 +3314,7 @@ mod_tests_server <- function(id, values) {
       if (isTRUE(fit$prep$ecartees > 0))
         motifs <- c(motifs, trf("%s : %d ligne(s) incomplète(s) écartée(s).", var, fit$prep$ecartees))
       for (i in seq_len(nrow(tab))) {
-        results_list[[paste(var, tab$Facteur[i], sep = "_")]] <- data.frame(
+        results_list[[length(results_list) + 1L]] <- data.frame(
           Test = "ART-ANOVA", Variable = var, Facteur = tab$Facteur[i],
           Statistique = round(tab$Statistique[i], 4),
           ddl = paste(tab$ddl_num[i], ",", tab$ddl_den[i]),
@@ -3324,9 +3324,10 @@ mod_tests_server <- function(id, values) {
       }
     }
     if (length(motifs))
-      shiny::showNotification(paste(motifs, collapse = "\n"), type = "warning", duration = 10)
+      shiny::showNotification(hstat_lignes_notification(motifs), type = "warning", duration = 10)
     if (length(results_list)) {
       values$testResultsDF <- do.call(rbind, results_list)
+      rownames(values$testResultsDF) <- NULL
       values$normalityResults <- NULL
       values$homogeneityResults <- NULL
       values$currentTestType <- "non-parametric"
@@ -6163,7 +6164,8 @@ mod_tests_server <- function(id, values) {
   
   # Comparaisons multiples PostHoc
   
-  perform_simple_effect_posthoc <- function(df, var, factor1, factor2, level, test_type, test_method) {
+  perform_simple_effect_posthoc <- function(df, var, factor1, factor2, level, test_type, test_method,
+                                            art_fit = NULL) {
     
     # Filtrer les données pour ce niveau spécifique (en excluant les NA)
     df_subset <- df[!is.na(df[[factor2]]) & as.character(df[[factor2]]) == as.character(level), ]
@@ -6176,10 +6178,11 @@ mod_tests_server <- function(id, values) {
     df_subset <- df_subset[!is.na(df_subset[[var]]), ]
     if (nrow(df_subset) < 3) return(NULL)
     
-    df_subset[[factor1]] <- tryCatch(
-      factor(as.character(df_subset[[factor1]])),
-      error = function(e) factor(df_subset[[factor1]])
-    )
+    if (!is.factor(df_subset[[factor1]]))
+      df_subset[[factor1]] <- tryCatch(
+        factor(as.character(df_subset[[factor1]])),
+        error = function(e) factor(df_subset[[factor1]])
+      )
     df_subset[[factor1]] <- droplevels(df_subset[[factor1]])
     
     # Guard : au moins 2 niveaux pour effectuer des comparaisons
@@ -6236,7 +6239,8 @@ mod_tests_server <- function(id, values) {
         }
       } else {  # NON-PARAMÉTRIQUE 
         if (test_method == "artc") {
-          fit_se <- hstat_art_anova(df, var, c(factor1, factor2))
+          # Le modele de la paire est ajuste une fois, par le bloc d'interaction.
+          fit_se <- if (isTRUE(art_fit$ok)) art_fit else hstat_art_anova(df, var, c(factor1, factor2))
           se <- hstat_art_effet_simple(fit_se, factor1, factor2, level,
                                        input$multiNonParamAdjust %||% "holm")
           if (!isTRUE(se$ok)) return(NULL)
@@ -6473,9 +6477,11 @@ mod_tests_server <- function(id, values) {
     for (fv in input$multiFactor) {
       if (!is.null(df[[fv]])) {
         # Conversion universelle: factor, character, date, numeric -> factor
+        # Un facteur numerique ou date garde l'ordre de ses valeurs.
         if (!is.factor(df[[fv]])) {
           df[[fv]] <- tryCatch(
-            factor(as.character(df[[fv]])),
+            if (is.numeric(df[[fv]]) || inherits(df[[fv]], c("Date", "POSIXct")))
+              factor(df[[fv]]) else factor(as.character(df[[fv]])),
             error = function(e) factor(df[[fv]])
           )
         }
@@ -6618,12 +6624,17 @@ mod_tests_server <- function(id, values) {
               ph <- hstat_art_posthoc(art_fits[[var]], fvar,
                                       input$multiNonParamAdjust %||% "holm")
               if (!isTRUE(ph$ok)) {
-                shiny::showNotification(paste0(var, " x ", fvar, " : ", ph$motif),
+                shiny::showNotification(trf("%s x %s : %s", var, fvar, ph$motif),
                                         type = "warning", duration = 10)
                 next
               }
               groups <- ph$groups
               art_omni <- ph$omnibus
+              # Les moyennes portent sur les lignes que le modele a vues.
+              cc <- stats::complete.cases(df[, unique(c(var, input$multiFactor)), drop = FALSE]) &
+                is.finite(suppressWarnings(as.numeric(df[[var]])))
+              df_var <- df[cc, , drop = FALSE]
+              df_var[[fvar]] <- droplevels(df_var[[fvar]])
             } else if (input$multiTestNonParam == "nemenyi") {
               groups <- tryCatch({
                 mc <- PMCMRplus::kwAllPairsNemenyiTest(df_var[[var]], df_var[[fvar]])
@@ -6653,7 +6664,7 @@ mod_tests_server <- function(id, values) {
             if (isTRUE(attr(lt, "protege"))) {
               groups$groups <- as.character(lt)
               shiny::showNotification(
-                paste0(var, " x ", fvar, " : ", attr(lt, "message")),
+                trf("%s x %s : %s", var, fvar, attr(lt, "message")),
                 type = "warning", duration = 14)
             }
           }
@@ -6673,6 +6684,8 @@ mod_tests_server <- function(id, values) {
           
           if (fvar %in% colnames(groups) && fvar %in% colnames(desc)) {
             res <- merge(desc, groups, by = fvar, all.x = TRUE)
+            # merge() trie sur le texte : « 10 » passerait avant « 2 ».
+            res <- res[order(match(as.character(res[[fvar]]), as.character(desc[[fvar]]))), , drop = FALSE]
             res <- res %>%
               dplyr::mutate(
                 # LES COLONNES NUMERIQUES GARDENT LEUR PRECISION.
@@ -6722,6 +6735,7 @@ mod_tests_server <- function(id, values) {
               return(NULL)
             }
             interaction_pvalue <- NA
+            fit_i <- NULL
             
             if (input$testType == "param") {
               formula_inter <- paste0("`", var, "` ~ `", fvar1, "` * `", fvar2, "`")
@@ -6741,8 +6755,12 @@ mod_tests_server <- function(id, values) {
             } else if (identical(input$multiTestNonParam, "artc")) {
               fit_i <- hstat_art_anova(df_temp, var, c(fvar1, fvar2))
               if (isTRUE(fit_i$ok)) {
-                li <- fit_i$table[fit_i$table$Facteur == interaction_term, , drop = FALSE]
+                li <- hstat_art_ligne(fit_i, c(fvar1, fvar2))
                 if (nrow(li)) interaction_pvalue <- li$p_value[1]
+              } else {
+                shiny::showNotification(
+                  trf("Interaction %s x %s non testée : %s", fvar1, fvar2, fit_i$motif),
+                  type = "warning", duration = 10)
               }
             } else { 
               
@@ -6780,7 +6798,7 @@ mod_tests_server <- function(id, values) {
               for (level2 in levels_fvar2) {
                 res <- tryCatch(
                   perform_simple_effect_posthoc(df_temp, var, fvar1, fvar2, level2,
-                                                input$testType, test_m),
+                                                input$testType, test_m, art_fit = fit_i),
                   error = function(e) NULL
                 )
                 if (!is.null(res) && nrow(res) > 0) {
@@ -6816,7 +6834,7 @@ mod_tests_server <- function(id, values) {
               for (level1 in levels_fvar1) {
                 res <- tryCatch(
                   perform_simple_effect_posthoc(df_temp, var, fvar2, fvar1, level1,
-                                                input$testType, test_m),
+                                                input$testType, test_m, art_fit = fit_i),
                   error = function(e) NULL
                 )
                 if (!is.null(res) && nrow(res) > 0) {
