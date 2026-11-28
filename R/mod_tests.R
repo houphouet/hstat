@@ -3323,8 +3323,8 @@ mod_tests_server <- function(id, values) {
     }
     for (var in input$responseVar) {
       r <- tryCatch(une_variable(var), error = function(e) {
-        motif <- hstat_err_fr(e, var)
-        list(lignes = echec(var, motif), motifs = motif)
+        motif <- hstat_err_fr(e)
+        list(lignes = echec(var, motif), motifs = trf("%s : %s", var, motif))
       })
       results_list[[length(results_list) + 1L]] <- r$lignes
       motifs <- c(motifs, r$motifs)
@@ -3407,7 +3407,7 @@ mod_tests_server <- function(id, values) {
       }
       
       for (var in input$responseVar) {
-        if (!is.numeric(df[[var]])) df[[var]] <- suppressWarnings(as.numeric(df[[var]]))
+        if (!is.numeric(df[[var]])) df[[var]] <- hstat_reponse_numerique(df[[var]])
         if (all(is.na(df[[var]]))) {
           shiny::showNotification(trf("ANOVA : '%s' non numérique -- ignorée.", var), type = "warning", duration = 5)
           next
@@ -3931,7 +3931,7 @@ mod_tests_server <- function(id, values) {
     # Validation prealable : la famille est-elle compatible avec les
     # donnees ? --- Evite des messages d'erreur bruts de R (ex.
     fam_check <- function(var) {
-      y <- suppressWarnings(as.numeric(df[[var]]))
+      y <- hstat_reponse_numerique(df[[var]])
       y <- y[!is.na(y)]
       if (length(y) == 0) return(trf("« %s » : aucune valeur numérique exploitable.", var))
       rng <- range(y)
@@ -4152,7 +4152,7 @@ mod_tests_server <- function(id, values) {
         }
         
         for (var in input$responseVar) {
-          if (!is.numeric(df[[var]])) df[[var]] <- suppressWarnings(as.numeric(df[[var]]))
+          if (!is.numeric(df[[var]])) df[[var]] <- hstat_reponse_numerique(df[[var]])
           dsub <- df[, c(var, subj, all_fac), drop = FALSE]
           dsub <- dsub[stats::complete.cases(dsub), ]
           if (nrow(dsub) < 3) { shiny::showNotification(trf("rmANOVA (%s) : trop peu de données.", var), type = "warning"); next }
@@ -4293,7 +4293,7 @@ mod_tests_server <- function(id, values) {
         for (f in c(within, between)) if (!is.factor(df[[f]])) df[[f]] <- factor(df[[f]])
         
         for (var in input$responseVar) {
-          if (!is.numeric(df[[var]])) df[[var]] <- suppressWarnings(as.numeric(df[[var]]))
+          if (!is.numeric(df[[var]])) df[[var]] <- hstat_reponse_numerique(df[[var]])
           
           if (method == "art") {
             # ART : ANOVA sur rangs alignes, gere les plans factoriels intra/inter.
@@ -6180,7 +6180,7 @@ mod_tests_server <- function(id, values) {
     if (is.null(df_subset) || nrow(df_subset) < 3) return(NULL)
     
     if (!is.numeric(df_subset[[var]])) {
-      df_subset[[var]] <- suppressWarnings(as.numeric(df_subset[[var]]))
+      df_subset[[var]] <- hstat_reponse_numerique(df_subset[[var]])
     }
     df_subset <- df_subset[!is.na(df_subset[[var]]), ]
     if (nrow(df_subset) < 3) return(NULL)
@@ -6337,8 +6337,10 @@ mod_tests_server <- function(id, values) {
       shiny::updateRadioButtons(session, "testType", selected = new_type)
       # LE POST-HOC SUIT L'HYPOTHESE DE VARIANCE DU TEST GLOBAL.
       # Apres l'ART-ANOVA, le post-hoc est ART-C, protege par la meme ART-ANOVA.
-      tests_courants <- unique(values$testResultsDF$Test)
-      if (identical(tests_courants, "ART-ANOVA")) {
+      res_courants <- values$testResultsDF
+      # Une ligne d'echec ne porte aucun modele : seule une ART-ANOVA ajustee protege ART-C.
+      if (identical(unique(res_courants$Test), "ART-ANOVA") &&
+          any(is.finite(suppressWarnings(as.numeric(res_courants$p_value))))) {
         shiny::updateSelectInput(session, "multiTestNonParam", selected = "artc")
         shiny::showNotification(
           tr("ART-ANOVA : le post-hoc a été présélectionné sur ART-C, dont les lettres sont protégées par la même ART-ANOVA. Vous pouvez en choisir un autre."),
@@ -6514,7 +6516,7 @@ mod_tests_server <- function(id, values) {
         tryCatch({
           # Guard: variable réponse doit être numérique
           if (!is.numeric(df[[var]])) {
-            df[[var]] <- suppressWarnings(as.numeric(df[[var]]))
+            df[[var]] <- hstat_reponse_numerique(df[[var]])
             if (all(is.na(df[[var]]))) {
               shiny::showNotification(trf("Variable '%s' non convertible en numérique.", var), type="warning", duration=4)
               next
@@ -6655,7 +6657,7 @@ mod_tests_server <- function(id, values) {
               art_omni <- ph$omnibus
               # Les moyennes portent sur les lignes que le modele a vues.
               cc <- stats::complete.cases(df[, unique(c(var, input$multiFactor)), drop = FALSE]) &
-                is.finite(suppressWarnings(as.numeric(df[[var]])))
+                is.finite(hstat_reponse_numerique(df[[var]]))
               df_var <- df[cc, , drop = FALSE]
               df_var[[fvar]] <- droplevels(df_var[[fvar]])
             } else if (input$multiTestNonParam == "nemenyi") {

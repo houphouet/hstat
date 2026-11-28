@@ -27285,12 +27285,16 @@ test_that("ART-ANOVA : une variable qui lève dans le module n'emporte pas les a
   suppressMessages(hstat_installer_replis_ui())
   ou <- environment(mod_tests_server)
   while (!exists("hstat_art_anova", envir = ou, inherits = FALSE)) ou <- parent.env(ou)
-  vrai <- get("hstat_art_anova", envir = ou)
-  assign("hstat_art_anova", function(df, var, facteurs) {
-    if (identical(var, "z")) stop("panne simulee")
-    vrai(df, var, facteurs)
-  }, envir = ou)
-  on.exit(assign("hstat_art_anova", vrai, envir = ou), add = TRUE)
+  # trace() et non assign() : sous R CMD check, l'espace de noms est verrouillé.
+  trace("hstat_art_anova", where = ou, print = FALSE,
+        tracer = quote(if (identical(var, "z")) stop("panne simulee")))
+  on.exit(untrace("hstat_art_anova", where = ou), add = TRUE)
+  notes <- list()
+  testthat::local_mocked_bindings(
+    showNotification = function(ui, ...) { notes[[length(notes) + 1L]] <<- ui; invisible("id") },
+    .package = "shiny")
+  texte <- function() paste(vapply(notes, function(n)
+    paste(as.character(htmltools::renderTags(n)$html), collapse = ""), character(1)), collapse = "\n")
   set.seed(6)
   d <- expand.grid(A = c("a1", "a2", "a3"), B = c("b1", "b2"), r = 1:3, stringsAsFactors = FALSE)
   d$y <- stats::rnorm(nrow(d)); d$z <- stats::rnorm(nrow(d))
@@ -27305,4 +27309,81 @@ test_that("ART-ANOVA : une variable qui lève dans le module n'emporte pas les a
   expect_false(is.null(res))
   expect_equal(sum(res$Variable == "y"), 3L)
   expect_match(res$Interpretation[res$Variable == "z"], "panne simulee", fixed = TRUE)
+  # Le nom de la variable est dans sa colonne, pas répété dans l'interprétation.
+  expect_false(startsWith(res$Interpretation[res$Variable == "z"], "z :"))
+  expect_match(texte(), "z : ", fixed = TRUE)
+  # Aucun modèle ajusté : le post-hoc n'est pas présélectionné sur ART-C.
+  notes <- list()
+  d$w <- "texte"
+  v2 <- shiny::reactiveValues(data = d, cleanData = d, filteredData = d)
+  shiny::testServer(mod_tests_server, args = list(values = v2), {
+    vider <- function() try(session$flushReact(), silent = TRUE)
+    session$setInputs(responseVar = c("z", "w"), factorVar = c("A", "B")); vider()
+    session$setInputs(testART = 1); vider()
+  })
+  expect_false(grepl("présélectionné sur ART-C", texte(), fixed = TRUE))
+})
+
+test_that("Réponse lue par ses valeurs, marques d'absence écartées, p-value cohérente avec le verdict", {
+  # Un facteur se lit par ses étiquettes, une marque d'absence est un NA.
+  expect_equal(hstat_reponse_numerique(factor(c("-0.5", "0,2", "1.7"))), c(-0.5, 0.2, 1.7))
+  expect_equal(hstat_reponse_numerique(c("1", "-", "nd", "2,5", "abc")), c(1, NA, NA, 2.5, NA))
+  expect_equal(hstat_reponse_numerique(c(TRUE, FALSE)), c(1, 0))
+  expect_true(all(is.na(hstat_reponse_numerique(c("haut", "bas")))))
+  # Près du seuil, le chiffre écrit ne contredit pas le verdict.
+  expect_identical(hstat_p_egal(0.04996), "= 0.04996")
+  expect_identical(hstat_p_egal(0.05), "= 0.0500")
+  expect_identical(hstat_p_egal(0.0123), "= 0.0123")
+  expect_identical(hstat_p_egal(1e-20), "< 2.2e-16")
+  expect_false(grepl("0.0500", interpret_normality(0.04996), fixed = TRUE))
+  expect_false(grepl("= <", interpret_test_results("anova", 1e-20), fixed = TRUE))
+  expect_match(interpret_test_results("anova", 1e-20), "(p < 2.2e-16)", fixed = TRUE)
+  skip_if_not_installed("ARTool")
+  # 15 % de marques d'absence : les autres lignes s'analysent, les écartées se comptent.
+  set.seed(7)
+  d <- expand.grid(A = c("a1", "a2", "a3"), B = c("b1", "b2"), r = 1:4, stringsAsFactors = FALSE)
+  d$y <- format(round(stats::rnorm(nrow(d)) + as.integer(factor(d$A)), 2))
+  d$y[c(1, 8, 15, 22)] <- c("-", "nd", "-", "nd")
+  f <- hstat_art_anova(d, "y", c("A", "B"))
+  expect_true(f$ok)
+  expect_equal(f$prep$ecartees, 4L)
+})
+
+test_that("ART-C du post-hoc lit une réponse en facteur par ses valeurs", {
+  skip_if_not_installed("ARTool")
+  skip_if_not_installed("multcompView")
+  skip_if_not_installed("shinydashboard")
+  skip_if_not_installed("DT")
+  suppressMessages(hstat_installer_replis_ui())
+  set.seed(8)
+  d <- expand.grid(Dose = c(2, 5, 10), Bloc = c("b1", "b2"), r = 1:4, stringsAsFactors = FALSE)
+  # Un effet de la dose dans le seul bloc b1 : l'interaction ouvre les effets simples.
+  d$a <- round(stats::rnorm(nrow(d), sd = 0.3) + ifelse(d$Bloc == "b1", 2 * log(d$Dose), 0), 2) - 3
+  lancer <- function(dd) {
+    ph <- NULL
+    v <- shiny::reactiveValues(data = dd, cleanData = dd, filteredData = dd)
+    shiny::testServer(mod_tests_server, args = list(values = v), {
+      vider <- function() try(session$flushReact(), silent = TRUE)
+      session$setInputs(multiResponse = "a", multiFactor = c("Dose", "Bloc"),
+                        testType = "nonparam", multiTestNonParam = "artc",
+                        multiNonParamAdjust = "holm", multiProtege = FALSE,
+                        posthocInteraction = TRUE, multiRoundResults = FALSE); vider()
+      session$setInputs(runMultiple = 1); vider()
+      ph <<- values$multiResultsMain
+    })
+    ph
+  }
+  ref <- lancer(d)
+  df <- d; df$a <- factor(format(d$a))
+  fac <- lancer(df)
+  expect_false(is.null(ref))
+  expect_false(is.null(fac))
+  m_ref <- ref[ref$Type == "main" & ref$Facteur == "Dose", ]
+  m_fac <- fac[fac$Type == "main" & fac$Facteur == "Dose", ]
+  expect_true(any(as.numeric(m_ref$Moyenne) < 0))
+  expect_equal(as.numeric(m_fac$Moyenne), as.numeric(m_ref$Moyenne))
+  s_ref <- ref[ref$Type == "simple_effect", ]
+  s_fac <- fac[fac$Type == "simple_effect", ]
+  expect_gt(nrow(s_ref), 0L)
+  expect_equal(as.numeric(s_fac$Moyenne), as.numeric(s_ref$Moyenne))
 })
