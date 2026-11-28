@@ -12531,6 +12531,42 @@ attrapées :
 
 Piège du test : l'`html` rendu échappe « -> » en « -&gt; ».
 
+#### Quatrième revue (1.67.7)
+
+Six points de la revue de code, chacun gardé par un test, et quatre mutations
+attrapées.
+
+1. **Le post-hoc lisait encore une réponse en facteur par ses codes** : seul le
+   bouton ART-ANOVA avait été corrigé, si bien que les lettres d'ART-C portaient
+   sur 1, 2, 3 quand le tableau voisin portait sur −0,5, 0,2, 1,7.
+   `hstat_reponse_numerique()` (`R/utils.R`) est la seule lecture d'une réponse
+   dans `mod_tests.R` : un facteur par ses étiquettes, la virgule décimale lue,
+   un booléen en 0/1.
+2. **Une marque d'absence ne refuse plus la colonne entière.** `.hstat_art_donnees()`
+   passait par `hstat_as_numeric_fr()`, qui rend `NULL` sous 90 % de valeurs
+   lisibles : 15 % de « - » ou « nd » refusaient la réponse. Une valeur
+   illisible est désormais un NA, écarté et compté ; seule une colonne sans
+   aucun nombre est refusée.
+3. **Le test de la garde par variable écrivait dans l'espace de noms verrouillé**
+   (`assign()`), ce qui lève sous `R CMD check` avec ARTool installé. La panne
+   est simulée par `trace()`, qui sait poser un traceur sur une liaison
+   verrouillée.
+4. **Le chiffre écrit ne contredit plus le verdict.** `hstat_p_egal()` rend
+   « = 0.0123 » ou « < 2.2e-16 », et ajoute des décimales tant que la valeur
+   arrondie passerait de l'autre côté du seuil : p = 0,04996 s'écrivait
+   « 0.0500 » à côté de « différence significative ». Les dix-sept gabarits
+   passent de « (p = %s) » à « (p %s) », clés du dictionnaire comprises.
+5. **La présélection d'ART-C exige un modèle ajusté** : des lignes d'échec seules
+   portent aussi `Test = "ART-ANOVA"`, et la notification annonçait une
+   protection que rien n'assurait.
+6. **Le nom de la variable n'est plus écrit deux fois** sur une ligne d'échec :
+   il est dans sa colonne, et seule la notification le préfixe.
+
+Le doublon de `codes <-` signalé dans `hstat_art_ligne()` n'existait plus.
+Mutant équivalent, documenté : la conversion de la réponse dans
+`perform_simple_effect_posthoc()` ne change rien sur le chemin d'ART-C, la
+colonne y étant déjà convertie en amont. Elle reste pour les autres appelants.
+
 ## Vérification avec toutes les dépendances (1.67.4)
 
 Les 25 paquets suggérés absents du conteneur ont été installés : sept par apt,

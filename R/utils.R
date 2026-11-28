@@ -1256,6 +1256,21 @@ hstat_p_txt <- function(p, digits = 4) {
   }, character(1))
 }
 
+# Ce qui suit « p » dans une phrase : « = 0.0123 », ou « < 2.2e-16 ». Pres du
+# seuil, assez de decimales pour que le chiffre ecrit ne contredise pas le verdict.
+hstat_p_egal <- function(p, seuil = 0.05) {
+  p <- suppressWarnings(as.numeric(p)[1])
+  if (!is.finite(p)) return("= NA")
+  txt <- hstat_p_txt(p)
+  if (startsWith(txt, "<")) return(txt)
+  d <- 4L
+  while (d < 12L && ((p < seuil) != (as.numeric(txt) < seuil))) {
+    d <- d + 1L
+    txt <- formatC(p, format = "f", digits = d)
+  }
+  paste("=", txt)
+}
+
 # Une seule échelle de significativité, et traduite.
 hstat_p_niveau <- function(p) {
   p <- suppressWarnings(as.numeric(p)[1])
@@ -1273,19 +1288,19 @@ interpret_test_results <- function(test_type, p_value, test_object = NULL) {
   significance <- tr(if (p_value < 0.05) "significative" else "non significative",
                      hstat_langue_session())
   switch(test_type,
-         "t.test"           = trf("Le test t montre une différence %s entre les groupes (p = %s)", significance, hstat_p_txt(p_value)),
-         "wilcox.test"      = trf("Le test de Wilcoxon montre une différence %s entre les groupes (p = %s)", significance, hstat_p_txt(p_value)),
-         "anova"            = trf("L'ANOVA montre une différence %s entre les groupes (p = %s)", significance, hstat_p_txt(p_value)),
-         "friedman"         = trf("Le test de Friedman montre une différence %s entre les périodes (p = %s)", significance, hstat_p_txt(p_value)),
-         "durbin"           = trf("Le test de Durbin montre une différence %s entre les périodes (p = %s)", significance, hstat_p_txt(p_value)),
-         "kruskal.test"     = trf("Le test de Kruskal-Wallis montre une différence %s entre les groupes (p = %s)", significance, hstat_p_txt(p_value)),
-         "scheirerRayHare"  = trf("Le test de Scheirer-Ray-Hare montre une différence %s entre les groupes (p = %s)", significance, hstat_p_txt(p_value)),
-         "art"              = trf("L'ART-ANOVA montre une différence %s pour cet effet (p = %s)", significance, hstat_p_txt(p_value)),
-         "manova"           = trf("La MANOVA montre une différence multivariée %s entre les groupes (p = %s)", significance, hstat_p_txt(p_value)),
-         "permanova"        = trf("La PERMANOVA montre une différence multivariée %s entre les groupes (p = %s)", significance, hstat_p_txt(p_value)),
-         "chisq.test"       = trf("Le test du chi² montre une association %s entre les variables (p = %s)", significance, hstat_p_txt(p_value)),
-         "cor.test"         = trf("La corrélation est %s (p = %s)", significance, hstat_p_txt(p_value)),
-         trf("Le test %s montre un résultat %s (p = %s)", test_type, significance, hstat_p_txt(p_value))
+         "t.test"           = trf("Le test t montre une différence %s entre les groupes (p %s)", significance, hstat_p_egal(p_value)),
+         "wilcox.test"      = trf("Le test de Wilcoxon montre une différence %s entre les groupes (p %s)", significance, hstat_p_egal(p_value)),
+         "anova"            = trf("L'ANOVA montre une différence %s entre les groupes (p %s)", significance, hstat_p_egal(p_value)),
+         "friedman"         = trf("Le test de Friedman montre une différence %s entre les périodes (p %s)", significance, hstat_p_egal(p_value)),
+         "durbin"           = trf("Le test de Durbin montre une différence %s entre les périodes (p %s)", significance, hstat_p_egal(p_value)),
+         "kruskal.test"     = trf("Le test de Kruskal-Wallis montre une différence %s entre les groupes (p %s)", significance, hstat_p_egal(p_value)),
+         "scheirerRayHare"  = trf("Le test de Scheirer-Ray-Hare montre une différence %s entre les groupes (p %s)", significance, hstat_p_egal(p_value)),
+         "art"              = trf("L'ART-ANOVA montre une différence %s pour cet effet (p %s)", significance, hstat_p_egal(p_value)),
+         "manova"           = trf("La MANOVA montre une différence multivariée %s entre les groupes (p %s)", significance, hstat_p_egal(p_value)),
+         "permanova"        = trf("La PERMANOVA montre une différence multivariée %s entre les groupes (p %s)", significance, hstat_p_egal(p_value)),
+         "chisq.test"       = trf("Le test du chi² montre une association %s entre les variables (p %s)", significance, hstat_p_egal(p_value)),
+         "cor.test"         = trf("La corrélation est %s (p %s)", significance, hstat_p_egal(p_value)),
+         trf("Le test %s montre un résultat %s (p %s)", test_type, significance, hstat_p_egal(p_value))
   )
 }
 
@@ -1429,18 +1444,18 @@ hstat_glm_fit <- function(formula, data, family = stats::binomial(),
 interpret_normality <- function(p_value) {
   if (is.na(p_value)) return(tr("Résultat non disponible"))
   if (p_value >= 0.05) {
-    trf("Normalité non rejetée (p = %s >= 0.05) : les données sont compatibles avec une loi normale.", hstat_p_txt(p_value))
+    trf("Normalité non rejetée (p %s >= 0.05) : les données sont compatibles avec une loi normale.", hstat_p_egal(p_value))
   } else {
-    trf("La distribution n'est pas normale (p = %s < 0.05)", hstat_p_txt(p_value))
+    trf("La distribution n'est pas normale (p %s < 0.05)", hstat_p_egal(p_value))
   }
 }
 
 interpret_homogeneity <- function(p_value) {
   if (is.na(p_value)) return(tr("Résultat non disponible"))
   if (p_value >= 0.05) {
-    trf("Homogénéité des variances non rejetée (p = %s >= 0.05) : les variances sont compatibles entre groupes.", hstat_p_txt(p_value))
+    trf("Homogénéité des variances non rejetée (p %s >= 0.05) : les variances sont compatibles entre groupes.", hstat_p_egal(p_value))
   } else {
-    trf("Les variances ne sont pas homogènes (p = %s < 0.05)", hstat_p_txt(p_value))
+    trf("Les variances ne sont pas homogènes (p %s < 0.05)", hstat_p_egal(p_value))
   }
 }
 
@@ -1922,6 +1937,18 @@ viz_valid_date_fmt <- function(fmt) {
 
 # Conversion numerique tolerante : decimales a virgule (format FR), espaces
 # (separateurs de milliers, espaces insecables).
+# Une variable reponse lue comme une mesure : un facteur par ses valeurs, jamais
+# par ses codes de niveau, la virgule decimale lue, une marque d'absence (« - »,
+# « nd »...) comme toute valeur illisible rendue NA, pour etre ecartee et comptee.
+hstat_reponse_numerique <- function(x) {
+  if (is.numeric(x)) return(as.numeric(x))
+  if (is.logical(x)) return(as.numeric(x))
+  ch <- trimws(as.character(x))
+  ch <- gsub("[\u00a0\u202f[:space:]]", "", ch)
+  ch <- gsub(",", ".", ch, fixed = TRUE)
+  suppressWarnings(as.numeric(ch))
+}
+
 hstat_as_numeric_fr <- function(x) {
   if (is.numeric(x)) return(x)
   ch <- as.character(x)
@@ -3709,9 +3736,9 @@ HSTAT_ART_CELLULES_MAX <- 100L
     return(refus(tr("Colonnes introuvables dans les données.")))
   codes <- paste0("f", seq_along(facteurs))
   # Une reponse en facteur ou en texte se lit par ses valeurs, jamais par ses
-  # codes de niveau.
-  y <- hstat_as_numeric_fr(df[[var]])
-  if (is.null(y))
+  # codes de niveau ; une valeur illisible est ecartee et comptee.
+  y <- hstat_reponse_numerique(df[[var]])
+  if (all(is.na(y)))
     return(refus(trf("La variable réponse « %s » n'est pas numérique : l'ART-ANOVA analyse une mesure.", var)))
   d <- data.frame(y = y)
   for (k in seq_along(facteurs)) {
