@@ -27349,6 +27349,72 @@ test_that("Réponse lue par ses valeurs, marques d'absence écartées, p-value c
   expect_equal(f$prep$ecartees, 4L)
 })
 
+test_that("Réponse : dates, codes, Inf, part lisible, milliers et p au ras du seuil", {
+  # Une date se lit par son nombre de jours, une duree par sa valeur.
+  dt <- as.Date(c("2024-05-01", "2024-05-11"))
+  expect_equal(hstat_reponse_numerique(dt), as.numeric(dt))
+  ct <- as.POSIXct(c("2024-05-01 10:00", "2024-05-01 12:00"), tz = "UTC")
+  expect_equal(hstat_reponse_numerique(ct), as.numeric(ct))
+  expect_equal(hstat_reponse_numerique(as.difftime(c(3, 5), units = "days")), c(3, 5))
+  # Un code hexadecimal ou « Inf » n'est pas une mesure, dans les deux lectures.
+  expect_true(all(is.na(hstat_reponse_numerique(c("0x10", "0X2A", "Inf", "-Inf", "NaN")))))
+  expect_null(hstat_as_numeric_fr(c("0x10", "0x2A", "3")))
+  expect_equal(hstat_as_numeric_fr(c("1,5", "2", "3 000")), c(1.5, 2, 3000))
+  # Une seule lecture : la DL50 et les tests lisent pareil la meme cellule.
+  expect_equal(.hstat_dl50_nombres(c("1,5", "-", "nd", "2")), hstat_reponse_numerique(c("1,5", "-", "nd", "2")))
+  # Au ras du seuil, le verdict s'ecrit seul plutot qu'un chiffre qui le contredit.
+  expect_identical(hstat_p_egal(0.0499999999999995), "< 0.05")
+  expect_identical(hstat_p_egal(0.0099999999999995, seuil = 0.01), "< 0.01")
+  expect_false(grepl("0.0500", .hstat_ref_interp("Rdt", 0.04996, 12, 10, "two.sided"), fixed = TRUE))
+  expect_false(grepl("= <", .hstat_ref_interp("Rdt", 1e-20, 12, 10, "two.sided"), fixed = TRUE))
+  # Shapiro-Wilk par groupe lit un facteur par ses valeurs.
+  v <- c(-0.5, 0.2, 1.7, 3.1, -2.2, 0.9, 4.4, 1.1, 2.6, -1.3, 0.4, 5.2)
+  dn <- data.frame(y = v, f = rep(c("A", "B"), each = 6))
+  df_ <- data.frame(y = factor(format(v)), f = dn$f)
+  expect_equal(hstat_shapiro_groupes(df_, "y", "f")$p_value, hstat_shapiro_groupes(dn, "y", "f")$p_value)
+  skip_if_not_installed("ARTool")
+  # Une colonne de libelles ou quelques codes se glissent est refusee.
+  d <- expand.grid(A = c("a1", "a2", "a3"), B = c("b1", "b2"), r = 1:10, stringsAsFactors = FALSE)
+  d$Lieu <- rep(c("Bouake", "Korhogo", "Man", "Daloa", "Odienne", "Gagnoa"), 10)
+  d$Lieu[1:10] <- as.character(101:110)
+  f <- hstat_art_anova(d, "Lieu", c("A", "B"))
+  expect_false(f$ok)
+  expect_match(f$motif, "10 valeur(s) lisible(s) sur 60", fixed = TRUE)
+  # Une virgule suivie de trois chiffres est lue comme decimale, et comptee.
+  set.seed(3)
+  d$y <- sprintf("%d,%03d", sample(1:3, 60, TRUE), sample(0:999, 60, TRUE))
+  d$y[1:3] <- c("2,5", "1,25", "3")
+  g <- hstat_art_anova(d, "y", c("A", "B"))
+  expect_true(g$ok)
+  expect_equal(g$prep$milliers, 57L)
+})
+
+test_that("Le modèle mixte ajuste la colonne que la garde a jugée", {
+  skip_if_not_installed("shinydashboard")
+  skip_if_not_installed("lme4")
+  set.seed(42)
+  bloc <- rep(paste0("B", 1:4), each = 15)
+  trt  <- rep(rep(c("T0", "T1", "T2"), each = 5), 4)
+  y <- 5 + stats::rnorm(4, 0, 1.5)[as.integer(factor(bloc))] + c(T0 = 0, T1 = 1.2, T2 = 2)[trt] +
+    stats::rnorm(60, 0, 0.8)
+  df <- data.frame(Bloc = bloc, Traitement = trt,
+                   Rendement = sub(".", ",", format(round(y, 2)), fixed = TRUE),
+                   stringsAsFactors = FALSE)
+  suppressMessages(hstat_installer_replis_ui())
+  vals <- do.call(shiny::reactiveValues, hstat_valeurs_initiales())
+  vals$data <- df; vals$filteredData <- df
+  shiny::testServer(mod_tests_server, args = list(values = vals), {
+    session$setInputs(responseVar = "Rendement", factorVar = "Traitement",
+                      glmmEngine = "lme4", glmmFamily = "gaussian", glmmLink = "auto",
+                      glmmRandom = "Bloc", glmmRandomCustom = "", interaction = FALSE)
+    session$setInputs(testLMM = 1)
+    m <- values$currentModel
+    expect_false(is.null(m))
+    expect_equal(lme4::fixef(m)[["(Intercept)"]],
+                 mean(hstat_reponse_numerique(df$Rendement)[df$Traitement == "T0"]), tolerance = 0.5)
+  })
+})
+
 test_that("ART-C du post-hoc lit une réponse en facteur par ses valeurs", {
   skip_if_not_installed("ARTool")
   skip_if_not_installed("multcompView")
