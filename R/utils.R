@@ -1268,6 +1268,8 @@ hstat_p_egal <- function(p, seuil = 0.05) {
     d <- d + 1L
     txt <- formatC(p, format = "f", digits = d)
   }
+  # Trop pres du seuil pour qu'un arrondi le dise : le verdict s'ecrit seul.
+  if ((p < seuil) != (as.numeric(txt) < seuil)) return(paste("<", format(seuil)))
   paste("=", txt)
 }
 
@@ -1935,26 +1937,48 @@ viz_valid_date_fmt <- function(fmt) {
   !is.null(fmt) && nzchar(trimws(fmt)) && fmt %in% VIZ_DATE_FORMATS_VALID
 }
 
-# Conversion numerique tolerante : decimales a virgule (format FR), espaces
-# (separateurs de milliers, espaces insecables).
-# Une variable reponse lue comme une mesure : un facteur par ses valeurs, jamais
-# par ses codes de niveau, la virgule decimale lue, une marque d'absence (« - »,
-# « nd »...) comme toute valeur illisible rendue NA, pour etre ecartee et comptee.
-hstat_reponse_numerique <- function(x) {
-  if (is.numeric(x)) return(as.numeric(x))
-  if (is.logical(x)) return(as.numeric(x))
+# Marques d'absence usuelles d'un fichier saisi a la main : une case vide.
+# Part des valeurs renseignees qui doivent se lire comme des nombres.
+HSTAT_REPONSE_PART_LISIBLE <- 0.9
+
+HSTAT_ABSENCES <- c("-", "\u2013", "\u2014", ".", "na", "n/a", "nd", "n.d.", "nan")
+
+.hstat_sans_absences <- function(x) {
   ch <- trimws(as.character(x))
-  ch <- gsub("[\u00a0\u202f[:space:]]", "", ch)
-  ch <- gsub(",", ".", ch, fixed = TRUE)
-  suppressWarnings(as.numeric(ch))
+  ch[tolower(ch) %in% HSTAT_ABSENCES] <- NA_character_
+  ch
 }
 
+# Seule lecture d'un nombre ecrit en texte : virgule decimale (format FR),
+# espaces de milliers retires ; un code hexadecimal ou « Inf » n'est pas une mesure.
+.hstat_texte_nombre <- function(x) {
+  ch <- gsub("[\u00a0\u202f[:space:]]", "", as.character(x))
+  hexa <- grepl("^[+-]?0[xX]", ch)
+  out <- suppressWarnings(as.numeric(gsub(",", ".", ch, fixed = TRUE)))
+  out[hexa | !is.finite(out)] <- NA_real_
+  out
+}
+
+# Une variable reponse lue comme une mesure : une date par son nombre de jours,
+# un facteur par ses valeurs (jamais ses codes), une marque d'absence comme NA.
+.hstat_reponse_lecture <- function(x) {
+  if (inherits(x, c("Date", "POSIXt", "difftime")) || is.numeric(x) || is.logical(x)) {
+    y <- as.numeric(x)
+    return(list(y = y, renseignees = sum(!is.na(x)), milliers = 0L))
+  }
+  ch <- .hstat_sans_absences(x)
+  list(y = .hstat_texte_nombre(ch),
+       renseignees = sum(!is.na(ch) & nzchar(ch)),
+       milliers = sum(grepl("^[+-]?[0-9]{1,3},[0-9]{3}$", ch)))
+}
+
+hstat_reponse_numerique <- function(x) .hstat_reponse_lecture(x)$y
+
+# Conversion numerique tolerante d'une colonne entiere ; NULL sous 90 % de
+# valeurs lisibles : la colonne n'est alors pas une mesure.
 hstat_as_numeric_fr <- function(x) {
   if (is.numeric(x)) return(x)
-  ch <- as.character(x)
-  ch <- gsub("[\u00a0\u202f[:space:]]", "", ch)
-  ch <- gsub(",", ".", ch, fixed = TRUE)
-  out <- suppressWarnings(as.numeric(ch))
+  out <- .hstat_texte_nombre(x)
   n_src <- sum(!is.na(x) & nzchar(trimws(as.character(x))))
   if (n_src == 0) return(NULL)
   if (sum(!is.na(out)) / n_src < 0.9) return(NULL)
@@ -3494,7 +3518,7 @@ HSTAT_TESTS_WELCH <- c("t_welch", "anova_welch")
   if (!is.data.frame(df) || !NROW(df)) return(ko(tr("Aucune donnée : chargez un jeu de données.")))
   if (!all(c(var, fvar) %in% names(df)))
     return(ko(tr("Variable réponse ou facteur introuvable dans les données.")))
-  y <- suppressWarnings(as.numeric(df[[var]]))
+  y <- hstat_reponse_numerique(df[[var]])
   g <- droplevels(factor(as.character(df[[fvar]])))
   ok <- is.finite(y) & !is.na(g)
   y <- y[ok]; g <- droplevels(g[ok])
@@ -3580,7 +3604,7 @@ hstat_omnibus <- function(df, var, fvar, parametric = TRUE,
                ddl = NA_character_, message = NULL)
   if (!is.data.frame(df) || !NROW(df)) return(vide)
   if (!all(c(var, fvar) %in% names(df))) return(vide)
-  y <- suppressWarnings(as.numeric(df[[var]]))
+  y <- hstat_reponse_numerique(df[[var]])
   g <- droplevels(factor(as.character(df[[fvar]])))
   ok <- is.finite(y) & !is.na(g)
   y <- y[ok]; g <- droplevels(g[ok])
@@ -3737,9 +3761,12 @@ HSTAT_ART_CELLULES_MAX <- 100L
   codes <- paste0("f", seq_along(facteurs))
   # Une reponse en facteur ou en texte se lit par ses valeurs, jamais par ses
   # codes de niveau ; une valeur illisible est ecartee et comptee.
-  y <- hstat_reponse_numerique(df[[var]])
-  if (all(is.na(y)))
-    return(refus(trf("La variable réponse « %s » n'est pas numérique : l'ART-ANOVA analyse une mesure.", var)))
+  lu <- .hstat_reponse_lecture(df[[var]])
+  y <- lu$y
+  # Une colonne de libelles ou quelques nombres se glissent n'est pas une mesure.
+  if (all(is.na(y)) || sum(!is.na(y)) < HSTAT_REPONSE_PART_LISIBLE * lu$renseignees)
+    return(refus(trf("La variable réponse « %s » n'est pas numérique : %d valeur(s) lisible(s) sur %d renseignée(s). L'ART-ANOVA analyse une mesure.",
+                     var, sum(!is.na(y)), lu$renseignees)))
   d <- data.frame(y = y)
   for (k in seq_along(facteurs)) {
     x <- df[[facteurs[k]]]
@@ -3785,7 +3812,7 @@ HSTAT_ART_CELLULES_MAX <- 100L
     return(refus(trf("%d observations pour %d cellules : il faut des répétitions pour estimer l'erreur.",
                      nrow(d), ncell)))
   list(ok = TRUE, data = d, codes = codes, facteurs = facteurs,
-       niveaux = niveaux, ecartees = sum(!garde))
+       niveaux = niveaux, ecartees = sum(!garde), milliers = lu$milliers)
 }
 
 # Nom d'origine d'un terme code (« f1:f2 » -> « A:B »).
@@ -4674,7 +4701,7 @@ hstat_synthese_groupes <- function(df, vars, fvars, res, symbole,
       fac_res <- gsub("`", "", trimws(as.character(res$Facteur)), fixed = TRUE)
       r <- res[as.character(res$Variable) == v & fac_res == f, , drop = FALSE]
       if (!NROW(r)) next
-      y <- suppressWarnings(as.numeric(df[[v]]))
+      y <- hstat_reponse_numerique(df[[v]])
       ok <- is.finite(y) & !is.na(g) & garde
       if (!any(ok)) next
       gg <- droplevels(g[ok]); yy <- y[ok]
@@ -5272,7 +5299,7 @@ hstat_shapiro_groupes <- function(d, variables, facteurs,
   names(fac) <- facteurs
   lignes <- list()
   for (var in variables) {
-    y <- suppressWarnings(as.numeric(d[[var]]))
+    y <- hstat_reponse_numerique(d[[var]])
     # Le residu exige une cellule definie : une ligne a qui manque un facteur
     # n'en a pas, et sort du calcul des moyennes de cellule.
     ok_cell <- Reduce(`&`, lapply(fac, function(v) !is.na(v)), is.finite(y))
@@ -5330,13 +5357,13 @@ hstat_shapiro_groupes <- function(d, variables, facteurs,
   } else if (alternative == "greater") "supérieure" else "inférieure"
   if (sig)
     sprintf(paste0("%s : l'écart à la référence (%s) est significatif ",
-                   "(p = %s). La valeur observée (%s%s) est %s à la norme."),
-            label, format(mu), hstat_p_txt(p),
+                   "(p %s). La valeur observée (%s%s) est %s à la norme."),
+            label, format(mu), hstat_p_egal(p),
             format(round(estimate, digits)), unit, sens)
   else
     sprintf(paste0("%s : aucun écart significatif à la référence (%s) ",
-                   "(p = %s). Les données sont compatibles avec la norme."),
-            label, format(mu), hstat_p_txt(p))
+                   "(p %s). Les données sont compatibles avec la norme."),
+            label, format(mu), hstat_p_egal(p))
 }
 
 # Enveloppe de sortie commune.

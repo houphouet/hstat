@@ -1363,7 +1363,7 @@ hstat_gen_synthese_facteurs <- function(trait, direction = "augmenter",
       if (nzchar(cv$Detail) && grepl(tr("Meilleure modalité"), cv$Detail, fixed = TRUE)) lec <- cv$Detail
       aj(tr("Variable environnementale ou pratique"), cv$Variable, cv$Effet,
          cv$Effet_standardise, tr("Effet standardisé de la covariable"),
-         paste0("p = ", hstat_p_txt(cv$p)), lec)
+         paste("p", hstat_p_egal(cv$p, alpha)), lec)
     }
   }
   if (!is.null(pistes) && isTRUE(pistes$ok)) {
@@ -1400,7 +1400,7 @@ hstat_gen_synthese_facteurs <- function(trait, direction = "augmenter",
       aj(tr("Parent (aptitude générale)"), a$Parent[i],
          if (fav) tr("Favorable") else tr("Défavorable"), a$AGC[i],
          tr("Aptitude générale à la combinaison (AGC)"),
-         paste0("p = ", hstat_p_txt(a$p[i])),
+         paste("p", hstat_p_egal(a$p[i], alpha)),
          if (fav) trf("« %s » transmet à sa descendance une valeur élevée du caractère.", a$Parent[i])
          else trf("« %s » transmet à sa descendance une valeur dépréciée du caractère.", a$Parent[i]))
     }
@@ -2317,7 +2317,7 @@ hstat_gen_figure <- function(quoi, res, trait, opt = list(etiq = TRUE, taille = 
       ggplot2::ggplot(cv, ggplot2::aes(Effet_standardise, Variable, fill = Effet)) +
         ggplot2::geom_col(width = 0.7, alpha = al, colour = ct_col, linewidth = ct_lw) +
         ggplot2::geom_vline(xintercept = 0) +
-        ggplot2::geom_text(ggplot2::aes(label = paste0("p = ", hstat_p_txt(p)),
+        ggplot2::geom_text(ggplot2::aes(label = paste("p", vapply(p, hstat_p_egal, character(1), seuil = res$alpha %||% 0.05)),
                                         hjust = ifelse(Effet_standardise >= 0, -0.1, 1.1)), size = opt$taille * 0.9) +
         ggplot2::scale_x_continuous(expand = ggplot2::expansion(mult = 0.25)) +
         ggplot2::scale_fill_manual(values = stats::setNames(c(fav, def, C[["neutre"]], C[["neutre"]]),

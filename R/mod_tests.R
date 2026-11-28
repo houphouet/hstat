@@ -2464,7 +2464,7 @@ mod_tests_server <- function(id, values) {
         if (!is.null(par_groupe) && nrow(par_groupe) > 0) {
           results_list <- lapply(results_list, function(r) {
             r$Groupe <- tr("Ensemble (données brutes)")
-            r$n <- sum(is.finite(suppressWarnings(as.numeric(df_norm[[r$Variable[1]]]))))
+            r$n <- sum(is.finite(hstat_reponse_numerique(df_norm[[r$Variable[1]]])))
             r[, names(par_groupe), drop = FALSE]
           })
           results_list <- c(results_list, list(par_groupe))
@@ -3312,6 +3312,9 @@ mod_tests_server <- function(id, values) {
       tab <- fit$table
       m <- if (isTRUE(fit$prep$ecartees > 0))
         trf("%s : %d ligne(s) incomplète(s) écartée(s).", var, fit$prep$ecartees) else character(0)
+      if (isTRUE(fit$prep$milliers > 0))
+        m <- c(m, trf("%s : %d valeur(s) écrite(s) comme « 1,250 » lue(s) comme des décimales (1,25) ; vérifiez qu'il ne s'agit pas d'un séparateur de milliers.",
+                      var, fit$prep$milliers))
       lignes <- data.frame(
         Test = "ART-ANOVA", Variable = var, Facteur = tab$Facteur,
         Statistique = round(tab$Statistique, 4),
@@ -3964,6 +3967,8 @@ mod_tests_server <- function(id, values) {
       }
       msg
     }
+    # Le modele ajuste la colonne que la garde vient de juger.
+    for (var in input$responseVar) df[[var]] <- hstat_reponse_numerique(df[[var]])
     bad_msgs <- Filter(Negate(is.null), lapply(input$responseVar, fam_check))
     if (length(bad_msgs) > 0) {
       shiny::showNotification(bad_msgs[[1]], type = "error", duration = 12)
@@ -5901,7 +5906,7 @@ mod_tests_server <- function(id, values) {
     )
     
     sous_titre <- if (show_pval && !is.na(p_val))
-      paste0("p = ", hstat_p_txt(p_val)) else NULL
+      paste("p", hstat_p_egal(p_val)) else NULL
     
     lbl_fn <- function(val, grp) {
       s <- round(val, 2)
@@ -6597,7 +6602,7 @@ mod_tests_server <- function(id, values) {
             }
           } else {  # NON-PARAMÉTRIQUE
             df_var <- df[!is.na(df[[var]]), ]
-            if (!is.numeric(df_var[[var]])) df_var[[var]] <- suppressWarnings(as.numeric(df_var[[var]]))
+            if (!is.numeric(df_var[[var]])) df_var[[var]] <- hstat_reponse_numerique(df_var[[var]])
             if (!is.factor(df_var[[fvar]])) df_var[[fvar]] <- factor(as.character(df_var[[fvar]]))
             df_var[[fvar]] <- droplevels(df_var[[fvar]])
             if (nrow(df_var) < 4) { next }
@@ -6754,7 +6759,7 @@ mod_tests_server <- function(id, values) {
               if (!is.factor(df_temp[[.f]])) df_temp[[.f]] <- factor(df_temp[[.f]])
               df_temp[[.f]] <- droplevels(df_temp[[.f]])
             }
-            if (!is.numeric(df_temp[[var]])) df_temp[[var]] <- suppressWarnings(as.numeric(df_temp[[var]]))
+            if (!is.numeric(df_temp[[var]])) df_temp[[var]] <- hstat_reponse_numerique(df_temp[[var]])
             if (nrow(df_temp) < 4 || all(is.na(df_temp[[var]]))) {
               shiny::showNotification(trf("Interaction %s:%s -- données insuffisantes.", fvar1, fvar2), type="warning", duration=4)
               return(NULL)

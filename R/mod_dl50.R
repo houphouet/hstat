@@ -539,17 +539,9 @@ HSTAT_DL50_COLONNES_MOTIFS <- list(
 }
 
 # LES NOMBRES ECRITS EN TEXTE SONT DES NOMBRES.
-HSTAT_DL50_ABSENCES <- c("-", "\u2013", "\u2014", ".", "na", "n/a", "nd", "n.d.", "nan")
-
-.hstat_dl50_sans_absences <- function(x) {
-  ch <- trimws(as.character(x))
-  ch[tolower(ch) %in% HSTAT_DL50_ABSENCES] <- NA_character_
-  ch
-}
-
 .hstat_dl50_nombres <- function(x) {
   if (is.numeric(x)) return(as.numeric(x))
-  ch <- .hstat_dl50_sans_absences(x)
+  ch <- .hstat_sans_absences(x)
   hstat_as_numeric_fr(ch) %||% suppressWarnings(as.numeric(ch))
 }
 
@@ -557,7 +549,7 @@ HSTAT_DL50_ABSENCES <- c("-", "\u2013", "\u2014", ".", "na", "n/a", "nd", "n.d."
   if (!is.data.frame(d) || !ncol(d)) return(character(0))
   names(d)[vapply(d, function(x)
     is.numeric(x) || (!is.logical(x) &&
-                        !is.null(hstat_as_numeric_fr(.hstat_dl50_sans_absences(x)))),
+                        !is.null(hstat_as_numeric_fr(.hstat_sans_absences(x)))),
     logical(1))]
 }
 

@@ -10950,7 +10950,7 @@ absence. La feuille portait ses doses, et le module ne les voyait pas.
 
 `.hstat_dl50_colonnes_numeriques()` offre toute colonne que
 `hstat_as_numeric_fr()` sait lire, et `.hstat_dl50_nombres()` la convertit au
-calcul. Les marques d'absence usuelles (`HSTAT_DL50_ABSENCES` : « - », « NA »,
+calcul. Les marques d'absence usuelles (`HSTAT_ABSENCES`, `R/utils.R` : « - », « NA »,
 « nd »…) valent une case vide : comptées contre le seuil de 90 %, un seul « - »
 refusait une colonne de morts. Quand aucune colonne n'est lisible, une
 notification le dit au lieu de laisser trois listes vides sans un mot.
@@ -12566,6 +12566,42 @@ Le doublon de `codes <-` signalé dans `hstat_art_ligne()` n'existait plus.
 Mutant équivalent, documenté : la conversion de la réponse dans
 `perform_simple_effect_posthoc()` ne change rien sur le chemin d'ART-C, la
 colonne y étant déjà convertie en amont. Elle reste pour les autres appelants.
+
+#### Cinquième revue (1.67.8)
+
+Huit points de la revue de code sur 1.67.7, chacun gardé par un test, et sept
+mutations attrapées.
+
+1. **Une date redevenait NA.** `hstat_reponse_numerique()` passait une `Date`
+   ou un `POSIXct` par `as.character()` : une date de floraison — une réponse
+   courante d'essai — était écartée comme « non numérique » de l'ANOVA, des
+   mesures répétées et du post-hoc. Une date, une date-heure ou une durée se lit
+   par sa valeur (`as.numeric()`, jours ou secondes).
+2. **Le modèle mixte ajustait une autre colonne que celle jugée** : la garde de
+   famille lisait la réponse convertie, `lmer`/`glmer` la colonne brute. La
+   colonne est convertie une fois, avant la garde et l'ajustement.
+3. **L'ART-ANOVA acceptait une colonne de libellés où se glissent quelques
+   codes** (10 sur 60) et l'analysait sur ces seules lignes. Elle exige
+   `HSTAT_REPONSE_PART_LISIBLE` (90 %) des valeurs renseignées lisibles, les
+   marques d'absence n'y comptant pas, et le refus chiffre les deux.
+4. **Quatre « p = » écrivaient encore un chiffre contraire au verdict, ou
+   « p = < 2.2e-16 »** : l'interprétation du test à une norme, le sous-titre du
+   graphique du chi² et trois affichages de la sélection génétique. Tous passent
+   par `hstat_p_egal()`, au seuil α choisi pour la génétique (`res$alpha`).
+5. **Shapiro-Wilk par groupe, le décompte de la normalité, le test global qui
+   protège les lettres, la synthèse et deux chemins post-hoc** lisaient encore
+   un facteur par ses codes : tous passent par `hstat_reponse_numerique()`.
+6. **Une seule lecture d'un nombre écrit en texte.** `.hstat_texte_nombre()`
+   porte les espaces, la virgule et les refus ; `hstat_as_numeric_fr()`
+   (colonne entière, `NULL` sous 90 %) et `hstat_reponse_numerique()` (une
+   réponse) l'appellent. Les marques d'absence (`HSTAT_ABSENCES`,
+   `.hstat_sans_absences()`) quittent la DL50 pour le socle.
+7. **`hstat_p_egal()` s'arrêtait à douze décimales** : au-delà, il écrit
+   « < 0.05 » plutôt qu'un chiffre arrondi qui contredirait le verdict.
+8. **Un code hexadécimal (« 0x10 ») ou « Inf » n'est pas une mesure** : rendu
+   NA. Une virgule suivie d'exactement trois chiffres (« 1,250 ») reste une
+   décimale — c'est l'écriture française —, mais l'ART-ANOVA dit combien de
+   valeurs ont cette forme, au cas où ce serait un séparateur de milliers.
 
 ## Vérification avec toutes les dépendances (1.67.4)
 
