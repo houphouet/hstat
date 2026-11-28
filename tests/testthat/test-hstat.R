@@ -27383,10 +27383,47 @@ test_that("Réponse : dates, codes, Inf, part lisible, milliers et p au ras du s
   # Une virgule suivie de trois chiffres est lue comme decimale, et comptee.
   set.seed(3)
   d$y <- sprintf("%d,%03d", sample(1:3, 60, TRUE), sample(0:999, 60, TRUE))
-  d$y[1:3] <- c("2,5", "1,25", "3")
+  d$y[1:3] <- c("1,250", "2,500", "3")
   g <- hstat_art_anova(d, "y", c("A", "B"))
   expect_true(g$ok)
-  expect_equal(g$prep$milliers, 57L)
+  expect_equal(g$prep$milliers, 59L)
+  # « 0,125 » n'est jamais un separateur de milliers, et une decimale ailleurs
+  # (« 2,5 ») dit que la virgule de la colonne est decimale.
+  expect_equal(.hstat_virgule_milliers(c("0,125", "0,982", "-0,250")), 0L)
+  expect_equal(.hstat_virgule_milliers(c("1,250", "2,5", "3,125")), 0L)
+  expect_equal(.hstat_virgule_milliers(c("1,250", "12,500", "3")), 2L)
+})
+
+test_that("Variables réponse : dates et texte offerts et convertis ; p et norme au seuil choisi", {
+  d <- data.frame(Rdt = c("5,2", "6,1", "-", "7,3"), Flo = as.Date("2024-05-01") + 0:3,
+                  Lieu = c("Man", "Bouake", "Daloa", "Man"), Ok = c(TRUE, FALSE, TRUE, TRUE),
+                  N = 1:4, stringsAsFactors = FALSE)
+  expect_setequal(hstat_colonnes_mesurables(d), c("Rdt", "Flo", "N"))
+  cv <- hstat_reponses_converties(d, c("Rdt", "Flo", "Lieu"), sauf = "Lieu")
+  expect_equal(cv$Rdt, c(5.2, 6.1, NA, 7.3))
+  expect_equal(cv$Flo, as.numeric(d$Flo))
+  expect_identical(cv$Lieu, d$Lieu)
+  # Une valeur infinie n'est une mesure sous aucun type.
+  expect_equal(hstat_reponse_numerique(c(1, Inf, NaN)), c(1, NA, NA))
+  # La DL50 lit comme les tests, meme sous 90 % de valeurs lisibles.
+  x <- c("0x1A", "2,5", "Inf", "abc", "4")
+  expect_identical(.hstat_dl50_nombres(x), hstat_reponse_numerique(x))
+  # Une marque d'absence ne compte pas contre la part lisible d'une colonne.
+  expect_equal(hstat_as_numeric_fr(c("1", "-", "nd", "2,5")), c(1, NA, NA, 2.5))
+  # Au ras du seuil, le sens suit p ; aucun gabarit ne repete le seuil.
+  expect_identical(hstat_p_egal(0.0499999999999995), "< 0.05")
+  expect_identical(hstat_p_egal(0.0500000000000005, seuil = 0.0500000000000009), "< 0.0500000000000009")
+  expect_identical(hstat_p_egal(0.0500000000000009, seuil = 0.0500000000000005), ">= 0.0500000000000005")
+  expect_false(grepl("< 0.05 < 0.05", interpret_normality(0.0499999999999995), fixed = TRUE))
+  # Le test a une norme suit son niveau de confiance et se traduit.
+  set.seed(4)
+  x <- stats::rnorm(20, 10.5, 1)
+  p <- stats::t.test(x, mu = 10)$p.value
+  expect_true(p > 0.01 && p < 0.05)
+  r95 <- hstat_ref_test(x, mu = 10, method = "ttest", conf.level = 0.95)
+  r99 <- hstat_ref_test(x, mu = 10, method = "ttest", conf.level = 0.99)
+  expect_match(r95$interpretation, "est significatif", fixed = TRUE)
+  expect_match(r99$interpretation, "aucun écart significatif", fixed = TRUE)
 })
 
 test_that("Le modèle mixte ajuste la colonne que la garde a jugée", {
@@ -27410,8 +27447,9 @@ test_that("Le modèle mixte ajuste la colonne que la garde a jugée", {
     session$setInputs(testLMM = 1)
     m <- values$currentModel
     expect_false(is.null(m))
-    expect_equal(lme4::fixef(m)[["(Intercept)"]],
-                 mean(hstat_reponse_numerique(df$Rendement)[df$Traitement == "T0"]), tolerance = 0.5)
+    num <- df; num$Rendement <- hstat_reponse_numerique(num$Rendement)
+    ref <- lme4::lmer(Rendement ~ Traitement + (1 | Bloc), data = num)
+    expect_equal(unname(lme4::fixef(m)), unname(lme4::fixef(ref)), tolerance = 1e-6)
   })
 })
 

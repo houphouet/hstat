@@ -1269,7 +1269,8 @@ hstat_p_egal <- function(p, seuil = 0.05) {
     txt <- formatC(p, format = "f", digits = d)
   }
   # Trop pres du seuil pour qu'un arrondi le dise : le verdict s'ecrit seul.
-  if ((p < seuil) != (as.numeric(txt) < seuil)) return(paste("<", format(seuil)))
+  if ((p < seuil) != (as.numeric(txt) < seuil))
+    return(paste(if (p < seuil) "<" else ">=", format(seuil)))
   paste("=", txt)
 }
 
@@ -1446,18 +1447,18 @@ hstat_glm_fit <- function(formula, data, family = stats::binomial(),
 interpret_normality <- function(p_value) {
   if (is.na(p_value)) return(tr("Résultat non disponible"))
   if (p_value >= 0.05) {
-    trf("Normalité non rejetée (p %s >= 0.05) : les données sont compatibles avec une loi normale.", hstat_p_egal(p_value))
+    trf("Normalité non rejetée (p %s) : les données sont compatibles avec une loi normale.", hstat_p_egal(p_value))
   } else {
-    trf("La distribution n'est pas normale (p %s < 0.05)", hstat_p_egal(p_value))
+    trf("La distribution n'est pas normale (p %s)", hstat_p_egal(p_value))
   }
 }
 
 interpret_homogeneity <- function(p_value) {
   if (is.na(p_value)) return(tr("Résultat non disponible"))
   if (p_value >= 0.05) {
-    trf("Homogénéité des variances non rejetée (p %s >= 0.05) : les variances sont compatibles entre groupes.", hstat_p_egal(p_value))
+    trf("Homogénéité des variances non rejetée (p %s) : les variances sont compatibles entre groupes.", hstat_p_egal(p_value))
   } else {
-    trf("Les variances ne sont pas homogènes (p %s < 0.05)", hstat_p_egal(p_value))
+    trf("Les variances ne sont pas homogènes (p %s)", hstat_p_egal(p_value))
   }
 }
 
@@ -1937,10 +1938,10 @@ viz_valid_date_fmt <- function(fmt) {
   !is.null(fmt) && nzchar(trimws(fmt)) && fmt %in% VIZ_DATE_FORMATS_VALID
 }
 
-# Marques d'absence usuelles d'un fichier saisi a la main : une case vide.
 # Part des valeurs renseignees qui doivent se lire comme des nombres.
 HSTAT_REPONSE_PART_LISIBLE <- 0.9
 
+# Marques d'absence usuelles d'un fichier saisi a la main : une case vide.
 HSTAT_ABSENCES <- c("-", "\u2013", "\u2014", ".", "na", "n/a", "nd", "n.d.", "nan")
 
 .hstat_sans_absences <- function(x) {
@@ -1959,29 +1960,63 @@ HSTAT_ABSENCES <- c("-", "\u2013", "\u2014", ".", "na", "n/a", "nd", "n.d.", "na
   out
 }
 
+# Valeurs « 1,250 » qui pourraient porter un separateur de milliers : jamais
+# « 0,125 », et aucune si une autre virgule de la colonne est une decimale.
+.hstat_virgule_milliers <- function(ch) {
+  ch <- gsub("[\u00a0\u202f[:space:]]", "", ch[!is.na(ch)])
+  if (any(grepl(",([0-9]{1,2}|[0-9]{4,})$", ch))) return(0L)
+  sum(grepl("^[+-]?[1-9][0-9]{0,2},[0-9]{3}$", ch))
+}
+
 # Une variable reponse lue comme une mesure : une date par son nombre de jours,
-# un facteur par ses valeurs (jamais ses codes), une marque d'absence comme NA.
+# un facteur par ses valeurs (jamais ses codes), une marque d'absence comme NA ;
+# une valeur infinie n'est une mesure sous aucun type.
 .hstat_reponse_lecture <- function(x) {
   if (inherits(x, c("Date", "POSIXt", "difftime")) || is.numeric(x) || is.logical(x)) {
     y <- as.numeric(x)
+    y[!is.finite(y)] <- NA_real_
     return(list(y = y, renseignees = sum(!is.na(x)), milliers = 0L))
   }
   ch <- .hstat_sans_absences(x)
   list(y = .hstat_texte_nombre(ch),
        renseignees = sum(!is.na(ch) & nzchar(ch)),
-       milliers = sum(grepl("^[+-]?[0-9]{1,3},[0-9]{3}$", ch)))
+       milliers = .hstat_virgule_milliers(ch))
 }
 
 hstat_reponse_numerique <- function(x) .hstat_reponse_lecture(x)$y
 
-# Conversion numerique tolerante d'une colonne entiere ; NULL sous 90 % de
-# valeurs lisibles : la colonne n'est alors pas une mesure.
+# Une colonne qui se lit comme une mesure : nombres, dates, durees, ou texte
+# dont la part lisible atteint HSTAT_REPONSE_PART_LISIBLE.
+hstat_colonne_mesurable <- function(x) {
+  if (is.logical(x)) return(FALSE)
+  if (is.numeric(x) || inherits(x, c("Date", "POSIXt", "difftime"))) return(TRUE)
+  lu <- .hstat_reponse_lecture(x)
+  n <- sum(!is.na(lu$y))
+  n > 0 && n >= HSTAT_REPONSE_PART_LISIBLE * lu$renseignees
+}
+
+hstat_colonnes_mesurables <- function(df) {
+  if (!is.data.frame(df) || !ncol(df)) return(character(0))
+  names(df)[vapply(df, hstat_colonne_mesurable, logical(1))]
+}
+
+# Les variables reponse non numeriques converties ; un facteur choisi n'y passe pas.
+hstat_reponses_converties <- function(df, vars, sauf = character(0)) {
+  if (!is.data.frame(df)) return(df)
+  for (v in setdiff(intersect(as.character(vars), names(df)), as.character(sauf)))
+    if (!is.numeric(df[[v]])) df[[v]] <- hstat_reponse_numerique(df[[v]])
+  df
+}
+
+# Conversion numerique tolerante d'une colonne entiere ; NULL sous
+# HSTAT_REPONSE_PART_LISIBLE de valeurs lisibles, marques d'absence comprises.
 hstat_as_numeric_fr <- function(x) {
   if (is.numeric(x)) return(x)
-  out <- .hstat_texte_nombre(x)
-  n_src <- sum(!is.na(x) & nzchar(trimws(as.character(x))))
+  ch <- .hstat_sans_absences(x)
+  out <- .hstat_texte_nombre(ch)
+  n_src <- sum(!is.na(ch) & nzchar(ch))
   if (n_src == 0) return(NULL)
-  if (sum(!is.na(out)) / n_src < 0.9) return(NULL)
+  if (sum(!is.na(out)) / n_src < HSTAT_REPONSE_PART_LISIBLE) return(NULL)
   out
 }
 
@@ -5349,21 +5384,21 @@ hstat_shapiro_groupes <- function(d, variables, facteurs,
 
 # Interprétation rédigée d'un test de conformité.
 .hstat_ref_interp <- function(label, p, estimate, mu, alternative,
-                              unit = "", digits = 4) {
-  if (is.na(p)) return("Résultat non disponible")
-  sig <- p < 0.05
-  sens <- if (alternative == "two.sided") {
-    if (estimate > mu) "supérieure" else "inférieure"
-  } else if (alternative == "greater") "supérieure" else "inférieure"
-  if (sig)
-    sprintf(paste0("%s : l'écart à la référence (%s) est significatif ",
-                   "(p %s). La valeur observée (%s%s) est %s à la norme."),
-            label, format(mu), hstat_p_egal(p),
-            format(round(estimate, digits)), unit, sens)
+                              unit = "", digits = 4, alpha = 0.05) {
+  if (is.na(p)) return(tr("Résultat non disponible"))
+  if (!is.finite(alpha) || alpha <= 0 || alpha >= 1) alpha <- 0.05
+  superieure <- if (alternative == "two.sided") estimate > mu else alternative == "greater"
+  p_txt <- hstat_p_egal(p, alpha)
+  obs <- paste0(format(round(estimate, digits)), unit)
+  if (p >= alpha)
+    return(trf("%s : aucun écart significatif à la référence (%s) (p %s). Les données sont compatibles avec la norme.",
+               tr(label), format(mu), p_txt))
+  if (superieure)
+    trf("%s : l'écart à la référence (%s) est significatif (p %s). La valeur observée (%s) est supérieure à la norme.",
+        tr(label), format(mu), p_txt, obs)
   else
-    sprintf(paste0("%s : aucun écart significatif à la référence (%s) ",
-                   "(p %s). Les données sont compatibles avec la norme."),
-            label, format(mu), hstat_p_egal(p))
+    trf("%s : l'écart à la référence (%s) est significatif (p %s). La valeur observée (%s) est inférieure à la norme.",
+        tr(label), format(mu), p_txt, obs)
 }
 
 # Enveloppe de sortie commune.
@@ -5402,7 +5437,7 @@ hstat_ref_test <- function(x, mu = 0, method = "ttest",
     return(.hstat_ref_out(
       "Test t (1 échantillon)", unname(tr$statistic), unname(tr$parameter),
       tr$p.value, m, mu, tr$conf.int, d, "d de Cohen", alternative, n,
-      .hstat_ref_interp("Test t à un échantillon", tr$p.value, m, mu, alternative)))
+      .hstat_ref_interp(alpha = 1 - conf.level, "Test t à un échantillon", tr$p.value, m, mu, alternative)))
   }
 
   if (method == "ztest") {
@@ -5422,7 +5457,7 @@ hstat_ref_test <- function(x, mu = 0, method = "ttest",
     return(.hstat_ref_out(
       "Test z (1 échantillon, sigma connu)", z, NA_real_, p, m, mu, ci,
       (m - mu) / sigma, "d de Cohen", alternative, n,
-      .hstat_ref_interp("Test z à un échantillon", p, m, mu, alternative),
+      .hstat_ref_interp(alpha = 1 - conf.level, "Test z à un échantillon", p, m, mu, alternative),
       trf("Écart-type de référence sigma = %s.", format(sigma))))
   }
 
@@ -5441,7 +5476,7 @@ hstat_ref_test <- function(x, mu = 0, method = "ttest",
     return(.hstat_ref_out(
       "Wilcoxon signé (1 échantillon)", unname(tr$statistic), NA_real_,
       tr$p.value, med, mu, ci, r, "r (Z/racine(n))", alternative, n,
-      .hstat_ref_interp("Test des rangs signés de Wilcoxon", tr$p.value, med, mu,
+      .hstat_ref_interp(alpha = 1 - conf.level, "Test des rangs signés de Wilcoxon", tr$p.value, med, mu,
                         alternative),
       if (avec_ic)
         "Compare la médiane à la norme ; suppose une distribution symétrique."
@@ -5461,7 +5496,7 @@ hstat_ref_test <- function(x, mu = 0, method = "ttest",
       "Test du signe (1 échantillon)", k, NA_real_, tr$p.value, med, mu,
       c(NA_real_, NA_real_), unname(tr$estimate), "Proportion au-dessus de la norme",
       alternative, n,
-      .hstat_ref_interp("Test du signe", tr$p.value, med, mu, alternative),
+      .hstat_ref_interp(alpha = 1 - conf.level, "Test du signe", tr$p.value, med, mu, alternative),
       sprintf(paste0("%d valeurs au-dessus de la norme sur %d non nulles ",
                      "(%d ex aequo écartés). Aucune hypothèse de symétrie."),
               k, nn, n - nn)))
@@ -5484,7 +5519,7 @@ hstat_ref_test <- function(x, mu = 0, method = "ttest",
     return(.hstat_ref_out(
       "Chi² de conformité (variance)", chi2, dfree, p, s^2, sigma^2, ci,
       s^2 / sigma^2, "Rapport de variances", alternative, n,
-      .hstat_ref_interp("Test du Chi² de conformité d'une variance", p, s^2,
+      .hstat_ref_interp(alpha = 1 - conf.level, "Test du Chi² de conformité d'une variance", p, s^2,
                         sigma^2, alternative),
       "Test sensible à la non-normalité : vérifier la normalité au préalable."))
   }
@@ -5544,7 +5579,7 @@ hstat_ref_prop_test <- function(successes, n, p0 = 0.5, method = "binom",
     return(.hstat_ref_out(
       "Test de Poisson (taux vs référence)", round(successes), NA_real_, tr$p.value,
       rate, p0, tr$conf.int, rate / p0, "Rapport de taux", alternative, n,
-      .hstat_ref_interp("Test de conformité d'un taux", tr$p.value, rate, p0,
+      .hstat_ref_interp(alpha = 1 - conf.level, "Test de conformité d'un taux", tr$p.value, rate, p0,
                         alternative),
       "Suppose des événements indépendants et un taux constant."))
   }
@@ -5561,7 +5596,7 @@ hstat_ref_prop_test <- function(successes, n, p0 = 0.5, method = "binom",
     return(.hstat_ref_out(
       "Test binomial exact (proportion)", round(successes), NA_real_, tr$p.value,
       ph, p0, tr$conf.int, h, "h de Cohen", alternative, round(n),
-      .hstat_ref_interp("Test binomial exact", tr$p.value, ph, p0, alternative),
+      .hstat_ref_interp(alpha = 1 - conf.level, "Test binomial exact", tr$p.value, ph, p0, alternative),
       "Exact : valable quel que soit l'effectif."))
   }
 
@@ -5576,7 +5611,7 @@ hstat_ref_prop_test <- function(successes, n, p0 = 0.5, method = "binom",
       "Chi² de conformité (proportion)", unname(tr$statistic),
       unname(tr$parameter), tr$p.value, ph, p0, tr$conf.int, h, "h de Cohen",
       alternative, round(n),
-      .hstat_ref_interp("Test du Chi² de conformité d'une proportion",
+      .hstat_ref_interp(alpha = 1 - conf.level, "Test du Chi² de conformité d'une proportion",
                         tr$p.value, ph, p0, alternative),
       if (small)
         "Approximation normale peu fiable ici (n*p0 < 5) : préférer le test binomial exact."

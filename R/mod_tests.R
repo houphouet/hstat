@@ -2171,10 +2171,14 @@ mod_correlation_server <- function(id, values) {
 mod_tests_server <- function(id, values) {
   shiny::moduleServer(id, function(input, output, session) {
     ns <- session$ns
+    # Les données des tests, variables réponse lues comme des mesures.
+    .donnees_tests <- function()
+      hstat_reponses_converties(values$filteredData, input$responseVar, input$factorVar)
 
   output$responseVarSelect <- shiny::renderUI({
     shiny::req(values$filteredData)
-    num_cols <- names(values$filteredData)[vapply(values$filteredData, is.numeric, logical(1))]
+    # Une colonne de dates ou de nombres écrits en texte se lit comme une mesure.
+    num_cols <- hstat_colonnes_mesurables(values$filteredData)
     shiny::tagList(
       pickerInput(ns("responseVar"), "Variable(s) réponse :", 
                   choices = num_cols, 
@@ -2186,7 +2190,7 @@ mod_tests_server <- function(id, values) {
   })
   
   shiny::observeEvent(input$selectAllResponse, {
-    num_cols <- names(values$filteredData)[vapply(values$filteredData, is.numeric, logical(1))]
+    num_cols <- hstat_colonnes_mesurables(values$filteredData)
     updatePickerInput(session, "responseVar", selected = num_cols)
   })
   
@@ -2385,7 +2389,7 @@ mod_tests_server <- function(id, values) {
     
     results_list <- list()
     
-    df_norm <- values$filteredData
+    df_norm <- .donnees_tests()
     if (length(input$factorVar) > 0) {
       for (f in input$factorVar) {
         if (!is.null(df_norm[[f]]) && !is.factor(df_norm[[f]])) {
@@ -2495,7 +2499,7 @@ mod_tests_server <- function(id, values) {
     for (var in input$responseVar) {
       tryCatch({
         fvar <- input$factorVar[1]
-        data_hom <- values$filteredData
+        data_hom <- .donnees_tests()
         if (!is.factor(data_hom[[fvar]])) {
           if (inherits(data_hom[[fvar]], c("Date","POSIXct","POSIXlt"))) {
             data_hom[[fvar]] <- factor(format(data_hom[[fvar]], "%Y-%m-%d"))
@@ -2576,8 +2580,8 @@ mod_tests_server <- function(id, values) {
           next
         }
         
-        group1_data <- values$filteredData[values$filteredData[[fvar]] == factor_levels[1], var]
-        group2_data <- values$filteredData[values$filteredData[[fvar]] == factor_levels[2], var]
+        group1_data <- hstat_reponse_numerique(values$filteredData[values$filteredData[[fvar]] == factor_levels[1], var])
+        group2_data <- hstat_reponse_numerique(values$filteredData[values$filteredData[[fvar]] == factor_levels[2], var])
         
         group1_data <- group1_data[!is.na(group1_data)]
         group2_data <- group2_data[!is.na(group2_data)]
@@ -2961,7 +2965,7 @@ mod_tests_server <- function(id, values) {
   }
 
   .run_apparie <- function(methode) {
-    d0 <- values$filteredData
+    d0 <- .donnees_tests()
     if (is.null(d0)) {
       shiny::showNotification("Chargez d'abord des données.", type = "warning"); return()
     }
@@ -3110,7 +3114,7 @@ mod_tests_server <- function(id, values) {
     
     results_list <- list()
     
-    df_kw <- values$filteredData
+    df_kw <- .donnees_tests()
     fvar_kw <- input$factorVar[1]
     if (!is.factor(df_kw[[fvar_kw]])) {
       df_kw[[fvar_kw]] <- factor(
@@ -3177,7 +3181,7 @@ mod_tests_server <- function(id, values) {
     for (var in input$responseVar) {
       tryCatch({
         # Vérifier que les données sont valides + convertir les facteurs 
-        test_data <- values$filteredData[, c(var, input$factorVar), drop = FALSE]
+        test_data <- .donnees_tests()[, c(var, input$factorVar), drop = FALSE]
         for (f in input$factorVar) {
           if (!is.factor(test_data[[f]])) {
             test_data[[f]] <- factor(
@@ -3358,7 +3362,7 @@ mod_tests_server <- function(id, values) {
         type = "warning", duration = 10)
     results_list <- list()
     motifs <- character(0)
-    df <- values$filteredData
+    df <- .donnees_tests()
     for (var in input$responseVar) {
       r <- hstat_anova_welch(df, var, fvar)
       if (!isTRUE(is.finite(r$p))) {
@@ -3404,7 +3408,7 @@ mod_tests_server <- function(id, values) {
     model_list <- list()
     
     tryCatch({
-      df <- values$filteredData
+      df <- .donnees_tests()
       for (f in input$factorVar) {
         if (!is.factor(df[[f]])) df[[f]] <- factor(df[[f]])
       }
@@ -3505,7 +3509,7 @@ mod_tests_server <- function(id, values) {
     model_list <- list()
     
     tryCatch({
-      df <- values$filteredData
+      df <- .donnees_tests()
       # UN `tryCatch` QUI COUVRE LA BOUCLE EMPORTE TOUTE LA SORTIE.
       for (var in input$responseVar) tryCatch({
         formula_str <- paste0("`", var, "` ~ ", paste(sapply(input$factorVar, function(x) paste0("`", x, "`")), collapse = "+"))
@@ -3585,7 +3589,7 @@ mod_tests_server <- function(id, values) {
     model_list <- list()
     
     tryCatch({
-      df <- values$filteredData
+      df <- .donnees_tests()
       # Meme regle que la regression : une variable qui echoue ne doit pas
       # emporter les autres.
       for (var in input$responseVar) tryCatch({
@@ -3869,7 +3873,8 @@ mod_tests_server <- function(id, values) {
   .run_mixed <- function(lineaire = FALSE) {
     shiny::req(input$responseVar, input$factorVar)
     
-    df <- values$filteredData %||% values$cleanData %||% values$data
+    df <- hstat_reponses_converties(values$filteredData %||% values$cleanData %||% values$data,
+                                    input$responseVar, input$factorVar)
     if (is.null(df)) { shiny::showNotification("Aucune donnée disponible.", type = "error"); return() }
     
     rand_term <- glmm_random_term()
@@ -4090,7 +4095,8 @@ mod_tests_server <- function(id, values) {
   # ANOVA A MESURES REPETEES (parametrique).
   shiny::observeEvent(input$testRMAnova, {
     shiny::req(input$responseVar)
-    df <- values$filteredData %||% values$cleanData %||% values$data
+    df <- hstat_reponses_converties(values$filteredData %||% values$cleanData %||% values$data,
+                                    input$responseVar, input$factorVar)
     if (is.null(df)) { shiny::showNotification("Aucune donnée disponible.", type = "error"); return() }
     
     subj   <- input$rmSubject
@@ -4264,7 +4270,8 @@ mod_tests_server <- function(id, values) {
   #  NON PARAMETRIQUE A MESURES REPETEES : Friedman / Durbin / ART (+ post-hoc)
   shiny::observeEvent(input$testRMNonParam, {
     shiny::req(input$responseVar)
-    df <- values$filteredData %||% values$cleanData %||% values$data
+    df <- hstat_reponses_converties(values$filteredData %||% values$cleanData %||% values$data,
+                                    input$responseVar, input$factorVar)
     if (is.null(df)) { shiny::showNotification("Aucune donnée disponible.", type = "error"); return() }
     
     subj   <- input$rmSubject
@@ -5777,7 +5784,8 @@ mod_tests_server <- function(id, values) {
   }
 
   shiny::observeEvent(input$runChiSqTest, {
-    df <- values$filteredData %||% values$cleanData %||% values$data
+    df <- hstat_reponses_converties(values$filteredData %||% values$cleanData %||% values$data,
+                                    input$responseVar, input$factorVar)
     shiny::req(df)
     fvars <- intersect(input$factorVar, names(df))
     if (!length(fvars)) {
@@ -6491,7 +6499,7 @@ mod_tests_server <- function(id, values) {
     simple_effects_list <- list()
     # Precision des seules chaines « moyenne ± dispersion ».
     .dec_aff <- hstat_dec_affichage(input$multiRoundResults, input$multiDecimals)
-    df <- values$filteredData
+    df <- .donnees_tests()
     
     if (is.null(df) || nrow(df) == 0) {
       shiny::showNotification("Aucune donnée disponible pour l'analyse.", type="error", duration=5)
@@ -8369,6 +8377,7 @@ mod_tests_server <- function(id, values) {
       return(NULL)
     }
     posthoc_plot_msg(NULL)
+    plot_data[[resp_var]] <- hstat_reponse_numerique(plot_data[[resp_var]])
     
     # Theme de base choisi par l'utilisateur (viz_get_theme est le meme helper
     # que le module de visualisation : un theme ajoute la profite aux deux).

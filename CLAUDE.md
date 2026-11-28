@@ -12603,6 +12603,39 @@ mutations attrapées.
    décimale — c'est l'écriture française —, mais l'ART-ANOVA dit combien de
    valeurs ont cette forme, au cas où ce serait un séparateur de milliers.
 
+#### Sixième revue (1.67.9)
+
+Huit points de la revue de code sur 1.67.8, chacun gardé par un test.
+
+1. **Les colonnes de dates et de nombres écrits en texte n'étaient pas
+   proposées** : le sélecteur des variables réponse ne gardait que les colonnes
+   `is.numeric()`, si bien que les points 1 et 5 de la revue précédente ne
+   s'atteignaient que sous `testServer()`. `hstat_colonnes_mesurables()` offre
+   les nombres, les dates, les durées et le texte lisible à
+   `HSTAT_REPONSE_PART_LISIBLE` ; `hstat_reponses_converties()` convertit les
+   variables réponse choisies (jamais un facteur choisi) à l'entrée de chaque
+   test (`.donnees_tests()`), et le graphique post-hoc lit sa réponse de même.
+2. **L'alerte « 1,250 » visait toute valeur à trois décimales**, « 0,125 »
+   comprise. `.hstat_virgule_milliers()` exige un premier chiffre non nul et se
+   tait dès qu'une autre virgule de la colonne est une décimale (« 2,5 »).
+3. **Le repli de `hstat_p_egal()` écrivait toujours « < »** et doublait le
+   seuil des gabarits (« (p < 0.05 < 0.05) ») : il écrit « < » ou « >= »
+   selon p, et les quatre gabarits de normalité et d'homogénéité ne portent
+   plus « < 0.05 » / « >= 0.05 », clés du dictionnaire comprises.
+4. **L'interprétation du test à une norme** passe par `trf()` (deux phrases
+   entières, supérieure et inférieure) et juge au seuil `1 − conf.level` : à
+   99 %, p = 0,03 n'est plus « significatif ».
+5. **La DL50 lit les nombres comme les tests** : `.hstat_dl50_nombres()` passe
+   par `.hstat_texte_nombre()`, sans le repli `as.numeric()` qui lisait
+   « 0x1A » et perdait « 2,5 ». `hstat_as_numeric_fr()` ne compte plus une
+   marque d'absence contre la part lisible, et lit ce seuil dans
+   `HSTAT_REPONSE_PART_LISIBLE`.
+6. **Les commentaires des constantes** sont replacés sur la bonne.
+7. **Le test du modèle mixte** compare ses effets fixes à `lmer` ajusté sur la
+   colonne convertie, à 1e-6, au lieu d'une tolérance relative de 50 %.
+8. **Une valeur infinie n'est une mesure sous aucun type** : la branche
+   numérique la rend NA comme la branche texte.
+
 ## Vérification avec toutes les dépendances (1.67.4)
 
 Les 25 paquets suggérés absents du conteneur ont été installés : sept par apt,

@@ -541,8 +541,7 @@ HSTAT_DL50_COLONNES_MOTIFS <- list(
 # LES NOMBRES ECRITS EN TEXTE SONT DES NOMBRES.
 .hstat_dl50_nombres <- function(x) {
   if (is.numeric(x)) return(as.numeric(x))
-  ch <- .hstat_sans_absences(x)
-  hstat_as_numeric_fr(ch) %||% suppressWarnings(as.numeric(ch))
+  .hstat_texte_nombre(.hstat_sans_absences(x))
 }
 
 .hstat_dl50_colonnes_numeriques <- function(d) {
